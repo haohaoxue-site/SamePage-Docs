@@ -1,0 +1,17 @@
+{
+  "name": "@haohaoxue/samepage-domain",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --passWithNoTests"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

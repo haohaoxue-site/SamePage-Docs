@@ -1,0 +1,217 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum DocumentNodeStatus {
+  ACTIVE
+  LOCKED
+}
+
+enum DocumentNodeMemberRole {
+  VIEWER
+}
+
+enum DocumentSpaceScope {
+  PERSONAL
+  TEAM
+}
+
+enum AuthProvider {
+  GITHUB
+  LINUX_DO
+}
+
+model User {
+  id                 String             @id @default(uuid())
+  email              String?            @unique
+  displayName        String
+  avatarUrl          String?
+  status             UserStatus         @default(ACTIVE)
+  lastLoginAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  oauthAccounts      OauthAccount[]
+  refreshTokens      AuthRefreshToken[]
+  loginCodes         AuthLoginCode[]
+  userRoles          UserRole[]
+  ownedDocumentNodes DocumentNode[]     @relation("DocumentNodeOwner")
+  documentNodeMemberships DocumentNodeMember[]
+  adminAuditLogs     AdminAuditLog[]    @relation("AdminAuditLogActor")
+  updatedAiConfigs   SystemAiConfig[]   @relation("SystemAiConfigUpdater")
+}
+
+model OauthAccount {
+  id                    String       @id @default(uuid())
+  userId                String
+  provider              AuthProvider
+  providerUserId        String
+  providerUsername      String?
+  providerEmail         String?
+  providerEmailVerified Boolean?
+  rawProfile            Json?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+model AuthOauthState {
+  id           String       @id @default(uuid())
+  provider     AuthProvider
+  state        String       @unique
+  codeVerifier String
+  redirectUri  String
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime     @default(now())
+
+  @@index([provider, expiresAt])
+}
+
+model AuthRefreshToken {
+  id           String            @id @default(uuid())
+  userId        String
+  tokenHash     String            @unique
+  familyId      String
+  replacedById  String?
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  createdIp     String?
+  userAgent     String?
+  createdAt     DateTime          @default(now())
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy    AuthRefreshToken? @relation("RefreshTokenRotation", fields: [replacedById], references: [id])
+  rotatedFrom   AuthRefreshToken[] @relation("RefreshTokenRotation")
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+model AuthLoginCode {
+  id          String   @id @default(uuid())
+  userId      String
+  codeHash    String   @unique
+  redirectUri String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model Role {
+  id              String           @id @default(uuid())
+  code            String           @unique
+  name            String
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+}
+
+model Permission {
+  id              String           @id @default(uuid())
+  code            String           @unique
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model DocumentNode {
+  id        String           @id @default(uuid())
+  ownerId   String
+  parentId  String?
+  spaceScope DocumentSpaceScope @default(PERSONAL)
+  title     String
+  content   String           @default("")
+  summary   String           @default("")
+  status    DocumentNodeStatus @default(ACTIVE)
+  order     Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  owner     User             @relation("DocumentNodeOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  parent    DocumentNode?    @relation("DocumentNodeTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  DocumentNode[]   @relation("DocumentNodeTree")
+  members   DocumentNodeMember[]
+
+  @@index([ownerId])
+  @@index([parentId, order])
+  @@index([spaceScope, status])
+}
+
+model DocumentNodeMember {
+  nodeId     String
+  userId     String
+  role       DocumentNodeMemberRole
+  createdAt  DateTime           @default(now())
+  node       DocumentNode       @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([nodeId, userId])
+  @@index([userId])
+  @@index([role])
+}
+
+model SystemAiConfig {
+  id              String    @id @default(uuid())
+  enabled         Boolean   @default(false)
+  provider        String    @default("openai-compatible")
+  baseUrl         String
+  apiKey          String?
+  defaultModel    String?
+  updatedByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  updatedByUser   User?     @relation("SystemAiConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+}
+
+model AdminAuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String
+  action      String
+  targetType  String
+  targetId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actorUser   User     @relation("AdminAuditLogActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId])
+}

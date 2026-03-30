@@ -1,0 +1,93 @@
+:root {
+  /* Element Plus 主题系统变量覆盖 - 统一使用新设计的专业蓝 (#3370ff) 和灰阶 */
+  --el-color-primary: #3370ff;
+  --el-color-primary-light-3: #709bff;
+  --el-color-primary-light-5: #99b8ff;
+  --el-color-primary-light-7: #c2d5ff;
+  --el-color-primary-light-8: #d6e3ff;
+  --el-color-primary-light-9: #ebf1ff;
+  --el-color-primary-dark-2: #2b5eda;
+  
+  --el-color-success: #00b42a;
+  --el-color-warning: #ff7d00;
+  --el-color-danger: #f53f3f;
+  --el-color-info: #86909c;
+  
+  --el-bg-color: #ffffff;
+  --el-bg-color-overlay: #ffffff;
+  --el-border-color: #eff1f3;
+  --el-border-color-light: #f2f3f5;
+  
+  --el-border-radius-base: 6px;
+  --el-border-radius-small: 4px;
+  --el-border-radius-round: 20px;
+  
+  --el-text-color-primary: #1f2329;
+  --el-text-color-regular: #646a73;
+  --el-text-color-secondary: #8f959e;
+  --el-text-color-placeholder: #bbbfc4;
+  
+  /* 字体系统：优先使用 Inter 和系统默认无衬线字体 */
+  --el-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+  color: #1f2329;
+  background-color: #ffffff;
+  font-family: var(--el-font-family);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-color: #ffffff;
+}
+
+body {
+  color: #1f2329;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+a {
+  color: var(--el-color-primary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+a:hover {
+  color: var(--el-color-primary-light-3);
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #dfe1e6;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c1c7d0;
+}

@@ -1,0 +1,14 @@
+shellEmulator: true
+
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - 'chokidar@4.0.3'
+
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+overrides:
+  vite: npm:rolldown-vite@7.2.5
+onlyBuiltDependencies:
+  - '@swc/core'

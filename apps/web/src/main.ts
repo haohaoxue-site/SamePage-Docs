@@ -1,0 +1,19 @@
+import App from '@/App.vue'
+import { createAppRouter } from '@/router'
+import {
+  setupAssets,
+  setupCreateApp,
+  setupRouter,
+} from '@/setup'
+
+async function bootstrap() {
+  await setupAssets()
+
+  const app = setupCreateApp(App)
+  const router = createAppRouter()
+
+  await setupRouter(app, router)
+  app.mount('#app')
+}
+
+void bootstrap()
