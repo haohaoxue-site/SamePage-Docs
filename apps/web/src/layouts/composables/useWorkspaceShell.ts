@@ -1,4 +1,4 @@
-import type { WorkspaceNavigationItem } from '@/layouts/types'
+import type { WorkspaceNavigationItem } from '@/layouts/typing'
 import { useLocalStorage } from '@vueuse/core'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'samepage_workspace_sidebar_collapsed'
@@ -7,28 +7,36 @@ const navigationItems: WorkspaceNavigationItem[] = [
   {
     id: 'home',
     label: '主页',
-    icon: 'i-carbon-home',
+    icon: 'home',
+    iconCategory: 'nav',
+    activeIcon: 'home-active',
     description: '',
     to: '/home',
   },
   {
     id: 'chat',
     label: '聊天助手',
-    icon: 'i-carbon-chat-bot',
+    icon: 'chat',
+    iconCategory: 'nav',
+    activeIcon: 'chat-active',
     description: '',
     to: '/chat',
   },
   {
     id: 'docs',
     label: '文档',
-    icon: 'i-carbon-document-multiple-01',
+    icon: 'docs',
+    iconCategory: 'nav',
+    activeIcon: 'docs-active',
     description: '',
     to: '/docs',
   },
   {
     id: 'knowledge',
     label: '知识库',
-    icon: 'i-carbon-data-base',
+    icon: 'knowledge',
+    iconCategory: 'nav',
+    activeIcon: 'knowledge-active',
     description: '',
     to: '/knowledge',
   },

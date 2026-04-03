@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger'
-import { DocumentNodeStatus, UserStatus } from '@prisma/client'
+import { DocumentStatus, UserStatus } from '@prisma/client'
 import { Transform } from 'class-transformer'
 import {
   IsBoolean,
@@ -196,8 +196,8 @@ export class GovernanceSummaryDto {
   @ApiProperty()
   lockedDocuments!: number
 
-  @ApiProperty({ enum: DocumentNodeStatus })
-  lockedStatus!: DocumentNodeStatus
+  @ApiProperty({ enum: DocumentStatus })
+  lockedStatus!: DocumentStatus
 
   @ApiProperty()
   note!: string

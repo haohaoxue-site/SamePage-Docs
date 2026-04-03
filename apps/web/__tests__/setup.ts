@@ -1,9 +1,14 @@
+import type { DocumentSectionId } from '@haohaoxue/samepage-domain'
+import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
 import { config } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import { beforeEach, vi } from 'vitest'
 
-interface MockDocumentNode {
+/**
+ * 文档测试夹具。
+ */
+interface MockDocument {
   id: string
   title: string
   parentId: string | null
@@ -13,10 +18,13 @@ interface MockDocumentNode {
   updatedAt: string
   hasChildren: boolean
   hasContent: boolean
-  section: 'personal' | 'shared' | 'team'
+  section: DocumentSectionId
 }
 
-interface MockTreeNode {
+/**
+ * 文档树测试节点。
+ */
+interface MockDocumentItem {
   id: string
   title: string
   parentId: string | null
@@ -26,10 +34,10 @@ interface MockTreeNode {
   hasChildren: boolean
   hasContent: boolean
   sharedByDisplayName: string | null
-  children: MockTreeNode[]
+  children: MockDocumentItem[]
 }
 
-const initialMockNodes: MockDocumentNode[] = [
+const initialMockDocuments: MockDocument[] = [
   {
     id: 'welcome',
     title: '欢迎来到 SamePage',
@@ -44,7 +52,7 @@ const initialMockNodes: MockDocumentNode[] = [
     updatedAt: '2026-03-30T08:00:00.000Z',
     hasChildren: true,
     hasContent: true,
-    section: 'personal',
+    section: DOCUMENT_SECTION_ID.PERSONAL,
   },
   {
     id: 'product-brief',
@@ -59,7 +67,7 @@ const initialMockNodes: MockDocumentNode[] = [
     updatedAt: '2026-03-30T09:00:00.000Z',
     hasChildren: false,
     hasContent: true,
-    section: 'personal',
+    section: DOCUMENT_SECTION_ID.PERSONAL,
   },
   {
     id: 'meeting-notes',
@@ -74,76 +82,101 @@ const initialMockNodes: MockDocumentNode[] = [
     updatedAt: '2026-03-30T10:00:00.000Z',
     hasChildren: false,
     hasContent: true,
-    section: 'personal',
+    section: DOCUMENT_SECTION_ID.PERSONAL,
   },
 ]
 
-let mockNodes = initialMockNodes.map(node => ({ ...node }))
+let mockDocuments = initialMockDocuments.map(document => ({ ...document }))
 
-function buildTree(section: 'personal' | 'shared' | 'team') {
-  const sectionNodes = mockNodes.filter(node => node.section === section)
-  const nodeMap = new Map(sectionNodes.map(node => [node.id, {
-    ...node,
+function buildTree(section: DocumentSectionId) {
+  const sectionDocuments = mockDocuments.filter(document => document.section === section)
+  const documentMap = new Map(sectionDocuments.map(document => [document.id, {
+    ...document,
     sharedByDisplayName: null,
-    children: [] as MockTreeNode[],
+    children: [] as MockDocumentItem[],
   }]))
 
-  for (const node of nodeMap.values()) {
-    if (node.parentId && nodeMap.has(node.parentId)) {
-      nodeMap.get(node.parentId)!.children.push(node)
+  for (const document of documentMap.values()) {
+    if (document.parentId && documentMap.has(document.parentId)) {
+      documentMap.get(document.parentId)!.children.push(document)
     }
   }
 
-  return sectionNodes
-    .filter(node => !node.parentId || !nodeMap.has(node.parentId))
-    .map(node => nodeMap.get(node.id)!)
+  return sectionDocuments
+    .filter(document => !document.parentId || !documentMap.has(document.parentId))
+    .map(document => documentMap.get(document.id)!)
 }
 
-function findNodeById(id: string) {
-  return mockNodes.find(node => node.id === id) ?? null
+function findDocumentById(id: string) {
+  return mockDocuments.find(document => document.id === id) ?? null
 }
 
-function nextNodeId() {
-  return `node-${mockNodes.length + 1}`
+function nextDocumentId() {
+  return `document-${mockDocuments.length + 1}`
+}
+
+function buildRecentAncestorTitles(document: MockDocument) {
+  const ancestorTitles: string[] = []
+  let currentDocument = document.parentId
+    ? findDocumentById(document.parentId)
+    : null
+
+  while (currentDocument && currentDocument.section === document.section) {
+    ancestorTitles.unshift(currentDocument.title)
+    currentDocument = currentDocument.parentId
+      ? findDocumentById(currentDocument.parentId)
+      : null
+  }
+
+  return ancestorTitles
 }
 
 vi.mock('@/apis/document', () => ({
-  getDocumentTree: vi.fn(async () => ([
+  getDocuments: vi.fn(async () => ([
     {
-      id: 'personal',
+      id: DOCUMENT_SECTION_ID.PERSONAL,
       label: '当前用户',
-      nodes: buildTree('personal'),
+      nodes: buildTree(DOCUMENT_SECTION_ID.PERSONAL),
     },
     {
-      id: 'shared',
+      id: DOCUMENT_SECTION_ID.SHARED,
       label: '分享',
-      nodes: buildTree('shared'),
+      nodes: buildTree(DOCUMENT_SECTION_ID.SHARED),
     },
     {
-      id: 'team',
+      id: DOCUMENT_SECTION_ID.TEAM,
       label: '团队',
-      nodes: buildTree('team'),
+      nodes: buildTree(DOCUMENT_SECTION_ID.TEAM),
     },
   ])),
-  listRecentDocumentNodes: vi.fn(async () =>
-    mockNodes
-      .filter(node => node.hasContent)
-      .map(({ content: _content, parentId: _parentId, hasChildren: _hasChildren, hasContent: _hasContent, section: _section, ...node }) => node)),
-  getDocumentNodeById: vi.fn(async (id: string) => {
-    const node = findNodeById(id)
+  getRecentDocuments: vi.fn(async () =>
+    mockDocuments
+      .filter(document => document.hasContent)
+      .map(document => ({
+        id: document.id,
+        title: document.title,
+        section: document.section,
+        createdAt: document.createdAt,
+        updatedAt: document.updatedAt,
+        ancestorTitles: buildRecentAncestorTitles(document),
+      }))),
+  getDocumentById: vi.fn(async (id: string) => {
+    const document = findDocumentById(id)
 
-    if (!node) {
-      throw new Error(`Document node ${id} not found`)
+    if (!document) {
+      const error = new Error(`Document ${id} not found`) as Error & { status?: number }
+      error.status = 404
+      throw error
     }
 
     return {
-      ...node,
+      ...document,
       scope: 'PERSONAL',
     }
   }),
-  createDocumentNode: vi.fn(async (payload: { title: string, content?: string, parentId?: string | null }) => {
-    const createdNode: MockDocumentNode = {
-      id: nextNodeId(),
+  createDocument: vi.fn(async (payload: { title: string, content?: string, parentId?: string | null }) => {
+    const createdDocument: MockDocument = {
+      id: nextDocumentId(),
       title: payload.title,
       parentId: payload.parentId ?? null,
       content: payload.content ?? '',
@@ -152,25 +185,25 @@ vi.mock('@/apis/document', () => ({
       updatedAt: '2026-03-30T11:00:00.000Z',
       hasChildren: false,
       hasContent: Boolean((payload.content ?? '').replace(/<[^>]+>/g, '').trim()),
-      section: 'personal',
+      section: DOCUMENT_SECTION_ID.PERSONAL,
     }
 
-    mockNodes.push(createdNode)
+    mockDocuments.push(createdDocument)
 
     return {
-      ...createdNode,
+      ...createdDocument,
       scope: 'PERSONAL',
     }
   }),
-  saveDocumentNode: vi.fn(async (id: string, payload: { title: string, content: string }) => {
-    const nodeIndex = mockNodes.findIndex(node => node.id === id)
+  updateDocument: vi.fn(async (id: string, payload: { title: string, content: string }) => {
+    const documentIndex = mockDocuments.findIndex(document => document.id === id)
 
-    if (nodeIndex < 0) {
-      throw new Error(`Document node ${id} not found`)
+    if (documentIndex < 0) {
+      throw new Error(`Document ${id} not found`)
     }
 
-    mockNodes[nodeIndex] = {
-      ...mockNodes[nodeIndex],
+    mockDocuments[documentIndex] = {
+      ...mockDocuments[documentIndex],
       title: payload.title,
       content: payload.content,
       summary: payload.content.replace(/<[^>]+>/g, '').trim() || '暂无摘要',
@@ -179,7 +212,7 @@ vi.mock('@/apis/document', () => ({
     }
 
     return {
-      ...mockNodes[nodeIndex],
+      ...mockDocuments[documentIndex],
       scope: 'PERSONAL',
     }
   }),
@@ -187,7 +220,7 @@ vi.mock('@/apis/document', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockNodes = initialMockNodes.map(node => ({ ...node }))
+  mockDocuments = initialMockDocuments.map(document => ({ ...document }))
   window.localStorage.clear()
   window.sessionStorage.clear()
 

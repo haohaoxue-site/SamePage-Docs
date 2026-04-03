@@ -1,29 +1,31 @@
 <script setup lang="ts">
-import type { HomeOverviewModel } from '../typing'
+import type { HomeWelcomePanelProps } from '../typing'
 
-defineProps<{
-  overview: HomeOverviewModel
-}>()
+defineProps<HomeWelcomePanelProps>()
 </script>
 
 <template>
   <ElCard
     shadow="never"
-    body-class="!p-8"
-    class="home-welcome-card !rounded-[32px] !border-none overflow-hidden text-white shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
+    body-class="home-welcome-panel__body"
+    class="home-welcome-panel"
   >
-    <div class="flex flex-wrap items-start justify-between gap-6">
-      <div class="max-w-2xl">
-        <h1 class="text-4xl font-bold tracking-tight text-balance">
+    <div class="home-welcome-panel__layout">
+      <div class="home-welcome-panel__copy">
+        <h1 class="home-welcome-panel__title">
           {{ overview.title }}
         </h1>
-        <p v-if="overview.description" class="mt-4 max-w-xl text-base leading-relaxed text-white/72">
+
+        <p v-if="overview.description" class="home-welcome-panel__description">
           {{ overview.description }}
         </p>
       </div>
 
-      <div class="rounded-[28px] border border-white/10 bg-white/8 px-5 py-4 backdrop-blur-sm">
-        <div class="text-lg font-semibold text-white">
+      <div class="home-welcome-panel__date-card">
+        <div class="home-welcome-panel__date-label">
+          今日
+        </div>
+        <div class="home-welcome-panel__date-value">
           {{ overview.dateLabel }}
         </div>
       </div>
@@ -32,7 +34,75 @@ defineProps<{
 </template>
 
 <style scoped lang="scss">
-.home-welcome-card {
-  background: linear-gradient(135deg, #101828 0%, #1f2937 50%, #334155 100%);
+.home-welcome-panel {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--brand-border-base) 60%, transparent);
+  border-radius: 2rem !important;
+  background-image: linear-gradient(
+    135deg,
+    var(--brand-bg-surface-raised) 0%,
+    color-mix(in srgb, var(--brand-bg-surface) 78%, var(--brand-bg-body)) 100%
+  );
+  box-shadow: var(--brand-shadow-floating);
+
+  :deep(.home-welcome-panel__body) {
+    padding: 2rem !important;
+  }
+
+  .home-welcome-panel__layout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    color: var(--brand-text-primary);
+  }
+
+  .home-welcome-panel__copy {
+    max-width: 42rem;
+  }
+
+  .home-welcome-panel__title {
+    margin-top: 0.75rem;
+    color: var(--brand-text-primary);
+    font-size: 2.25rem;
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+    text-wrap: balance;
+    font-family: 'Inter', -apple-system, sans-serif;
+  }
+
+  .home-welcome-panel__description {
+    max-width: 36rem;
+    margin-top: 1rem;
+    color: var(--brand-text-regular);
+    font-size: 15px;
+    line-height: 1.75rem;
+  }
+
+  .home-welcome-panel__date-card {
+    padding: 1rem 1.25rem;
+    border: 1px solid color-mix(in srgb, var(--brand-border-base) 70%, transparent);
+    border-radius: 24px;
+    background: color-mix(in srgb, var(--brand-bg-surface-raised) 80%, transparent);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--brand-shadow-floating);
+  }
+
+  .home-welcome-panel__date-label {
+    color: var(--brand-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .home-welcome-panel__date-value {
+    margin-top: 0.5rem;
+    color: var(--brand-text-primary);
+    font-size: 1.125rem;
+    font-weight: 600;
+    text-align: right;
+  }
 }
 </style>

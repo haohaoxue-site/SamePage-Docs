@@ -11,12 +11,12 @@ enum UserStatus {
   DISABLED
 }
 
-enum DocumentNodeStatus {
+enum DocumentStatus {
   ACTIVE
   LOCKED
 }
 
-enum DocumentNodeMemberRole {
+enum DocumentMemberRole {
   VIEWER
 }
 
@@ -30,6 +30,11 @@ enum AuthProvider {
   LINUX_DO
 }
 
+enum ChatSessionMessageRole {
+  USER
+  ASSISTANT
+}
+
 model User {
   id                 String             @id @default(uuid())
   email              String?            @unique
@@ -39,14 +44,16 @@ model User {
   lastLoginAt        DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
+  deletedAt          DateTime?
   oauthAccounts      OauthAccount[]
   refreshTokens      AuthRefreshToken[]
   loginCodes         AuthLoginCode[]
   userRoles          UserRole[]
-  ownedDocumentNodes DocumentNode[]     @relation("DocumentNodeOwner")
-  documentNodeMemberships DocumentNodeMember[]
-  adminAuditLogs     AdminAuditLog[]    @relation("AdminAuditLogActor")
-  updatedAiConfigs   SystemAiConfig[]   @relation("SystemAiConfigUpdater")
+  ownedDocuments       Document[]      @relation("DocumentOwner")
+  documentMemberships DocumentMember[]
+  chatSessions         ChatSession[]
+  adminAuditLogs       AdminAuditLog[] @relation("AdminAuditLogActor")
+  updatedAiConfigs     SystemAiConfig[] @relation("SystemAiConfigUpdater")
 }
 
 model OauthAccount {
@@ -60,6 +67,7 @@ model OauthAccount {
   rawProfile            Json?
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
+  deletedAt             DateTime?
   user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerUserId])
@@ -75,6 +83,8 @@ model AuthOauthState {
   expiresAt    DateTime
   consumedAt   DateTime?
   createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
 
   @@index([provider, expiresAt])
 }
@@ -90,6 +100,8 @@ model AuthRefreshToken {
   createdIp     String?
   userAgent     String?
   createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  deletedAt     DateTime?
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   replacedBy    AuthRefreshToken? @relation("RefreshTokenRotation", fields: [replacedById], references: [id])
   rotatedFrom   AuthRefreshToken[] @relation("RefreshTokenRotation")
@@ -107,6 +119,8 @@ model AuthLoginCode {
   expiresAt   DateTime
   consumedAt  DateTime?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
@@ -119,6 +133,7 @@ model Role {
   description     String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
   rolePermissions RolePermission[]
   userRoles       UserRole[]
 }
@@ -129,12 +144,16 @@ model Permission {
   description     String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
   rolePermissions RolePermission[]
 }
 
 model RolePermission {
   roleId       String
   permissionId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
   role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
@@ -144,7 +163,9 @@ model RolePermission {
 model UserRole {
   userId     String
   roleId     String
-  assignedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
@@ -152,37 +173,41 @@ model UserRole {
   @@index([roleId])
 }
 
-model DocumentNode {
-  id        String           @id @default(uuid())
-  ownerId   String
-  parentId  String?
+model Document {
+  id         String             @id @default(uuid())
+  ownerId    String
+  parentId   String?
   spaceScope DocumentSpaceScope @default(PERSONAL)
-  title     String
-  content   String           @default("")
-  summary   String           @default("")
-  status    DocumentNodeStatus @default(ACTIVE)
-  order     Int              @default(0)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  owner     User             @relation("DocumentNodeOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  parent    DocumentNode?    @relation("DocumentNodeTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children  DocumentNode[]   @relation("DocumentNodeTree")
-  members   DocumentNodeMember[]
+  title      String
+  content    String             @default("")
+  summary    String             @default("")
+  status     DocumentStatus     @default(ACTIVE)
+  order      Int                @default(0)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  deletedAt  DateTime?
+  owner      User               @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  parent     Document?          @relation("DocumentTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Document[]         @relation("DocumentTree")
+  members    DocumentMember[]
+  ydoc       DocumentYdoc?
 
   @@index([ownerId])
   @@index([parentId, order])
   @@index([spaceScope, status])
 }
 
-model DocumentNodeMember {
-  nodeId     String
+model DocumentMember {
+  documentId String
   userId     String
-  role       DocumentNodeMemberRole
+  role       DocumentMemberRole
   createdAt  DateTime           @default(now())
-  node       DocumentNode       @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  updatedAt  DateTime           @updatedAt
+  deletedAt  DateTime?
+  document   Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
   user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([nodeId, userId])
+  @@id([documentId, userId])
   @@index([userId])
   @@index([role])
 }
@@ -197,9 +222,47 @@ model SystemAiConfig {
   updatedByUserId String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
   updatedByUser   User?     @relation("SystemAiConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@index([updatedByUserId])
+}
+
+model ChatSession {
+  id        String               @id @default(uuid())
+  userId    String
+  title     String
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  deletedAt DateTime?
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatSessionMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model ChatSessionMessage {
+  id        String                 @id @default(uuid())
+  sessionId String
+  role      ChatSessionMessageRole
+  content   String
+  order     Int
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  deletedAt DateTime?
+  session   ChatSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, order])
+  @@index([sessionId, createdAt])
+}
+
+model DocumentYdoc {
+  documentId String   @id
+  data       Bytes
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
 model AdminAuditLog {
@@ -210,6 +273,8 @@ model AdminAuditLog {
   targetId    String?
   metadata    Json?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
   actorUser   User     @relation("AdminAuditLogActor", fields: [actorUserId], references: [id], onDelete: Cascade)
 
   @@index([actorUserId, createdAt])

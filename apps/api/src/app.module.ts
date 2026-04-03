@@ -6,6 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
 import { LoggerModule } from 'nestjs-pino'
 import { jwtConfig, oauthConfig } from './config/auth.config'
 import { bootstrapConfig } from './config/bootstrap.config'
+import { cryptoConfig } from './config/crypto.config'
 import { databaseConfig } from './config/database.config'
 import { validateEnv } from './config/env.schema'
 import { loggerConfig } from './config/logger.config'
@@ -15,6 +16,7 @@ import { PrismaModule } from './database/prisma.module'
 import { AccessTokenGuard } from './guards/access-token.guard'
 import { PermissionsGuard } from './guards/permissions.guard'
 import { AuthModule } from './modules/auth/auth.module'
+import { ChatModule } from './modules/chat/chat.module'
 import { DocumentsModule } from './modules/documents/documents.module'
 import { HealthModule } from './modules/health/health.module'
 import { RbacModule } from './modules/rbac/rbac.module'
@@ -25,7 +27,7 @@ import { UsersModule } from './modules/users/users.module'
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [serverConfig, swaggerConfig, loggerConfig, databaseConfig, jwtConfig, oauthConfig, bootstrapConfig],
+      load: [serverConfig, swaggerConfig, loggerConfig, databaseConfig, jwtConfig, oauthConfig, bootstrapConfig, cryptoConfig],
       validate: validateEnv,
     }),
     ThrottlerModule.forRoot([
@@ -70,6 +72,8 @@ import { UsersModule } from './modules/users/users.module'
                 'req.headers.cookie',
                 'req.headers["set-cookie"]',
                 'req.headers["x-api-key"]',
+                'req.body.provider.apiKey',
+                'req.body.apiKey',
               ],
               censor: '[Redacted]',
             },
@@ -91,6 +95,7 @@ import { UsersModule } from './modules/users/users.module'
     PrismaModule,
     RbacModule,
     AuthModule,
+    ChatModule,
     UsersModule,
     SystemAdminModule,
     HealthModule,

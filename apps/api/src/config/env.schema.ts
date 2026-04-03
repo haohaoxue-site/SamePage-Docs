@@ -38,6 +38,7 @@ const envSchema = z.object({
   LINUX_DO_TOKEN_ENDPOINT: optionalString,
   LINUX_DO_USERINFO_ENDPOINT: optionalString,
   LINUX_DO_SCOPE: z.string().trim().default('openid profile email'),
+  ENCRYPTION_KEY: optionalString,
   SYSTEM_ADMIN_EMAILS: z
     .string()
     .trim()

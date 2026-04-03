@@ -1,4 +1,4 @@
-import type { AuthProviderName } from '@haohaoxue/samepage-contracts'
+import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type { Prisma, User } from '@prisma/client'
 import type { FastifyRequest } from 'fastify'
 import type { JwtConfig } from '../../config/auth.config'
@@ -12,6 +12,7 @@ import type {
 import { Buffer } from 'node:buffer'
 import { createHash, createSecretKey, randomBytes, randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
+import { AUTH_PROVIDER } from '@haohaoxue/samepage-domain'
 import {
   BadRequestException,
   Injectable,
@@ -174,6 +175,7 @@ export class AuthService {
       throw new UnauthorizedException('Login code already consumed')
     }
 
+    await this.rbacService.syncBootstrapRolesForUser(loginCode.user.id)
     const authUser = await this.buildAuthUserContext(loginCode.user.id)
     await this.touchUserLastLogin(loginCode.user.id)
     const accessToken = await this.signAccessToken(authUser)
@@ -207,6 +209,7 @@ export class AuthService {
     }
 
     const rotatedSession = await this.rotateRefreshSession(tokenRecord, request)
+    await this.rbacService.syncBootstrapRolesForUser(tokenRecord.user.id)
     const authUser = await this.buildAuthUserContext(tokenRecord.user.id)
     await this.touchUserLastLogin(tokenRecord.user.id)
     const accessToken = await this.signAccessToken(authUser)
@@ -334,7 +337,7 @@ export class AuthService {
     accessToken: string,
     userinfoEndpoint: string,
   ): Promise<OAuthProfile> {
-    if (provider === 'github') {
+    if (provider === AUTH_PROVIDER.GITHUB) {
       return this.fetchGithubProfile(accessToken, userinfoEndpoint)
     }
 

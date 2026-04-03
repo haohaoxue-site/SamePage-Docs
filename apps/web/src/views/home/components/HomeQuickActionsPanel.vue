@@ -1,39 +1,127 @@
 <script setup lang="ts">
-import type { HomeQuickActionItem } from '../typing'
+import type { HomeQuickActionsPanelProps } from '../typing'
 
-defineProps<{
-  actions: HomeQuickActionItem[]
-}>()
+defineProps<HomeQuickActionsPanelProps>()
 </script>
 
 <template>
-  <ElCard shadow="never" body-class="!p-6" class="!rounded-[28px] border-border/80 shadow-sm">
-    <div class="mb-5">
-      <h3 class="text-lg font-semibold text-main">
+  <ElCard shadow="never" body-class="home-quick-actions__body" class="home-quick-actions">
+    <div class="home-quick-actions__header">
+      <h3 class="home-quick-actions__title">
         快速操作
       </h3>
     </div>
 
-    <div class="grid gap-3">
+    <div class="home-quick-actions__list">
       <RouterLink
         v-for="action in actions"
         :key="action.id"
         :to="action.to"
-        class="group flex items-center gap-4 rounded-2xl border border-border/70 bg-#fafbff p-4 text-main no-underline transition-all hover:border-primary/25 hover:bg-white"
+        class="home-quick-actions__item"
       >
-        <div class="h-11 w-11 flex shrink-0 items-center justify-center rounded-2xl bg-white text-primary shadow-sm">
-          <div :class="action.icon" class="text-xl" />
+        <div class="home-quick-actions__icon-shell">
+          <SvgIcon :category="action.iconCategory" :icon="action.icon" size="1.25rem" />
         </div>
-        <div class="min-w-0 flex-1">
-          <div class="text-sm font-semibold">
+        <div class="home-quick-actions__copy">
+          <div class="home-quick-actions__item-title">
             {{ action.title }}
           </div>
-          <div v-if="action.description" class="mt-1 text-xs leading-relaxed text-secondary">
+          <div v-if="action.description" class="home-quick-actions__description">
             {{ action.description }}
           </div>
         </div>
-        <div class="i-carbon-arrow-up-right text-secondary transition group-hover:text-primary" />
+        <SvgIcon category="ui" icon="arrow-up-right" size="1rem" class="home-quick-actions__arrow" />
       </RouterLink>
     </div>
   </ElCard>
 </template>
+
+<style scoped lang="scss">
+.home-quick-actions {
+  border: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
+  border-radius: 1.75rem !important;
+  box-shadow: 0 1px 2px 0 color-mix(in srgb, var(--brand-text-primary) 5%, transparent);
+
+  :deep(.home-quick-actions__body) {
+    padding: 1.5rem !important;
+  }
+
+  .home-quick-actions__header {
+    margin-bottom: 1.25rem;
+  }
+
+  .home-quick-actions__title {
+    color: var(--brand-text-primary);
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.75rem;
+  }
+
+  .home-quick-actions__list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .home-quick-actions__item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid color-mix(in srgb, var(--brand-border-base) 70%, transparent);
+    border-radius: 1rem;
+    color: var(--brand-text-primary);
+    text-decoration: none;
+    background: var(--brand-bg-surface-raised);
+    transition:
+      border-color 0.2s ease,
+      background-color 0.2s ease,
+      box-shadow 0.2s ease,
+      color 0.2s ease;
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--brand-primary) 20%, transparent);
+      background: var(--brand-bg-surface);
+
+      .home-quick-actions__arrow {
+        color: var(--brand-primary);
+      }
+    }
+  }
+
+  .home-quick-actions__icon-shell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid color-mix(in srgb, var(--brand-border-base) 60%, transparent);
+    border-radius: 1rem;
+    color: var(--brand-primary);
+    background: var(--brand-bg-surface);
+    box-shadow: 0 1px 2px 0 color-mix(in srgb, var(--brand-text-primary) 5%, transparent);
+  }
+
+  .home-quick-actions__copy {
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+
+  .home-quick-actions__item-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .home-quick-actions__description {
+    margin-top: 0.25rem;
+    color: var(--brand-text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.625;
+  }
+
+  .home-quick-actions__arrow {
+    color: var(--brand-text-secondary);
+    transition: color 0.2s ease;
+  }
+}
+</style>

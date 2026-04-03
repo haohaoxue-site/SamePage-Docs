@@ -4,6 +4,7 @@ export default async function setupAssets() {
     import('element-plus/dist/index.css'),
     import('element-plus/theme-chalk/dark/css-vars.css'),
     import('virtual:uno.css'),
-    import('@/style.css'),
+    import('@/assets/scss/index.scss'),
+    import('@/assets/scss/override.css'),
   ])
 }

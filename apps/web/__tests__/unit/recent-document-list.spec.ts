@@ -1,3 +1,4 @@
+import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory } from 'vue-router'
 import { createAppRouter } from '@/router'
@@ -31,14 +32,16 @@ describe('recentDocumentList', () => {
           {
             id: 'welcome',
             title: '欢迎来到 SamePage',
-            summary: '这是产品的第一篇引导文档，用来说明当前 MVP 的定位与目标。',
+            section: DOCUMENT_SECTION_ID.PERSONAL,
+            ancestorTitles: [],
             createdAt: '2026-03-29T08:00:00.000Z',
             updatedAt: '2026-03-30T08:00:00.000Z',
           },
           {
             id: 'meeting-notes',
             title: '迭代会议纪要',
-            summary: '记录首阶段重点：工程基线、页面壳子、编辑器 MVP。',
+            section: DOCUMENT_SECTION_ID.SHARED,
+            ancestorTitles: ['产品空间', '项目节奏'],
             createdAt: '2026-03-29T10:00:00.000Z',
             updatedAt: '2026-03-30T10:00:00.000Z',
           },
@@ -51,7 +54,9 @@ describe('recentDocumentList', () => {
 
     expect(wrapper.text()).toContain('最近文档')
     expect(wrapper.text()).toContain('2 篇文档')
+    expect(wrapper.text()).toContain('私有')
     expect(wrapper.text()).toContain('迭代会议纪要')
+    expect(wrapper.text()).toContain('共享/产品空间/项目节奏')
     expect(wrapper.text()).toContain('更新于')
   })
 })

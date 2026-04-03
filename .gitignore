@@ -148,6 +148,8 @@ components.d.ts
 # me
 .agents
 .claude
+.codex
+.encryption-key
 .playwright-cli
 AGENTS.md
 CLAUDE.md

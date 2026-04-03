@@ -19,7 +19,7 @@ export class RbacService implements OnModuleInit {
   }
 
   async seedDefaults() {
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$bypass.$transaction(async (tx) => {
       const permissionByCode = new Map<string, { id: string }>()
 
       for (const permission of DEFAULT_RBAC_SEED.permissions) {

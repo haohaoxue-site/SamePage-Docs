@@ -11,6 +11,7 @@
     "dev:web": "pnpm --filter @haohaoxue/samepage-web dev",
     "dev:api": "pnpm --filter @haohaoxue/samepage-api dev",
     "dev:agent": "pnpm --filter @haohaoxue/samepage-agent dev",
+    "dev:collab": "pnpm --filter @haohaoxue/samepage-collab dev",
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r test",
     "test:watch": "pnpm -r --parallel --if-present test:watch",
@@ -19,9 +20,9 @@
     "type-check": "pnpm -r type-check"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^7.1.0",
-    "eslint": "^9.39.2",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.0"
+    "@antfu/eslint-config": "^8.0.0",
+    "eslint": "^10.1.0",
+    "typescript": "catalog:",
+    "vitest": "^4.1.2"
   }
 }

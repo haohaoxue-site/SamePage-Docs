@@ -1,74 +1,35 @@
-/**
- * 文档空间范围。
- */
-export type DocumentSpaceScope = 'PERSONAL' | 'TEAM'
+import type {
+  CreateDocumentSchema,
+  DOCUMENT_SECTION_ID,
+  DocumentBaseSchema,
+  DocumentDetailSchema,
+  DocumentItemSchema,
+  DocumentRecentSchema,
+  DocumentSectionIdSchema,
+  DocumentSectionSchema,
+  DocumentSpaceScopeSchema,
+  DocumentStatusSchema,
+  UpdateDocumentSchema,
+} from '@haohaoxue/samepage-contracts'
+import type { z } from 'zod'
 
-/**
- * 文档节点状态。
- */
-export type DocumentNodeStatus = 'ACTIVE' | 'LOCKED'
+export {
+  DOCUMENT_SECTION_ID,
+  DOCUMENT_SECTION_ID_VALUES,
+  DocumentSectionIdSchema,
+  DocumentSpaceScopeSchema,
+  DocumentStatusSchema,
+  OWNED_DOCUMENT_SECTION_ID_BY_SPACE_SCOPE,
+} from '@haohaoxue/samepage-contracts'
 
-/**
- * 文档树分组。
- */
-export type DocumentTreeSectionId = 'personal' | 'shared' | 'team'
-
-/**
- * 文档基础模型。
- */
-export interface DocumentBase {
-  id: string
-  title: string
-  summary: string
-  createdAt: string
-  updatedAt: string
-}
-
-/**
- * 文档树节点模型。
- */
-export interface DocumentTreeNode extends DocumentBase {
-  parentId: string | null
-  hasChildren: boolean
-  hasContent: boolean
-  sharedByDisplayName: string | null
-  children: DocumentTreeNode[]
-}
-
-/**
- * 文档树分组模型。
- */
-export interface DocumentTreeSection {
-  id: DocumentTreeSectionId
-  label: string
-  nodes: DocumentTreeNode[]
-}
-
-/**
- * 文档详情模型。
- */
-export interface DocumentNodeDetail extends DocumentBase {
-  parentId: string | null
-  content: string
-  hasChildren: boolean
-  hasContent: boolean
-  scope: DocumentSpaceScope
-  section: DocumentTreeSectionId
-}
-
-/**
- * 创建文档节点载荷。
- */
-export interface CreateDocumentNodeRequest {
-  title: string
-  content?: string
-  parentId?: string | null
-}
-
-/**
- * 更新文档载荷。
- */
-export interface UpdateDocumentNodeRequest {
-  title: string
-  content: string
-}
+export type DocumentSpaceScope = z.infer<typeof DocumentSpaceScopeSchema>
+export type DocumentStatus = z.infer<typeof DocumentStatusSchema>
+export type DocumentSectionId = z.infer<typeof DocumentSectionIdSchema>
+export type OwnedDocumentSectionId = Exclude<DocumentSectionId, typeof DOCUMENT_SECTION_ID.SHARED>
+export type DocumentBase = z.infer<typeof DocumentBaseSchema>
+export type DocumentRecent = z.infer<typeof DocumentRecentSchema>
+export type DocumentItem = z.infer<typeof DocumentItemSchema>
+export type DocumentSection = z.infer<typeof DocumentSectionSchema>
+export type DocumentDetail = z.infer<typeof DocumentDetailSchema>
+export type CreateDocumentRequest = z.infer<typeof CreateDocumentSchema>
+export type UpdateDocumentRequest = z.infer<typeof UpdateDocumentSchema>

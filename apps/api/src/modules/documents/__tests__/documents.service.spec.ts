@@ -1,8 +1,9 @@
 import type { PrismaService } from '../../../database/prisma.service'
+import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
 import { describe, expect, it, vi } from 'vitest'
 import { DocumentsService } from '../documents.service'
 
-const baseNodes = [
+const baseDocuments = [
   {
     id: 'root',
     ownerId: 'owner-1',
@@ -56,47 +57,47 @@ const baseNodes = [
 describe('documentsService', () => {
   it('builds shared trees without exposing unauthorized ancestors', async () => {
     const prisma = {
-      documentNode: {
-        findMany: vi.fn(async () => baseNodes),
+      document: {
+        findMany: vi.fn(async () => baseDocuments),
       },
-      documentNodeMember: {
-        findMany: vi.fn(async () => [{ nodeId: 'child' }]),
+      documentMember: {
+        findMany: vi.fn(async () => [{ documentId: 'child' }]),
       },
     } as unknown as PrismaService
 
     const service = new DocumentsService(prisma)
-    const sections = await service.findTree('viewer-1')
+    const sections = await service.getDocumentTree('viewer-1')
 
-    expect(sections.find(section => section.id === 'personal')?.nodes).toHaveLength(0)
-    expect(sections.find(section => section.id === 'shared')?.nodes).toHaveLength(1)
-    expect(sections.find(section => section.id === 'shared')?.nodes[0]?.id).toBe('child')
-    expect(sections.find(section => section.id === 'shared')?.nodes[0]?.sharedByDisplayName).toBe('张三')
+    expect(sections.find(section => section.id === DOCUMENT_SECTION_ID.PERSONAL)?.nodes).toHaveLength(0)
+    expect(sections.find(section => section.id === DOCUMENT_SECTION_ID.SHARED)?.nodes).toHaveLength(1)
+    expect(sections.find(section => section.id === DOCUMENT_SECTION_ID.SHARED)?.nodes[0]?.id).toBe('child')
+    expect(sections.find(section => section.id === DOCUMENT_SECTION_ID.SHARED)?.nodes[0]?.sharedByDisplayName).toBe('张三')
   })
 
-  it('updates an owned node draft', async () => {
+  it('updates an owned document draft', async () => {
     const prisma = {
-      documentNode: {
+      document: {
         findMany: vi.fn(async () => [
           {
-            ...baseNodes[0],
+            ...baseDocuments[0],
             ownerId: 'user-1',
           },
         ]),
         update: vi.fn(async () => ({
-          ...baseNodes[0],
+          ...baseDocuments[0],
           ownerId: 'user-1',
           title: '新的标题',
           content: '<p>新的正文</p>',
           summary: '新的正文',
         })),
       },
-      documentNodeMember: {
+      documentMember: {
         findMany: vi.fn(async () => []),
       },
     } as unknown as PrismaService
 
     const service = new DocumentsService(prisma)
-    const document = await service.update('user-1', 'root', {
+    const document = await service.updateDocument('user-1', 'root', {
       title: '新的标题',
       content: '<p>新的正文</p>',
     })
@@ -106,18 +107,134 @@ describe('documentsService', () => {
     expect(document.summary).toBe('新的正文')
   })
 
-  it('creates a child node under owned parent', async () => {
+  it('builds recent documents with bounded ancestor titles', async () => {
     const prisma = {
-      documentNode: {
+      document: {
         findMany: vi.fn(async () => [
           {
-            ...baseNodes[0],
+            ...baseDocuments[0],
+            id: 'owned-root',
+            ownerId: 'user-1',
+            title: '我的空间',
+            parentId: null,
+            updatedAt: new Date('2026-03-30T08:00:00.000Z'),
+          },
+          {
+            ...baseDocuments[1],
+            id: 'owned-child',
+            ownerId: 'user-1',
+            title: '项目方案',
+            parentId: 'owned-root',
+            updatedAt: new Date('2026-03-30T09:00:00.000Z'),
+          },
+          {
+            ...baseDocuments[1],
+            id: 'owned-leaf',
+            ownerId: 'user-1',
+            title: '接口设计',
+            parentId: 'owned-child',
+            updatedAt: new Date('2026-03-30T12:00:00.000Z'),
+          },
+          {
+            ...baseDocuments[0],
+            id: 'foreign-root',
+            ownerId: 'owner-2',
+            title: '外部空间',
+            parentId: null,
+            updatedAt: new Date('2026-03-30T10:00:00.000Z'),
+            owner: {
+              displayName: '李四',
+            },
+          },
+          {
+            ...baseDocuments[1],
+            id: 'shared-root',
+            ownerId: 'owner-2',
+            title: '共享目录',
+            parentId: 'foreign-root',
+            updatedAt: new Date('2026-03-30T11:00:00.000Z'),
+            owner: {
+              displayName: '李四',
+            },
+          },
+          {
+            ...baseDocuments[1],
+            id: 'shared-child',
+            ownerId: 'owner-2',
+            title: '共享纪要',
+            parentId: 'shared-root',
+            updatedAt: new Date('2026-03-30T13:00:00.000Z'),
+            owner: {
+              displayName: '李四',
+            },
+          },
+        ]),
+      },
+      documentMember: {
+        findMany: vi.fn(async () => [{ documentId: 'shared-root' }]),
+      },
+    } as unknown as PrismaService
+
+    const service = new DocumentsService(prisma)
+    const recentDocuments = await service.getRecentDocuments('user-1')
+
+    expect(recentDocuments).toEqual([
+      {
+        id: 'shared-child',
+        title: '共享纪要',
+        section: DOCUMENT_SECTION_ID.SHARED,
+        ancestorTitles: ['共享目录'],
+        createdAt: baseDocuments[1].createdAt.toISOString(),
+        updatedAt: '2026-03-30T13:00:00.000Z',
+      },
+      {
+        id: 'owned-leaf',
+        title: '接口设计',
+        section: DOCUMENT_SECTION_ID.PERSONAL,
+        ancestorTitles: ['我的空间', '项目方案'],
+        createdAt: baseDocuments[1].createdAt.toISOString(),
+        updatedAt: '2026-03-30T12:00:00.000Z',
+      },
+      {
+        id: 'shared-root',
+        title: '共享目录',
+        section: DOCUMENT_SECTION_ID.SHARED,
+        ancestorTitles: [],
+        createdAt: baseDocuments[1].createdAt.toISOString(),
+        updatedAt: '2026-03-30T11:00:00.000Z',
+      },
+      {
+        id: 'owned-child',
+        title: '项目方案',
+        section: DOCUMENT_SECTION_ID.PERSONAL,
+        ancestorTitles: ['我的空间'],
+        createdAt: baseDocuments[1].createdAt.toISOString(),
+        updatedAt: '2026-03-30T09:00:00.000Z',
+      },
+      {
+        id: 'owned-root',
+        title: '我的空间',
+        section: DOCUMENT_SECTION_ID.PERSONAL,
+        ancestorTitles: [],
+        createdAt: baseDocuments[0].createdAt.toISOString(),
+        updatedAt: '2026-03-30T08:00:00.000Z',
+      },
+    ])
+    expect(recentDocuments[0]).not.toHaveProperty('summary')
+  })
+
+  it('creates a child document under owned parent', async () => {
+    const prisma = {
+      document: {
+        findMany: vi.fn(async () => [
+          {
+            ...baseDocuments[0],
             ownerId: 'user-1',
           },
         ]),
         findFirst: vi.fn(async () => ({ order: 2 })),
         create: vi.fn(async () => ({
-          ...baseNodes[1],
+          ...baseDocuments[1],
           id: 'new-child',
           ownerId: 'user-1',
           parentId: 'root',
@@ -127,45 +244,45 @@ describe('documentsService', () => {
           order: 3,
         })),
       },
-      documentNodeMember: {
+      documentMember: {
         findMany: vi.fn(async () => []),
       },
     } as unknown as PrismaService
 
     const service = new DocumentsService(prisma)
-    const document = await service.create('user-1', {
+    const document = await service.createDocument('user-1', {
       title: '未命名',
       parentId: 'root',
     })
 
     expect(document.id).toBe('new-child')
     expect(document.parentId).toBe('root')
-    expect(document.section).toBe('personal')
+    expect(document.section).toBe(DOCUMENT_SECTION_ID.PERSONAL)
   })
 
   it('removes an owned subtree', async () => {
     const deleteMany = vi.fn(async () => ({ count: 2 }))
     const prisma = {
-      documentNode: {
+      document: {
         findMany: vi.fn(async () => [
           {
-            ...baseNodes[0],
+            ...baseDocuments[0],
             ownerId: 'user-1',
           },
           {
-            ...baseNodes[1],
+            ...baseDocuments[1],
             ownerId: 'user-1',
           },
         ]),
         deleteMany,
       },
-      documentNodeMember: {
+      documentMember: {
         findMany: vi.fn(async () => []),
       },
     } as unknown as PrismaService
 
     const service = new DocumentsService(prisma)
-    await service.remove('user-1', 'root')
+    await service.deleteDocument('user-1', 'root')
 
     expect(deleteMany).toHaveBeenCalledWith({
       where: {

@@ -50,8 +50,8 @@ export class SystemAdminController {
   @ApiRequestResponse([SystemAdminUserItemDto])
   @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_USER_LIST)
   @Get('users')
-  async listUsers(): Promise<SystemAdminUserItemDto[]> {
-    return this.systemAdminService.listUsers()
+  async getUsers(): Promise<SystemAdminUserItemDto[]> {
+    return this.systemAdminService.getUsers()
   }
 
   @ApiOperation({ summary: '更新用户状态' })
@@ -109,8 +109,8 @@ export class SystemAdminController {
   @ApiRequestResponse([SystemAdminAuditLogItemDto])
   @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_AUDIT_LOG_LIST)
   @Get('audit-logs')
-  async listAuditLogs(): Promise<SystemAdminAuditLogItemDto[]> {
-    return this.systemAdminService.listAuditLogs()
+  async getAuditLogs(): Promise<SystemAdminAuditLogItemDto[]> {
+    return this.systemAdminService.getAuditLogs()
   }
 
   @ApiOperation({ summary: '获取平台治理摘要' })

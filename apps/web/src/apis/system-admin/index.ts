@@ -20,7 +20,7 @@ export function getSystemAdminOverview(): Promise<SystemAdminOverviewDto> {
   })
 }
 
-export function listSystemAdminUsers(): Promise<SystemAdminUserItemDto[]> {
+export function getSystemAdminUsers(): Promise<SystemAdminUserItemDto[]> {
   return axios.request({
     method: 'get',
     url: '/system-admin/users',
@@ -66,7 +66,7 @@ export function updateSystemAiConfig(
   })
 }
 
-export function listSystemAdminAuditLogs(): Promise<SystemAdminAuditLogItemDto[]> {
+export function getSystemAdminAuditLogs(): Promise<SystemAdminAuditLogItemDto[]> {
   return axios.request({
     method: 'get',
     url: '/system-admin/audit-logs',

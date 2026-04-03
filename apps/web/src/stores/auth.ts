@@ -4,6 +4,7 @@ import { useSessionStorage } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, shallowRef } from 'vue'
 import { exchangeAuthCode, logoutAuthSession, refreshAccessToken } from '@/apis/auth'
+import { DEFAULT_ADMIN_NAVIGATION_ITEM } from '@/router/navigation'
 
 export const AUTH_PERSIST_KEY = 'samepage_auth'
 export const AUTH_REDIRECT_KEY = 'samepage_auth_redirect'
@@ -15,7 +16,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => Boolean(accessToken.value))
   const isSystemAdmin = computed(() => user.value?.roles.includes(ROLES.SYSTEM_ADMIN) ?? false)
-  const defaultRouteName = computed(() => isSystemAdmin.value ? 'admin-overview' : 'home')
+  const defaultRouteName = computed(() => isSystemAdmin.value ? DEFAULT_ADMIN_NAVIGATION_ITEM.routeName : 'home')
 
   async function login(code: string) {
     const result = await exchangeAuthCode({ code })

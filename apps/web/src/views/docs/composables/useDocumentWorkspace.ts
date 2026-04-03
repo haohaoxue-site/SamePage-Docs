@@ -1,41 +1,57 @@
-import type { DocumentNodeDetail, DocumentTreeNode, DocumentTreeSection, DocumentTreeSectionId } from '@haohaoxue/samepage-domain'
+import type { DocumentDetail, DocumentItem, DocumentSection, DocumentSectionId } from '@haohaoxue/samepage-domain'
+import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
 import { useLocalStorage } from '@vueuse/core'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  createDocumentNode,
-  deleteDocumentNode,
-  getDocumentNodeById,
-  getDocumentTree,
-  saveDocumentNode,
+  createDocument as createDocumentRequest,
+  deleteDocument as deleteDocumentRequest,
+  getDocumentById as getDocumentByIdRequest,
+  getDocuments,
+  updateDocument as updateDocumentRequest,
 } from '@/apis/document'
 import dayjs from '@/utils/dayjs'
 
-const EXPANDED_NODE_STORAGE_KEY = 'samepage_docs_expanded_nodes'
+const EXPANDED_DOCUMENT_STORAGE_KEY = 'samepage_docs_expanded_documents'
+const LAST_OPENED_DOCUMENT_STORAGE_KEY = 'samepage_docs_last_opened_document'
 const AUTO_SAVE_DELAY = 1200
-const DOCUMENT_TREE_SECTION_LABELS: Record<DocumentTreeSectionId, string> = {
-  personal: '私有',
-  shared: '共享',
-  team: '团队',
+
+const DOCUMENT_TREE_SECTION_LABELS: Record<DocumentSectionId, string> = {
+  [DOCUMENT_SECTION_ID.PERSONAL]: '私有',
+  [DOCUMENT_SECTION_ID.SHARED]: '共享',
+  [DOCUMENT_SECTION_ID.TEAM]: '团队',
 }
 
 const DOCUMENT_SAVE_STATE = {
   Idle: 'idle',
+  Dirty: 'dirty',
   Saving: 'saving',
   Saved: 'saved',
   Error: 'error',
 } as const
 
+const DOCUMENT_PANE_STATE = {
+  Ready: 'ready',
+  Loading: 'loading',
+  Empty: 'empty',
+  Unselected: 'unselected',
+  NotFound: 'not-found',
+  Forbidden: 'forbidden',
+  Error: 'error',
+} as const
+
 type DocumentSaveState = (typeof DOCUMENT_SAVE_STATE)[keyof typeof DOCUMENT_SAVE_STATE]
+type DocumentPaneState = (typeof DOCUMENT_PANE_STATE)[keyof typeof DOCUMENT_PANE_STATE]
+type RequestError = Error & { status?: number }
 
 export function useDocumentWorkspace() {
   const route = useRoute()
   const router = useRouter()
-  const treeSections = ref<DocumentTreeSection[]>([])
-  const currentDocument = ref<DocumentNodeDetail | null>(null)
-  const isTreeLoading = shallowRef(false)
+  const treeSections = ref<DocumentSection[]>([])
+  const currentDocument = ref<DocumentDetail | null>(null)
   const isDocumentLoading = shallowRef(false)
+  const isDocumentItemLoading = shallowRef(false)
   const isCreating = shallowRef(false)
   const isDeleting = shallowRef(false)
   const isSaving = shallowRef(false)
@@ -43,20 +59,29 @@ export function useDocumentWorkspace() {
   const savedSignature = shallowRef('')
   const lastPersistedAt = shallowRef<string | null>(null)
   const autoSaveTimer = shallowRef<ReturnType<typeof setTimeout> | null>(null)
-  const expandedNodeIds = useLocalStorage<string[]>(EXPANDED_NODE_STORAGE_KEY, [])
+  const expandedDocumentIds = useLocalStorage<string[]>(EXPANDED_DOCUMENT_STORAGE_KEY, [])
+  const lastOpenedDocumentId = useLocalStorage<string | null>(LAST_OPENED_DOCUMENT_STORAGE_KEY, null)
+  const documentErrorState = shallowRef<DocumentPaneState | null>(null)
+  const isSelectingInitialDocument = shallowRef(false)
+  let persistTask: Promise<boolean> | null = null
 
-  const activeNodeId = computed(() => typeof route.params.id === 'string' ? route.params.id : null)
-  const expandedNodeIdSet = computed(() => new Set(expandedNodeIds.value))
-  const activePath = computed(() => activeNodeId.value ? findNodePath(treeSections.value, activeNodeId.value) : null)
+  const activeDocumentId = computed(() => typeof route.params.id === 'string' ? route.params.id : null)
+  const expandedDocumentIdSet = computed(() => new Set(expandedDocumentIds.value))
+  const activePath = computed(() => activeDocumentId.value ? findDocumentPath(treeSections.value, activeDocumentId.value) : null)
   const isMutatingTree = computed(() => isCreating.value || isDeleting.value)
+  const defaultDocumentId = computed(() => resolvePreferredDocumentId(
+    treeSections.value,
+    lastOpenedDocumentId.value,
+  ))
+  const hasFallbackDocument = computed(() => Boolean(defaultDocumentId.value))
   const breadcrumbLabels = computed(() => {
     if (!activePath.value) {
       return ['文档']
     }
 
     return [
-      resolveDocumentTreeSectionLabel(activePath.value.sectionId),
-      ...activePath.value.nodes.map(node => node.title),
+      resolveDocumentSectionLabel(activePath.value.sectionId),
+      ...activePath.value.nodes.map(document => document.title),
     ]
   })
 
@@ -67,9 +92,32 @@ export function useDocumentWorkspace() {
 
     return createDraftSignature(currentDocument.value) !== savedSignature.value
   })
+  const documentPaneState = computed<DocumentPaneState>(() => {
+    if (currentDocument.value) {
+      return DOCUMENT_PANE_STATE.Ready
+    }
+
+    if (isDocumentItemLoading.value || isDocumentLoading.value || isSelectingInitialDocument.value) {
+      return DOCUMENT_PANE_STATE.Loading
+    }
+
+    if (activeDocumentId.value) {
+      return documentErrorState.value ?? DOCUMENT_PANE_STATE.Error
+    }
+
+    if (hasFallbackDocument.value) {
+      return DOCUMENT_PANE_STATE.Unselected
+    }
+
+    return DOCUMENT_PANE_STATE.Empty
+  })
   const saveStateLabel = computed(() => {
     if (!currentDocument.value) {
       return '未选择文档'
+    }
+
+    if (saveState.value === DOCUMENT_SAVE_STATE.Dirty) {
+      return '未保存'
     }
 
     if (saveState.value === DOCUMENT_SAVE_STATE.Saving) {
@@ -81,7 +129,7 @@ export function useDocumentWorkspace() {
     }
 
     if (saveState.value === DOCUMENT_SAVE_STATE.Error) {
-      return '保存到云端失败'
+      return '保存失败，内容未保存'
     }
 
     if (!lastPersistedAt.value) {
@@ -91,7 +139,7 @@ export function useDocumentWorkspace() {
     return `上次更新于 ${dayjs(lastPersistedAt.value).fromNow()}`
   })
 
-  function createDraftSignature(document: Pick<DocumentNodeDetail, 'title' | 'content'>) {
+  function createDraftSignature(document: Pick<DocumentDetail, 'title' | 'content'>) {
     return JSON.stringify({
       title: document.title,
       content: document.content,
@@ -120,14 +168,25 @@ export function useDocumentWorkspace() {
   }
 
   async function loadTree() {
-    isTreeLoading.value = true
+    isDocumentLoading.value = true
 
     try {
-      treeSections.value = await getDocumentTree()
-      ensureExpandedPath(activeNodeId.value)
+      treeSections.value = await getDocuments()
+      ensureExpandedPath(activeDocumentId.value)
+
+      if (activeDocumentId.value || !defaultDocumentId.value) {
+        return
+      }
+
+      isSelectingInitialDocument.value = true
+      await router.replace({
+        name: 'docs',
+        params: { id: defaultDocumentId.value },
+      })
     }
     finally {
-      isTreeLoading.value = false
+      isSelectingInitialDocument.value = false
+      isDocumentLoading.value = false
     }
   }
 
@@ -139,26 +198,34 @@ export function useDocumentWorkspace() {
       savedSignature.value = ''
       lastPersistedAt.value = null
       saveState.value = DOCUMENT_SAVE_STATE.Idle
+      documentErrorState.value = null
       return
     }
 
-    isDocumentLoading.value = true
+    isDocumentItemLoading.value = true
+    currentDocument.value = null
+    savedSignature.value = ''
+    lastPersistedAt.value = null
+    saveState.value = DOCUMENT_SAVE_STATE.Idle
+    documentErrorState.value = null
 
     try {
-      currentDocument.value = await getDocumentNodeById(id)
+      currentDocument.value = await getDocumentByIdRequest(id)
       savedSignature.value = createDraftSignature(currentDocument.value)
       lastPersistedAt.value = currentDocument.value.updatedAt
       saveState.value = DOCUMENT_SAVE_STATE.Idle
+      lastOpenedDocumentId.value = id
       ensureExpandedPath(id)
     }
-    catch {
+    catch (error) {
       currentDocument.value = null
       savedSignature.value = ''
       lastPersistedAt.value = null
       saveState.value = DOCUMENT_SAVE_STATE.Idle
+      documentErrorState.value = resolveDocumentErrorState(error)
     }
     finally {
-      isDocumentLoading.value = false
+      isDocumentItemLoading.value = false
     }
   }
 
@@ -173,7 +240,7 @@ export function useDocumentWorkspace() {
     }
 
     syncSaveState()
-    patchTreeNode(currentDocument.value.id, {
+    patchDocumentItem(currentDocument.value.id, {
       title,
     })
     queueAutoSave()
@@ -194,87 +261,109 @@ export function useDocumentWorkspace() {
   }
 
   async function persistCurrentDocument(options: { showErrorMessage?: boolean } = {}) {
-    if (!currentDocument.value || !isDirty.value || isSaving.value) {
-      return
+    if (!currentDocument.value || !isDirty.value) {
+      return true
     }
-
-    clearAutoSaveTimer()
 
     const draftDocument = currentDocument.value
-    const requestSignature = createDraftSignature(draftDocument)
-    saveState.value = DOCUMENT_SAVE_STATE.Saving
-    isSaving.value = true
 
-    try {
-      const savedDocument = await saveDocumentNode(draftDocument.id, {
-        title: draftDocument.title,
-        content: draftDocument.content,
-      })
+    if (!draftDocument) {
+      return true
+    }
 
-      if (currentDocument.value?.id !== savedDocument.id) {
-        patchTreeNode(savedDocument.id, savedDocument)
-        return
-      }
+    if (persistTask) {
+      return persistTask
+    }
 
-      if (createDraftSignature(currentDocument.value) === requestSignature) {
-        currentDocument.value = savedDocument
-        savedSignature.value = createDraftSignature(savedDocument)
-        lastPersistedAt.value = savedDocument.updatedAt
-        saveState.value = DOCUMENT_SAVE_STATE.Saved
-        patchTreeNode(savedDocument.id, savedDocument)
-        return
-      }
+    persistTask = (async () => {
+      clearAutoSaveTimer()
 
-      savedSignature.value = requestSignature
-      lastPersistedAt.value = savedDocument.updatedAt
+      const requestSignature = createDraftSignature(draftDocument)
       saveState.value = DOCUMENT_SAVE_STATE.Saving
-    }
-    catch {
-      if (currentDocument.value?.id === draftDocument.id) {
-        saveState.value = DOCUMENT_SAVE_STATE.Error
-      }
+      isSaving.value = true
 
-      if (options.showErrorMessage) {
-        ElMessage.error('自动保存失败')
-      }
-    }
-    finally {
-      isSaving.value = false
+      try {
+        const savedDocument = await updateDocumentRequest(draftDocument.id, {
+          title: draftDocument.title,
+          content: draftDocument.content,
+        })
 
-      if (currentDocument.value?.id === draftDocument.id && isDirty.value) {
-        queueAutoSave()
+        if (currentDocument.value?.id !== savedDocument.id) {
+          patchDocumentItem(savedDocument.id, savedDocument)
+          return true
+        }
+
+        const activeDocument = currentDocument.value
+
+        if (activeDocument && createDraftSignature(activeDocument) === requestSignature) {
+          currentDocument.value = savedDocument
+          savedSignature.value = createDraftSignature(savedDocument)
+          lastPersistedAt.value = savedDocument.updatedAt
+          saveState.value = DOCUMENT_SAVE_STATE.Saved
+          patchDocumentItem(savedDocument.id, savedDocument)
+          return true
+        }
+
+        savedSignature.value = requestSignature
+        lastPersistedAt.value = savedDocument.updatedAt
+        saveState.value = DOCUMENT_SAVE_STATE.Saving
+        return true
       }
-    }
+      catch {
+        if (currentDocument.value?.id === draftDocument.id) {
+          saveState.value = DOCUMENT_SAVE_STATE.Error
+        }
+
+        if (options.showErrorMessage) {
+          ElMessage.error('自动保存失败，当前更改尚未保存')
+        }
+
+        return false
+      }
+      finally {
+        isSaving.value = false
+
+        if (currentDocument.value?.id === draftDocument.id && isDirty.value) {
+          queueAutoSave()
+        }
+      }
+    })()
+
+    const result = await persistTask.finally(() => {
+      persistTask = null
+    })
+
+    return result
   }
 
-  async function createRootNode() {
-    await createNode(null)
+  async function createRootDocument() {
+    await createDocument(null)
   }
 
-  async function createChildNode(parentNodeId = currentDocument.value?.id ?? null) {
-    if (!parentNodeId) {
+  async function createChildDocument(parentDocumentId = currentDocument.value?.id ?? null) {
+    if (!parentDocumentId) {
       return
     }
 
-    const parentPath = findNodePath(treeSections.value, parentNodeId)
+    const parentPath = findDocumentPath(treeSections.value, parentDocumentId)
 
     if (!parentPath || parentPath.sectionId !== 'personal') {
       return
     }
 
-    await createNode(parentNodeId)
+    await createDocument(parentDocumentId)
   }
 
-  async function deleteNode(nodeId: string) {
-    const targetPath = findNodePath(treeSections.value, nodeId)
-    const targetNode = targetPath?.nodes.at(-1)
+  async function deleteDocument(documentId: string) {
+    const targetPath = findDocumentPath(treeSections.value, documentId)
+    const targetDocument = targetPath?.nodes.at(-1)
 
-    if (!targetPath || !targetNode || targetPath.sectionId !== 'personal') {
+    if (!targetPath || !targetDocument || targetPath.sectionId !== 'personal') {
       return
     }
 
     const confirmed = await ElMessageBox.confirm(
-      `将删除「${targetNode.title}」及其所有子文档，此操作不可恢复。`,
+      `将删除「${targetDocument.title}」及其所有子文档，此操作不可恢复。`,
       '删除文档',
       {
         type: 'warning',
@@ -287,25 +376,25 @@ export function useDocumentWorkspace() {
       return
     }
 
-    const deletedNodeIds = collectTreeNodeIds([targetNode])
-    const nextNodeId = resolveNextNodeIdAfterDelete(
+    const deletedDocumentIds = collectDocumentItemIds([targetDocument])
+    const nextDocumentId = resolveNextDocumentIdAfterDelete(
       treeSections.value,
-      nodeId,
-      activeNodeId.value,
+      documentId,
+      activeDocumentId.value,
     )
 
     isDeleting.value = true
 
     try {
-      await deleteDocumentNode(nodeId)
-      expandedNodeIds.value = expandedNodeIds.value.filter(id => !deletedNodeIds.has(id))
+      await deleteDocumentRequest(documentId)
+      expandedDocumentIds.value = expandedDocumentIds.value.filter(id => !deletedDocumentIds.has(id))
       await loadTree()
 
-      if (activeNodeId.value && deletedNodeIds.has(activeNodeId.value)) {
-        await router.push(nextNodeId
+      if (activeDocumentId.value && deletedDocumentIds.has(activeDocumentId.value)) {
+        await router.push(nextDocumentId
           ? {
               name: 'docs',
-              params: { id: nextNodeId },
+              params: { id: nextDocumentId },
             }
           : {
               name: 'docs',
@@ -328,86 +417,117 @@ export function useDocumentWorkspace() {
       return
     }
 
-    saveState.value = isDirty.value ? DOCUMENT_SAVE_STATE.Saving : DOCUMENT_SAVE_STATE.Idle
+    saveState.value = isDirty.value ? DOCUMENT_SAVE_STATE.Dirty : DOCUMENT_SAVE_STATE.Idle
   }
 
-  function openNode(nodeId: string) {
-    router.push({
-      name: 'docs',
-      params: { id: nodeId },
+  async function confirmNavigation() {
+    return await persistCurrentDocument({
+      showErrorMessage: true,
     })
   }
 
-  async function createNode(parentId: string | null) {
+  async function navigateToDocument(documentId: string, options: { replace?: boolean } = {}) {
+    if (documentId === activeDocumentId.value) {
+      return true
+    }
+
+    const canNavigate = await confirmNavigation()
+
+    if (!canNavigate) {
+      return false
+    }
+
+    await router[options.replace ? 'replace' : 'push']({
+      name: 'docs',
+      params: { id: documentId },
+    })
+
+    return true
+  }
+
+  async function openDocument(documentId: string) {
+    await navigateToDocument(documentId)
+  }
+
+  async function openDefaultDocument(options: { replace?: boolean } = {}) {
+    if (!defaultDocumentId.value) {
+      return
+    }
+
+    await navigateToDocument(defaultDocumentId.value, options)
+  }
+
+  async function reloadCurrentDocument() {
+    await loadCurrentDocument(activeDocumentId.value)
+  }
+
+  async function createDocument(parentId: string | null) {
+    const canNavigate = await confirmNavigation()
+
+    if (!canNavigate) {
+      return
+    }
+
     isCreating.value = true
 
     try {
-      const createdNode = await createDocumentNode({
+      const createdDocument = await createDocumentRequest({
         title: '未命名',
         content: '',
         parentId,
       })
       await loadTree()
-      await router.push({
-        name: 'docs',
-        params: { id: createdNode.id },
-      })
+      await navigateToDocument(createdDocument.id)
     }
     finally {
       isCreating.value = false
     }
   }
 
-  function toggleNode(nodeId: string) {
-    const nextExpandedIds = new Set(expandedNodeIds.value)
+  function toggleDocument(documentId: string) {
+    const nextExpandedIds = new Set(expandedDocumentIds.value)
 
-    if (nextExpandedIds.has(nodeId)) {
-      nextExpandedIds.delete(nodeId)
+    if (nextExpandedIds.has(documentId)) {
+      nextExpandedIds.delete(documentId)
     }
     else {
-      nextExpandedIds.add(nodeId)
+      nextExpandedIds.add(documentId)
     }
 
-    expandedNodeIds.value = Array.from(nextExpandedIds)
+    expandedDocumentIds.value = Array.from(nextExpandedIds)
   }
 
-  function ensureExpandedPath(nodeId: string | null) {
-    if (!nodeId) {
+  function ensureExpandedPath(documentId: string | null) {
+    if (!documentId) {
       return
     }
 
-    const path = findNodePath(treeSections.value, nodeId)
+    const path = findDocumentPath(treeSections.value, documentId)
 
     if (!path) {
       return
     }
 
-    const nextExpandedIds = new Set(expandedNodeIds.value)
+    const nextExpandedIds = new Set(expandedDocumentIds.value)
 
-    for (const node of path.nodes) {
-      nextExpandedIds.add(node.id)
+    for (const document of path.nodes) {
+      nextExpandedIds.add(document.id)
     }
 
-    expandedNodeIds.value = Array.from(nextExpandedIds)
+    expandedDocumentIds.value = Array.from(nextExpandedIds)
   }
 
-  function patchTreeNode(nodeId: string, input: Partial<DocumentTreeNode>) {
+  function patchDocumentItem(documentId: string, input: Partial<DocumentItem>) {
     treeSections.value = treeSections.value.map(section => ({
       ...section,
-      nodes: updateTreeBranch(section.nodes, nodeId, input),
+      nodes: updateDocumentBranch(section.nodes, documentId, input),
     }))
   }
 
   watch(
-    activeNodeId,
-    async (nextNodeId, previousNodeId) => {
-      if (previousNodeId && currentDocument.value?.id === previousNodeId && isDirty.value) {
-        await persistCurrentDocument({
-          showErrorMessage: true,
-        })
-      }
-
-      await loadCurrentDocument(nextNodeId)
+    activeDocumentId,
+    async (nextDocumentId) => {
+      await loadCurrentDocument(nextDocumentId)
     },
     { immediate: true },
   )
@@ -417,76 +537,81 @@ export function useDocumentWorkspace() {
   return {
     treeSections,
     currentDocument,
-    activeNodeId,
+    activeDocumentId,
     breadcrumbLabels,
-    expandedNodeIdSet,
-    isTreeLoading,
+    expandedDocumentIdSet,
     isDocumentLoading,
+    isDocumentItemLoading,
     isSaving,
     isCreating,
     isMutatingTree,
+    documentPaneState,
+    hasFallbackDocument,
     saveState,
     saveStateLabel,
-    openNode,
-    toggleNode,
-    createRootNode,
-    createChildNode,
-    deleteNode,
+    confirmNavigation,
+    openDocument,
+    openDefaultDocument,
+    reloadCurrentDocument,
+    toggleDocument,
+    createRootDocument,
+    createChildDocument,
+    deleteDocument,
     updateDocumentTitle,
     updateDocumentContent,
   }
 }
 
-function collectTreeNodeIds(nodes: DocumentTreeNode[]): Set<string> {
-  const nodeIds = new Set<string>()
+function collectDocumentItemIds(items: DocumentItem[]): Set<string> {
+  const documentIds = new Set<string>()
 
-  for (const node of nodes) {
-    nodeIds.add(node.id)
+  for (const item of items) {
+    documentIds.add(item.id)
 
-    for (const childId of collectTreeNodeIds(node.children)) {
-      nodeIds.add(childId)
+    for (const childId of collectDocumentItemIds(item.children)) {
+      documentIds.add(childId)
     }
   }
 
-  return nodeIds
+  return documentIds
 }
 
-function updateTreeBranch(
-  nodes: DocumentTreeNode[],
-  targetNodeId: string,
-  input: Partial<DocumentTreeNode>,
-): DocumentTreeNode[] {
-  return nodes.map((node) => {
-    if (node.id === targetNodeId) {
+function updateDocumentBranch(
+  items: DocumentItem[],
+  targetDocumentId: string,
+  input: Partial<DocumentItem>,
+): DocumentItem[] {
+  return items.map((item) => {
+    if (item.id === targetDocumentId) {
       return {
-        ...node,
+        ...item,
         ...input,
       }
     }
 
     return {
-      ...node,
-      children: updateTreeBranch(node.children, targetNodeId, input),
+      ...item,
+      children: updateDocumentBranch(item.children, targetDocumentId, input),
     }
   })
 }
 
-function findNodePath(
-  sections: DocumentTreeSection[],
-  targetNodeId: string,
+function findDocumentPath(
+  sections: DocumentSection[],
+  targetDocumentId: string,
 ): {
-  sectionId: DocumentTreeSectionId
+  sectionId: DocumentSectionId
   sectionLabel: string
-  nodes: DocumentTreeNode[]
+  nodes: DocumentItem[]
 } | null {
   for (const section of sections) {
-    const nodes = findNodes(section.nodes, targetNodeId)
+    const items = findDocumentItems(section.nodes, targetDocumentId)
 
-    if (nodes) {
+    if (items) {
       return {
         sectionId: section.id,
         sectionLabel: section.label,
-        nodes,
+        nodes: items,
       }
     }
   }
@@ -494,67 +619,95 @@ function findNodePath(
   return null
 }
 
-function findFirstAvailableNodeId(
-  nodes: DocumentTreeNode[],
-  deletedNodeIds: Set<string>,
+function findFirstAvailableDocumentId(
+  items: DocumentItem[],
+  deletedDocumentIds: Set<string>,
 ): string | null {
-  for (const node of nodes) {
-    if (!deletedNodeIds.has(node.id)) {
-      return node.id
+  for (const item of items) {
+    if (!deletedDocumentIds.has(item.id)) {
+      return item.id
     }
 
-    const childNodeId = findFirstAvailableNodeId(node.children, deletedNodeIds)
+    const childDocumentId = findFirstAvailableDocumentId(item.children, deletedDocumentIds)
 
-    if (childNodeId) {
-      return childNodeId
+    if (childDocumentId) {
+      return childDocumentId
     }
   }
 
   return null
 }
 
-function resolveNextNodeIdAfterDelete(
-  sections: DocumentTreeSection[],
-  deletedNodeId: string,
-  currentActiveNodeId: string | null,
+function resolveNextDocumentIdAfterDelete(
+  sections: DocumentSection[],
+  deletedDocumentId: string,
+  currentActiveDocumentId: string | null,
 ): string | null {
-  const targetPath = findNodePath(sections, deletedNodeId)
-  const targetNode = targetPath?.nodes.at(-1)
+  const targetPath = findDocumentPath(sections, deletedDocumentId)
+  const targetDocument = targetPath?.nodes.at(-1)
 
-  if (!targetNode) {
-    return currentActiveNodeId
+  if (!targetDocument) {
+    return currentActiveDocumentId
   }
 
-  const deletedNodeIds = collectTreeNodeIds([targetNode])
+  const deletedDocumentIds = collectDocumentItemIds([targetDocument])
 
-  if (!currentActiveNodeId || !deletedNodeIds.has(currentActiveNodeId)) {
-    return currentActiveNodeId
+  if (!currentActiveDocumentId || !deletedDocumentIds.has(currentActiveDocumentId)) {
+    return currentActiveDocumentId
   }
 
-  if (targetNode.parentId) {
-    return targetNode.parentId
+  if (targetDocument.parentId) {
+    return targetDocument.parentId
   }
 
-  return findFirstAvailableNodeId(
+  return findFirstAvailableDocumentId(
     sections.flatMap(section => section.nodes),
-    deletedNodeIds,
+    deletedDocumentIds,
   )
 }
 
-function resolveDocumentTreeSectionLabel(sectionId: DocumentTreeSectionId) {
+function resolveDocumentSectionLabel(sectionId: DocumentSectionId) {
   return DOCUMENT_TREE_SECTION_LABELS[sectionId]
 }
 
-function findNodes(nodes: DocumentTreeNode[], targetNodeId: string): DocumentTreeNode[] | null {
-  for (const node of nodes) {
-    if (node.id === targetNodeId) {
-      return [node]
+function resolveDocumentErrorState(error: unknown): DocumentPaneState {
+  const requestError = error as RequestError
+
+  if (requestError.status === 403) {
+    return DOCUMENT_PANE_STATE.Forbidden
+  }
+
+  if (requestError.status === 404) {
+    return DOCUMENT_PANE_STATE.NotFound
+  }
+
+  return DOCUMENT_PANE_STATE.Error
+}
+
+function resolvePreferredDocumentId(
+  sections: DocumentSection[],
+  preferredDocumentId: string | null,
+): string | null {
+  if (preferredDocumentId && findDocumentPath(sections, preferredDocumentId)) {
+    return preferredDocumentId
+  }
+
+  return findFirstAvailableDocumentId(
+    sections.flatMap(section => section.nodes),
+    new Set<string>(),
+  )
+}
+
+function findDocumentItems(items: DocumentItem[], targetDocumentId: string): DocumentItem[] | null {
+  for (const item of items) {
+    if (item.id === targetDocumentId) {
+      return [item]
     }
 
-    const nestedNodes = findNodes(node.children, targetNodeId)
+    const nestedItems = findDocumentItems(item.children, targetDocumentId)
 
-    if (nestedNodes) {
-      return [node, ...nestedNodes]
+    if (nestedItems) {
+      return [item, ...nestedItems]
     }
   }
 

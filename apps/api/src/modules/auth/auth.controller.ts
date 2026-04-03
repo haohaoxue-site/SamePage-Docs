@@ -1,6 +1,6 @@
-import type { AuthProviderName } from '@haohaoxue/samepage-contracts'
+import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { AUTH_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
+import { normalizeAuthProviderName } from '@haohaoxue/samepage-shared'
 import {
   BadRequestException,
   Body,
@@ -105,10 +105,10 @@ export class AuthController {
   }
 
   private parseProvider(provider: string): AuthProviderName {
-    const normalized = provider.trim().toLowerCase()
+    const normalizedProvider = normalizeAuthProviderName(provider)
 
-    if (AUTH_PROVIDER_VALUES.includes(normalized as AuthProviderName)) {
-      return normalized as AuthProviderName
+    if (normalizedProvider) {
+      return normalizedProvider
     }
 
     throw new BadRequestException(`Unsupported provider: ${provider}`)

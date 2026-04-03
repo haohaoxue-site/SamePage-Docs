@@ -1,10 +1,14 @@
-import type { AuthProviderName } from '@haohaoxue/samepage-contracts'
+import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type { OAuthConfig, OAuthProviderConfig } from '../../../config/auth.config'
+import { AUTH_PROVIDER } from '@haohaoxue/samepage-domain'
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { AuthProvider } from '@prisma/client'
 import * as client from 'openid-client'
 
+/**
+ * OAuth 提供商运行时配置。
+ */
 export interface OAuthRuntimeProvider {
   name: AuthProviderName
   dbProvider: AuthProvider
@@ -12,6 +16,16 @@ export interface OAuthRuntimeProvider {
   userinfoEndpoint: string
   scopes: string
 }
+
+const OAUTH_PROVIDER_CONFIG_KEY = {
+  [AUTH_PROVIDER.GITHUB]: 'github',
+  [AUTH_PROVIDER.LINUX_DO]: 'linuxDo',
+} as const satisfies Record<AuthProviderName, keyof Pick<OAuthConfig, 'github' | 'linuxDo'>>
+
+const OAUTH_PROVIDER_DB_PROVIDER = {
+  [AUTH_PROVIDER.GITHUB]: AuthProvider.GITHUB,
+  [AUTH_PROVIDER.LINUX_DO]: AuthProvider.LINUX_DO,
+} as const satisfies Record<AuthProviderName, AuthProvider>
 
 @Injectable()
 export class OAuthProviderService {
@@ -30,9 +44,11 @@ export class OAuthProviderService {
 
     const oauthConfig = this.configService.getOrThrow<OAuthConfig>('oauth')
 
-    const result = provider === 'github'
-      ? this.buildProvider('github', AuthProvider.GITHUB, oauthConfig.github)
-      : this.buildProvider('linux-do', AuthProvider.LINUX_DO, oauthConfig.linuxDo)
+    const result = this.buildProvider(
+      provider,
+      OAUTH_PROVIDER_DB_PROVIDER[provider],
+      oauthConfig[OAUTH_PROVIDER_CONFIG_KEY[provider]],
+    )
 
     this.providerCache.set(provider, result)
     return result

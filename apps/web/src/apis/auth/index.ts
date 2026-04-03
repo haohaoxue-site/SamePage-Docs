@@ -1,4 +1,4 @@
-import type { AUTH_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
+import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type {
   ExchangeCodeDto,
   LogoutResponseDto,
@@ -8,7 +8,7 @@ import { axios } from '@/utils/axios'
 
 export * from './typing'
 
-export function buildOAuthStartUrl(provider: (typeof AUTH_PROVIDER_VALUES)[number]) {
+export function buildOAuthStartUrl(provider: AuthProviderName) {
   return `${import.meta.env.VITE_APP_SERVER_PATH}/auth/oauth/${provider}/start`
 }
 

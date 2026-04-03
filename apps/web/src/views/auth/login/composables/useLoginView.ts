@@ -1,13 +1,13 @@
-import type { AuthProviderName } from '@haohaoxue/samepage-contracts'
-import { AUTH_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
+import type { AuthProviderName } from '@haohaoxue/samepage-domain'
+import { AUTH_PROVIDER, AUTH_PROVIDER_VALUES } from '@haohaoxue/samepage-domain'
 import { buildOAuthStartUrl } from '@/apis/auth'
 
 const providerLabels: Record<AuthProviderName, { title: string, description: string }> = {
-  'github': {
+  [AUTH_PROVIDER.GITHUB]: {
     title: 'GitHub 登录',
     description: '使用 GitHub 账号登录',
   },
-  'linux-do': {
+  [AUTH_PROVIDER.LINUX_DO]: {
     title: 'Linux.do 登录',
     description: '使用 Linux.do 账号登录',
   },

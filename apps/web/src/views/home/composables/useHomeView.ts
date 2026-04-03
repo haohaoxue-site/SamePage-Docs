@@ -1,7 +1,5 @@
 import type {
-  HomeActivityItem,
   HomeOverviewModel,
-  HomeQuickActionItem,
   HomeRecentDocument,
   HomeScheduleItem,
   HomeWidgetDefinition,
@@ -9,7 +7,7 @@ import type {
 } from '../typing'
 import { useLocalStorage } from '@vueuse/core'
 import { computed, onMounted, ref } from 'vue'
-import { listRecentDocumentNodes } from '@/apis/document'
+import { getRecentDocuments } from '@/apis/document'
 import { useAuthStore } from '@/stores/auth'
 
 const HOME_WIDGET_STORAGE_KEY = 'samepage_home_widgets'
@@ -21,19 +19,9 @@ const widgetDefinitions: HomeWidgetDefinition[] = [
     description: '工作区摘要与当日状态。',
   },
   {
-    id: 'quick-actions',
-    title: '快速操作',
-    description: '高频入口和流程跳转。',
-  },
-  {
     id: 'recent-documents',
     title: '最近文档',
     description: '继续上次编辑上下文。',
-  },
-  {
-    id: 'recent-activity',
-    title: '最近活动',
-    description: '关键协作动态与进度提醒。',
   },
   {
     id: 'schedule',
@@ -43,51 +31,7 @@ const widgetDefinitions: HomeWidgetDefinition[] = [
 ]
 
 const defaultWidgetIds: HomeWidgetId[] = widgetDefinitions.map(widget => widget.id)
-
-const quickActions: HomeQuickActionItem[] = [
-  {
-    id: 'open-docs',
-    title: '进入文档树',
-    description: '',
-    icon: 'i-carbon-tree-view',
-    to: '/docs',
-  },
-  {
-    id: 'open-chat',
-    title: '查看聊天助手',
-    description: '',
-    icon: 'i-carbon-chat-bot',
-    to: '/chat',
-  },
-  {
-    id: 'open-knowledge',
-    title: '浏览知识库',
-    description: '',
-    icon: 'i-carbon-data-base',
-    to: '/knowledge',
-  },
-]
-
-const recentActivities: HomeActivityItem[] = [
-  {
-    id: 'activity-1',
-    title: '产品简报',
-    description: '',
-    timeLabel: '刚刚',
-  },
-  {
-    id: 'activity-2',
-    title: '接口设计',
-    description: '',
-    timeLabel: '15 分钟前',
-  },
-  {
-    id: 'activity-3',
-    title: '会议纪要',
-    description: '',
-    timeLabel: '今天',
-  },
-]
+const validWidgetIdSet = new Set<HomeWidgetId>(defaultWidgetIds)
 
 const schedules: HomeScheduleItem[] = [
   {
@@ -116,9 +60,9 @@ export function useHomeView() {
   const visibleWidgetIds = useLocalStorage<HomeWidgetId[]>(HOME_WIDGET_STORAGE_KEY, [...defaultWidgetIds])
 
   const overview = computed<HomeOverviewModel>(() => ({
-    eyebrow: '',
+    eyebrow: 'SamePage Workspace',
     title: authStore.user ? `你好，${authStore.user.displayName}` : '欢迎来到 SamePage',
-    description: '',
+    description: '从最近文档继续推进，或者先看一眼今天的节奏安排。',
     dateLabel: new Intl.DateTimeFormat('zh-CN', {
       month: 'long',
       day: 'numeric',
@@ -126,16 +70,17 @@ export function useHomeView() {
     }).format(new Date()),
   }))
 
-  const visibleWidgetSet = computed(() => new Set(visibleWidgetIds.value))
+  const visibleWidgetSet = computed(() => new Set(
+    visibleWidgetIds.value.filter((widgetId): widgetId is HomeWidgetId => validWidgetIdSet.has(widgetId)),
+  ))
   const visibleWidgets = computed(() => widgetDefinitions.filter(widget => visibleWidgetSet.value.has(widget.id)))
-  const hiddenWidgets = computed(() => widgetDefinitions.filter(widget => !visibleWidgetSet.value.has(widget.id)))
 
   async function loadRecentDocuments() {
-    recentDocuments.value = await listRecentDocumentNodes()
+    recentDocuments.value = await getRecentDocuments()
   }
 
   function toggleWidget(widgetId: HomeWidgetId) {
-    const nextWidgetIds = new Set(visibleWidgetIds.value)
+    const nextWidgetIds = new Set(visibleWidgetSet.value)
 
     if (nextWidgetIds.has(widgetId)) {
       nextWidgetIds.delete(widgetId)
@@ -153,12 +98,10 @@ export function useHomeView() {
 
   return {
     overview,
-    quickActions,
-    recentActivities,
     schedules,
     recentDocuments,
+    widgetDefinitions,
     visibleWidgets,
-    hiddenWidgets,
     visibleWidgetSet,
     toggleWidget,
   }

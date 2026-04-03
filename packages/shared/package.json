@@ -12,9 +12,11 @@
     "test:watch": "vitest --passWithNoTests"
   },
   "dependencies": {
-    "@haohaoxue/samepage-contracts": "workspace:*"
+    "@haohaoxue/samepage-contracts": "workspace:*",
+    "zod": "catalog:",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "catalog:"
   }
 }

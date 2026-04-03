@@ -1,3 +1,4 @@
+import type { CryptoConfig } from '../../config/crypto.config'
 import type {
   GovernanceSummaryDto,
   SystemAdminAuditLogItemDto,
@@ -13,23 +14,30 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import {
-  DocumentNodeMemberRole,
-  DocumentNodeStatus,
+  DocumentMemberRole,
+  DocumentStatus,
   Prisma,
   UserStatus,
 } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
+import { decryptAes256Gcm, encryptAes256Gcm, isEncryptedValue } from '../../utils/crypto'
 import { RbacService } from '../rbac/rbac.service'
 
 const DEFAULT_SYSTEM_AI_BASE_URL = 'https://api.openai.com/v1'
 
 @Injectable()
 export class SystemAdminService {
+  private readonly encryptionKey: string
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly rbacService: RbacService,
-  ) {}
+    configService: ConfigService,
+  ) {
+    this.encryptionKey = configService.getOrThrow<CryptoConfig>('crypto').encryptionKey
+  }
 
   async getOverview(): Promise<SystemAdminOverviewDto> {
     const [
@@ -44,11 +52,11 @@ export class SystemAdminService {
       this.prisma.user.count(),
       this.prisma.user.count({ where: { status: UserStatus.ACTIVE } }),
       this.rbacService.getRoleIdByCode(ROLES.SYSTEM_ADMIN),
-      this.prisma.documentNode.count(),
-      this.prisma.documentNode.count({ where: { status: DocumentNodeStatus.LOCKED } }),
-      this.prisma.documentNodeMember.groupBy({
-        by: ['nodeId'],
-        where: { role: DocumentNodeMemberRole.VIEWER },
+      this.prisma.document.count(),
+      this.prisma.document.count({ where: { status: DocumentStatus.LOCKED } }),
+      this.prisma.documentMember.groupBy({
+        by: ['documentId'],
+        where: { role: DocumentMemberRole.VIEWER },
       }),
       this.prisma.systemAiConfig.findFirst({
         orderBy: { updatedAt: 'desc' },
@@ -73,7 +81,7 @@ export class SystemAdminService {
     }
   }
 
-  async listUsers(): Promise<SystemAdminUserItemDto[]> {
+  async getUsers(): Promise<SystemAdminUserItemDto[]> {
     const users = await this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
       take: 100,
@@ -94,17 +102,17 @@ export class SystemAdminService {
             },
           },
         },
-        documentNodeMemberships: {
+        documentMemberships: {
           where: {
-            role: DocumentNodeMemberRole.VIEWER,
+            role: DocumentMemberRole.VIEWER,
           },
           select: {
-            nodeId: true,
+            documentId: true,
           },
         },
         _count: {
           select: {
-            ownedDocumentNodes: true,
+            ownedDocuments: true,
           },
         },
       },
@@ -117,8 +125,8 @@ export class SystemAdminService {
       avatarUrl: user.avatarUrl,
       status: user.status,
       isSystemAdmin: hasSystemAdminRole(user.userRoles),
-      ownedDocumentCount: user._count.ownedDocumentNodes,
-      sharedDocumentCount: user.documentNodeMemberships.length,
+      ownedDocumentCount: user._count.ownedDocuments,
+      sharedDocumentCount: user.documentMemberships.length,
       createdAt: user.createdAt,
       lastLoginAt: user.lastLoginAt,
     }))
@@ -272,14 +280,16 @@ export class SystemAdminService {
       }
     }
 
+    const decryptedApiKey = this.decryptApiKey(config.apiKey)
+
     return {
       id: config.id,
       enabled: config.enabled,
       provider: config.provider,
       baseUrl: config.baseUrl,
       defaultModel: config.defaultModel,
-      hasApiKey: Boolean(config.apiKey),
-      maskedApiKey: maskApiKey(config.apiKey),
+      hasApiKey: Boolean(decryptedApiKey),
+      maskedApiKey: maskApiKey(decryptedApiKey),
       updatedAt: config.updatedAt,
       updatedByDisplayName: config.updatedByUser?.displayName ?? null,
     }
@@ -301,18 +311,19 @@ export class SystemAdminService {
       throw new BadRequestException('启用系统 AI 配置时必须提供 baseUrl')
     }
 
-    const nextApiKey = payload.clearApiKey
+    const existingPlainApiKey = this.decryptApiKey(existing?.apiKey ?? null)
+    const nextPlainApiKey = payload.clearApiKey
       ? null
       : payload.apiKey?.trim()
         ? payload.apiKey.trim()
-        : existing?.apiKey ?? null
+        : existingPlainApiKey
 
     const configData = {
       enabled: payload.enabled,
       provider: 'openai-compatible',
       baseUrl: normalizedBaseUrl,
       defaultModel: payload.defaultModel?.trim() || null,
-      apiKey: nextApiKey,
+      apiKey: nextPlainApiKey ? encryptAes256Gcm(nextPlainApiKey, this.encryptionKey) : null,
       updatedByUserId: actorUserId,
     }
 
@@ -336,7 +347,7 @@ export class SystemAdminService {
         enabled: payload.enabled,
         baseUrl: normalizedBaseUrl,
         defaultModel: payload.defaultModel?.trim() || null,
-        hasApiKey: Boolean(nextApiKey),
+        hasApiKey: Boolean(nextPlainApiKey),
         clearApiKey: payload.clearApiKey ?? false,
       },
     })
@@ -344,7 +355,7 @@ export class SystemAdminService {
     return this.getAiConfig()
   }
 
-  async listAuditLogs(): Promise<SystemAdminAuditLogItemDto[]> {
+  async getAuditLogs(): Promise<SystemAdminAuditLogItemDto[]> {
     const logs = await this.prisma.adminAuditLog.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -374,11 +385,11 @@ export class SystemAdminService {
 
   async getGovernanceSummary(): Promise<GovernanceSummaryDto> {
     const [totalDocuments, lockedDocuments, sharedDocumentGroups] = await Promise.all([
-      this.prisma.documentNode.count(),
-      this.prisma.documentNode.count({ where: { status: DocumentNodeStatus.LOCKED } }),
-      this.prisma.documentNodeMember.groupBy({
-        by: ['nodeId'],
-        where: { role: DocumentNodeMemberRole.VIEWER },
+      this.prisma.document.count(),
+      this.prisma.document.count({ where: { status: DocumentStatus.LOCKED } }),
+      this.prisma.documentMember.groupBy({
+        by: ['documentId'],
+        where: { role: DocumentMemberRole.VIEWER },
       }),
     ])
 
@@ -386,9 +397,21 @@ export class SystemAdminService {
       totalDocuments,
       sharedDocuments: sharedDocumentGroups.length,
       lockedDocuments,
-      lockedStatus: DocumentNodeStatus.LOCKED,
+      lockedStatus: DocumentStatus.LOCKED,
       note: '系统管理员默认只看文档元数据与风险态势，不直接查看正文内容，也不直接处置用户资产。',
     }
+  }
+
+  private decryptApiKey(storedApiKey: string | null | undefined): string | null {
+    if (!storedApiKey) {
+      return null
+    }
+
+    if (!isEncryptedValue(storedApiKey)) {
+      return storedApiKey
+    }
+
+    return decryptAes256Gcm(storedApiKey, this.encryptionKey)
   }
 
   private async createAuditLog(

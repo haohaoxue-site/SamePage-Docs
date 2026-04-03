@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import type { HomeRecentDocument } from '../typing'
+import type { DocumentSectionId } from '@haohaoxue/samepage-domain'
+import type { RecentDocumentListProps } from '../typing'
+import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
 
-defineProps<{
-  documents: HomeRecentDocument[]
-}>()
+defineProps<RecentDocumentListProps>()
+
+const SECTION_LABEL_MAP: Record<DocumentSectionId, string> = {
+  [DOCUMENT_SECTION_ID.PERSONAL]: '私有',
+  [DOCUMENT_SECTION_ID.SHARED]: '共享',
+  [DOCUMENT_SECTION_ID.TEAM]: '团队',
+}
 
 function formatDocumentUpdatedAt(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -14,13 +20,17 @@ function formatDocumentUpdatedAt(value: string) {
     hour12: false,
   }).format(new Date(value))
 }
+
+function formatDocumentSource(section: DocumentSectionId, ancestorTitles: string[]) {
+  return [SECTION_LABEL_MAP[section], ...ancestorTitles].join('/')
+}
 </script>
 
 <template>
-  <ElCard shadow="never" body-class="!p-6" class="!rounded-[28px] border-border/80 shadow-sm">
-    <div class="mb-5 flex items-center justify-between gap-3">
+  <ElCard shadow="never" body-class="recent-document-list__body" class="recent-document-list">
+    <div class="recent-document-list__header">
       <div>
-        <h3 class="text-lg font-semibold text-main">
+        <h3 class="recent-document-list__title">
           最近文档
         </h3>
       </div>
@@ -29,29 +39,32 @@ function formatDocumentUpdatedAt(value: string) {
       </ElTag>
     </div>
 
-    <div v-if="documents.length" class="grid gap-3">
+    <div v-if="documents.length" class="recent-document-list__list">
       <RouterLink
         v-for="document in documents"
         :key="document.id"
         :to="{ name: 'docs', params: { id: document.id } }"
-        class="group flex items-start gap-4 rounded-2xl border border-border/70 bg-#fbfcff p-4 text-main no-underline transition-all hover:border-primary/25 hover:bg-white"
+        class="recent-document-list__item"
       >
-        <div class="h-11 w-11 flex shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <div class="i-carbon-document text-lg" />
+        <div class="recent-document-list__icon-shell">
+          <SvgIcon category="ui" icon="doc-card" size="1.5rem" class="recent-document-list__icon" />
         </div>
 
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <h4 class="min-w-0 flex-1 truncate text-sm font-semibold text-main">
+        <div class="recent-document-list__copy">
+          <div class="recent-document-list__item-header">
+            <h4 class="recent-document-list__item-title">
               {{ document.title }}
             </h4>
-            <span class="text-xs text-secondary">
+            <span class="recent-document-list__updated-at">
               更新于 {{ formatDocumentUpdatedAt(document.updatedAt) }}
             </span>
           </div>
-          <p v-if="document.summary" class="mt-2 line-clamp-2 text-sm leading-relaxed text-secondary">
-            {{ document.summary }}
-          </p>
+          <div class="recent-document-list__source">
+            <SvgIcon category="ui" icon="folder-chip" size="0.875rem" class="recent-document-list__source-icon" />
+            <p class="recent-document-list__source-text">
+              {{ formatDocumentSource(document.section, document.ancestorTitles) }}
+            </p>
+          </div>
         </div>
       </RouterLink>
     </div>
@@ -59,3 +72,123 @@ function formatDocumentUpdatedAt(value: string) {
     <ElEmpty v-else description="暂无内容" />
   </ElCard>
 </template>
+
+<style scoped lang="scss">
+.recent-document-list {
+  border: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
+  border-radius: 1.75rem !important;
+  box-shadow: 0 1px 2px 0 color-mix(in srgb, var(--brand-text-primary) 5%, transparent);
+
+  :deep(.recent-document-list__body) {
+    padding: 1.5rem !important;
+  }
+
+  .recent-document-list__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .recent-document-list__title {
+    color: var(--brand-text-primary);
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.75rem;
+  }
+
+  .recent-document-list__list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .recent-document-list__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid color-mix(in srgb, var(--brand-border-base) 70%, transparent);
+    border-radius: 1rem;
+    color: var(--brand-text-primary);
+    text-decoration: none;
+    background: var(--brand-bg-surface-raised);
+    transition:
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--brand-primary) 20%, transparent);
+      background: var(--brand-bg-surface);
+    }
+  }
+
+  .recent-document-list__icon-shell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 1rem;
+    color: var(--brand-primary);
+    background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  }
+
+  .recent-document-list__icon {
+    display: block;
+  }
+
+  .recent-document-list__copy {
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+
+  .recent-document-list__item-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .recent-document-list__item-title {
+    flex: 1 1 0%;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--brand-text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recent-document-list__updated-at {
+    color: var(--brand-text-secondary);
+    font-size: 0.75rem;
+  }
+
+  .recent-document-list__source {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 0.375rem;
+    min-width: 0;
+    color: color-mix(in srgb, var(--brand-text-secondary) 90%, var(--brand-primary) 10%);
+  }
+
+  .recent-document-list__source-icon {
+    flex-shrink: 0;
+    display: block;
+  }
+
+  .recent-document-list__source-text {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+</style>

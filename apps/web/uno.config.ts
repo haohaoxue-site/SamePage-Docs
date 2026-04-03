@@ -1,31 +1,49 @@
-import { defineConfig, presetIcons, presetUno } from 'unocss'
+import { defineConfig, presetUno } from 'unocss'
+
+const alphaLevels = [10, 20, 30, 40, 50, 60, 70, 80] as const
+
+const semanticColorTokens = {
+  'primary': '--brand-primary',
+  'success': '--brand-success',
+  'warning': '--brand-warning',
+  'danger': '--brand-error',
+  'error': '--brand-error',
+  'info': '--brand-info',
+  'main': '--brand-text-primary',
+  'regular': '--brand-text-regular',
+  'secondary': '--brand-text-secondary',
+  'placeholder': '--brand-text-placeholder',
+  'disabled': '--brand-text-disabled',
+  'border': '--brand-border-base',
+  'border-light': '--brand-border-light',
+  'fill': '--brand-fill-base',
+  'fill-light': '--brand-fill-light',
+  'fill-lighter': '--brand-fill-lighter',
+  'body': '--brand-bg-body',
+  'sidebar': '--brand-bg-sidebar',
+  'surface': '--brand-bg-surface',
+  'surface-raised': '--brand-bg-surface-raised',
+} as const
+
+const themeColors = {
+  ...Object.fromEntries(
+    Object.entries(semanticColorTokens).map(([name, token]) => [name, `var(${token})`]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(semanticColorTokens).flatMap(([name, token]) =>
+      alphaLevels.map(level => [
+        `${name}-a${level}`,
+        `color-mix(in srgb, var(${token}) ${level}%, transparent)`,
+      ]),
+    ),
+  ),
+}
 
 export default defineConfig({
-  safelist: [
-    'i-carbon-home',
-    'i-carbon-chat-bot',
-    'i-carbon-document-multiple-01',
-    'i-carbon-data-base',
-    'i-carbon-tree-view',
-  ],
-  presets: [presetUno(), presetIcons()],
-  shortcuts: {
-    'app-sidebar-item': 'flex items-center gap-2 px-3 py-1.5 rounded-md cursor-pointer transition-colors hover:bg-#eff1f3 text-[#646a73] hover:text-[#3370ff] active:bg-#e5e8eb',
-    'app-sidebar-item-active': 'bg-[#eff1f3]! text-[#3370ff]! font-medium',
-    'app-card': 'bg-white border border-[#eff1f3] rounded-xl shadow-sm',
-    'app-input': 'px-3 py-1.5 bg-[#f5f7fa] border border-transparent rounded-md focus:border-[#3370ff] focus:bg-white outline-none transition-all',
-    'app-btn': 'inline-flex items-center justify-center px-4 py-1.5 rounded-md font-medium cursor-pointer transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed',
-    'app-btn-primary': 'app-btn bg-[#3370ff] text-white hover:bg-[#2b5eda]',
-    'app-btn-ghost': 'app-btn bg-transparent text-[#646a73] hover:bg-[#eff1f3] hover:text-[#3370ff]',
-  },
+  presets: [presetUno()],
   theme: {
-    colors: {
-      primary: '#3370ff',
-      secondary: '#646a73',
-      main: '#1f2329',
-      border: '#eff1f3',
-      sidebar: '#f9f9f9',
-    },
+    colors: themeColors,
+
     fontFamily: {
       sans: 'Inter, system-ui, -apple-system, sans-serif',
     },

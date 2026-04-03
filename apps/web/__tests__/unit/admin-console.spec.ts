@@ -18,7 +18,7 @@ vi.mock('@/apis/system-admin', () => ({
     systemAiBaseUrl: 'https://api.openai.com/v1',
     systemAiDefaultModel: 'gpt-4.1-mini',
   })),
-  listSystemAdminUsers: vi.fn(async () => ([
+  getSystemAdminUsers: vi.fn(async () => ([
     {
       id: 'user-1',
       email: 'alice@example.com',
@@ -64,7 +64,7 @@ vi.mock('@/apis/system-admin', () => ({
     updatedAt: '2026-03-25T12:00:00.000Z',
     updatedByDisplayName: 'Alice',
   })),
-  listSystemAdminAuditLogs: vi.fn(async () => []),
+  getSystemAdminAuditLogs: vi.fn(async () => []),
   getGovernanceSummary: vi.fn(async () => ({
     totalDocuments: 36,
     sharedDocuments: 8,

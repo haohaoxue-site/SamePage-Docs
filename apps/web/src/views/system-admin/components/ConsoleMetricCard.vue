@@ -1,27 +1,89 @@
 <script setup lang="ts">
-defineProps<{
-  label: string
-  value: string | number
-  detail: string
-  icon?: string
-}>()
+import type { ConsoleMetricCardProps } from '../typing'
+
+defineProps<ConsoleMetricCardProps>()
 </script>
 
 <template>
-  <ElCard shadow="hover" body-class="!p-5" class="group border-border/80 transition-all duration-300 hover:border-primary/40">
-    <div class="flex items-start justify-between">
-      <div class="space-y-1">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-secondary">
+  <ElCard shadow="hover" body-class="console-metric-card__body" class="console-metric-card">
+    <div class="console-metric-card__header">
+      <div class="console-metric-card__copy">
+        <p class="console-metric-card__label">
           {{ label }}
         </p>
-        <div class="text-2xl font-bold text-main tracking-tight group-hover:text-primary transition-colors">
+        <div class="console-metric-card__value">
           {{ value }}
         </div>
       </div>
-      <div v-if="icon" class="text-xl text-secondary/40 group-hover:text-primary transition-colors" :class="[icon]" />
+      <SvgIcon v-if="icon" :category="iconCategory" :icon="icon" size="1.25rem" class="console-metric-card__icon" />
     </div>
-    <p class="mt-4 text-xs text-secondary leading-snug">
+    <p class="console-metric-card__detail">
       {{ detail }}
     </p>
   </ElCard>
 </template>
+
+<style scoped lang="scss">
+.console-metric-card {
+  border-color: color-mix(in srgb, var(--brand-border-base) 80%, transparent);
+  transition:
+    border-color 0.3s ease,
+    color 0.3s ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--brand-primary) 40%, transparent);
+  }
+
+  :deep(.console-metric-card__body) {
+    padding: 1.25rem !important;
+  }
+
+  .console-metric-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .console-metric-card__copy {
+    > * + * {
+      margin-top: 0.25rem;
+    }
+  }
+
+  .console-metric-card__label {
+    color: var(--brand-text-secondary);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .console-metric-card__value {
+    color: var(--brand-text-primary);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    transition: color 0.3s ease;
+  }
+
+  .console-metric-card__icon {
+    color: color-mix(in srgb, var(--brand-text-secondary) 40%, transparent);
+    font-size: 1.25rem;
+    transition: color 0.3s ease;
+  }
+
+  .console-metric-card__detail {
+    margin-top: 1rem;
+    color: var(--brand-text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.375;
+  }
+
+  &:hover {
+    .console-metric-card__value,
+    .console-metric-card__icon {
+      color: var(--brand-primary);
+    }
+  }
+}
+</style>

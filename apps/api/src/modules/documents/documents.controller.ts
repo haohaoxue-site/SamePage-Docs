@@ -1,77 +1,74 @@
+import type { CreateDocumentRequest, DocumentDetail, DocumentRecent, DocumentSection, UpdateDocumentRequest } from '@haohaoxue/samepage-domain'
 import type { AuthUserContext } from '../auth/auth.interface'
+import { CreateDocumentSchema, UpdateDocumentSchema } from '@haohaoxue/samepage-contracts'
+import { zodToApiSchema } from '@haohaoxue/samepage-shared'
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common'
-import { ApiOperation, ApiTags } from '@nestjs/swagger'
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { CurrentUser } from '../../decorators/current-user.decorator'
+import { ZodValidationPipe } from '../../pipes/zod-validation.pipe'
 import { ApiRequestResponse } from '../../utils/swagger'
-import {
-  CreateDocumentNodeDto,
-  CreateDocumentNodeResponseDto,
-  DocumentBaseDto,
-  DocumentNodeDetailDto,
-  DocumentTreeSectionDto,
-  UpdateDocumentNodeDto,
-  UpdateDocumentNodeResponseDto,
-} from './documents.dto'
 import { DocumentsService } from './documents.service'
 
-@ApiTags('document-tree')
-@Controller('document-tree')
+@ApiTags('documents')
+@Controller('documents')
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
   @ApiOperation({ summary: '创建文档' })
-  @ApiRequestResponse(CreateDocumentNodeResponseDto)
+  @ApiBody({ schema: zodToApiSchema(CreateDocumentSchema) })
+  @ApiRequestResponse({ type: 'object' })
   @Post()
-  async create(
+  async createDocument(
     @CurrentUser() authUser: AuthUserContext,
-    @Body() payload: CreateDocumentNodeDto,
-  ): Promise<CreateDocumentNodeResponseDto> {
-    return this.documentsService.create(authUser.id, payload)
+    @Body(new ZodValidationPipe(CreateDocumentSchema)) payload: CreateDocumentRequest,
+  ): Promise<DocumentDetail> {
+    return this.documentsService.createDocument(authUser.id, payload)
   }
 
   @ApiOperation({ summary: '获取当前用户可见的文档树' })
-  @ApiRequestResponse([DocumentTreeSectionDto])
+  @ApiRequestResponse([{ type: 'object' }])
   @Get()
-  async findTree(@CurrentUser() authUser: AuthUserContext): Promise<DocumentTreeSectionDto[]> {
-    return this.documentsService.findTree(authUser.id)
+  async getDocumentTree(@CurrentUser() authUser: AuthUserContext): Promise<DocumentSection[]> {
+    return this.documentsService.getDocumentTree(authUser.id)
   }
 
   @ApiOperation({ summary: '获取最近文档' })
-  @ApiRequestResponse([DocumentBaseDto])
+  @ApiRequestResponse([{ type: 'object' }])
   @Get('recent')
-  async findRecent(@CurrentUser() authUser: AuthUserContext): Promise<DocumentBaseDto[]> {
-    return this.documentsService.findRecent(authUser.id)
+  async getRecentDocuments(@CurrentUser() authUser: AuthUserContext): Promise<DocumentRecent[]> {
+    return this.documentsService.getRecentDocuments(authUser.id)
   }
 
   @ApiOperation({ summary: '获取文档详情' })
-  @ApiRequestResponse(DocumentNodeDetailDto)
+  @ApiRequestResponse({ type: 'object' })
   @Get(':id')
-  async findOne(
+  async getDocumentById(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
-  ): Promise<DocumentNodeDetailDto> {
-    return this.documentsService.findOne(authUser.id, id)
+  ): Promise<DocumentDetail> {
+    return this.documentsService.getDocumentById(authUser.id, id)
   }
 
   @ApiOperation({ summary: '更新文档' })
-  @ApiRequestResponse(UpdateDocumentNodeResponseDto)
+  @ApiBody({ schema: zodToApiSchema(UpdateDocumentSchema) })
+  @ApiRequestResponse({ type: 'object' })
   @Patch(':id')
-  async update(
+  async updateDocument(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
-    @Body() payload: UpdateDocumentNodeDto,
-  ): Promise<UpdateDocumentNodeResponseDto> {
-    return this.documentsService.update(authUser.id, id, payload)
+    @Body(new ZodValidationPipe(UpdateDocumentSchema)) payload: UpdateDocumentRequest,
+  ): Promise<DocumentDetail> {
+    return this.documentsService.updateDocument(authUser.id, id, payload)
   }
 
   @ApiOperation({ summary: '删除文档' })
   @ApiRequestResponse(null)
   @Delete(':id')
-  async remove(
+  async deleteDocument(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
   ): Promise<null> {
-    await this.documentsService.remove(authUser.id, id)
+    await this.documentsService.deleteDocument(authUser.id, id)
     return null
   }
 }

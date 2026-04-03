@@ -5,18 +5,18 @@ const { providers, startLogin } = useLoginView()
 </script>
 
 <template>
-  <div class="min-h-screen bg-sidebar flex items-center justify-center px-4 py-12">
-    <ElCard shadow="never" body-class="!p-0" class="w-full max-w-4xl overflow-hidden border-border/60 shadow-2xl">
+  <div class="login-view">
+    <ElCard shadow="never" body-class="!p-0" class="login-card">
       <div class="grid grid-cols-1 md:grid-cols-2">
-        <div class="p-8 md:p-12 bg-white">
-          <div class="flex items-center gap-2 mb-8">
-            <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-bold text-xl">
-              S
+        <div class="login-view__panel">
+          <div class="login-view__brand">
+            <div class="login-view__brand-mark">
+              <SvgIcon category="nav" icon="workspace" size="2.5rem" />
             </div>
             <span class="text-xl font-bold tracking-tight text-main">SamePage Docs</span>
           </div>
 
-          <h1 class="text-3xl font-bold text-main mb-4">
+          <h1 class="mb-4 text-3xl font-bold text-main">
             系统登录
           </h1>
 
@@ -24,26 +24,26 @@ const { providers, startLogin } = useLoginView()
             <ElButton
               v-for="item in providers"
               :key="item.provider"
-              class="group login-provider-btn !ml-0 !h-auto !w-full !justify-between !rounded-xl !border-border !bg-white !p-4 hover:!border-primary/40 hover:!bg-primary/5"
+              class="login-provider-btn group"
               @click="startLogin(item.provider)"
             >
-              <div class="flex flex-col items-start">
+              <div class="login-provider-btn__content">
                 <span class="font-semibold text-main">{{ item.title }}</span>
-                <span class="text-xs text-secondary mt-1">{{ item.description }}</span>
+                <span class="login-provider-btn__description">{{ item.description }}</span>
               </div>
-              <div class="i-carbon-arrow-right text-secondary group-hover:text-primary transition-transform group-hover:translate-x-1" />
+              <SvgIcon category="ui" icon="arrow-right" size="1rem" class="login-provider-btn__arrow" />
             </ElButton>
           </div>
         </div>
-        <div class="hidden md:flex flex-col items-center justify-center p-12 bg-primary text-white relative overflow-hidden">
-          <div class="absolute inset-0 opacity-10">
-            <div class="absolute top-0 right-0 w-64 h-64 bg-white rounded-full translate-x-1/2 -translate-y-1/2 blur-3xl" />
-            <div class="absolute bottom-0 left-0 w-64 h-64 bg-white rounded-full -translate-x-1/2 translate-y-1/2 blur-3xl" />
+        <div class="login-view__hero">
+          <div class="login-view__hero-overlay">
+            <div class="login-view__hero-orb login-view__hero-orb--top" />
+            <div class="login-view__hero-orb login-view__hero-orb--bottom" />
           </div>
 
-          <div class="relative z-10 text-center">
-            <div class="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center text-4xl font-bold mb-6 mx-auto">
-              S
+          <div class="login-view__hero-content">
+            <div class="login-view__hero-mark">
+              <SvgIcon category="nav" icon="workspace" size="5rem" />
             </div>
             <h2 class="text-2xl font-bold">
               SamePage Docs
@@ -54,3 +54,146 @@ const { providers, startLogin } = useLoginView()
     </ElCard>
   </div>
 </template>
+
+<style scoped lang="scss">
+.login-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 3rem 1rem;
+  background: var(--brand-bg-sidebar);
+
+  .login-card {
+    width: 100%;
+    max-width: 56rem;
+    overflow: hidden;
+    border-color: color-mix(in srgb, var(--brand-border-base) 60%, transparent);
+    box-shadow: 0 25px 50px -12px color-mix(in srgb, var(--brand-text-primary) 12%, transparent);
+  }
+
+  .login-view__panel {
+    padding: 2rem;
+    background: var(--brand-bg-surface);
+
+    @media (min-width: 768px) {
+      padding: 3rem;
+    }
+
+    .login-view__brand {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+
+      .login-view__brand-mark {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+      }
+    }
+
+    .login-provider-btn {
+      margin-left: 0;
+      width: 100%;
+      height: auto;
+      justify-content: space-between;
+      border-color: var(--brand-border-base);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      background-color: var(--brand-bg-surface);
+      transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--brand-primary) 40%, var(--brand-border-base));
+        background-color: color-mix(in srgb, var(--brand-primary) 5%, var(--brand-bg-surface));
+      }
+
+      .login-provider-btn__content {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .login-provider-btn__description {
+        margin-top: 0.25rem;
+        color: var(--brand-text-secondary);
+        font-size: 0.75rem;
+      }
+
+      .login-provider-btn__arrow {
+        color: var(--brand-text-secondary);
+        transition:
+          transform 0.2s ease,
+          color 0.2s ease;
+      }
+
+      &:hover .login-provider-btn__arrow {
+        color: var(--brand-primary);
+        transform: translateX(0.25rem);
+      }
+    }
+  }
+
+  .login-view__hero {
+    position: relative;
+    display: none;
+    overflow: hidden;
+    padding: 3rem;
+    color: #fff;
+    background: var(--brand-primary);
+
+    @media (min-width: 768px) {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-view__hero-overlay {
+      position: absolute;
+      inset: 0;
+      opacity: 0.1;
+    }
+
+    .login-view__hero-orb {
+      position: absolute;
+      width: 16rem;
+      height: 16rem;
+      border-radius: 9999px;
+      background: #fff;
+      filter: blur(64px);
+
+      &--top {
+        top: 0;
+        right: 0;
+        transform: translate(50%, -50%);
+      }
+
+      &--bottom {
+        bottom: 0;
+        left: 0;
+        transform: translate(-50%, 50%);
+      }
+    }
+
+    .login-view__hero-content {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+    }
+
+    .login-view__hero-mark {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 5rem;
+      height: 5rem;
+      margin: 0 auto 1.5rem;
+      border-radius: 1rem;
+    }
+  }
+}
+</style>

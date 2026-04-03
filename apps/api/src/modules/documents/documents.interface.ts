@@ -1,11 +1,7 @@
-import type {
+export type {
   DocumentBase,
-  DocumentNodeDetail,
-  DocumentTreeNode,
-  DocumentTreeSection,
+  DocumentDetail,
+  DocumentItem,
+  DocumentRecent,
+  DocumentSection,
 } from '@haohaoxue/samepage-domain'
-
-export type DocumentBaseEntity = DocumentBase
-export type DocumentTreeNodeEntity = DocumentTreeNode
-export type DocumentTreeSectionEntity = DocumentTreeSection
-export type DocumentNodeEntity = DocumentNodeDetail

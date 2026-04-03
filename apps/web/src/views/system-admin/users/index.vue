@@ -24,19 +24,22 @@ const summaryCards = computed(() => {
       label: '用户总数',
       value: users.value.length,
       detail: `正常 ${activeUsers}，禁用 ${disabledUsers}`,
-      icon: 'i-carbon-group',
+      icon: 'user-group',
+      iconCategory: 'ui' as const,
     },
     {
       label: '管理员',
       value: systemAdmins,
       detail: '具备系统后台访问权限',
-      icon: 'i-carbon-user-admin',
+      icon: 'user-admin',
+      iconCategory: 'ui' as const,
     },
     {
       label: '文档交互',
       value: users.value.reduce((sum, user) => sum + user.sharedDocumentCount, 0),
       detail: '全平台共享文档总数',
-      icon: 'i-carbon-share-knowledge',
+      icon: 'share',
+      iconCategory: 'ui' as const,
     },
   ]
 })
@@ -45,8 +48,8 @@ onMounted(loadUsers)
 </script>
 
 <template>
-  <div v-loading="isLoading" class="space-y-6 py-6">
-    <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div v-loading="isLoading" class="admin-users">
+    <section class="admin-users__metrics">
       <ConsoleMetricCard
         v-for="card in summaryCards"
         :key="card.label"
@@ -54,13 +57,14 @@ onMounted(loadUsers)
         :label="card.label"
         :value="card.value"
         :icon="card.icon"
+        :icon-category="card.iconCategory"
       />
     </section>
 
     <ElAlert v-if="errorMessage" :title="errorMessage" type="error" show-icon :closable="false" class="rounded-xl" />
 
     <template v-else>
-      <div class="space-y-6">
+      <div class="admin-users__content">
         <SystemAdminUserTable
           :updating-user-id="updatingUserId"
           :users="users"
@@ -71,3 +75,29 @@ onMounted(loadUsers)
     </template>
   </div>
 </template>
+
+<style scoped lang="scss">
+.admin-users {
+  padding-block: 1.5rem;
+
+  > * + * {
+    margin-top: 1.5rem;
+  }
+
+  .admin-users__metrics {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .admin-users__content {
+    > * + * {
+      margin-top: 1.5rem;
+    }
+  }
+}
+</style>

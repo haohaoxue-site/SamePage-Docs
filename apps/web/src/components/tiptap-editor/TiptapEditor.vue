@@ -1,14 +1,23 @@
 <script setup lang="ts">
-import type { TiptapEditorProps } from './types'
+import type { TiptapEditorEmits, TiptapEditorProps } from './typing'
+import Color from '@tiptap/extension-color'
+import Highlight from '@tiptap/extension-highlight'
+import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
+import { Table } from '@tiptap/extension-table'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
+import TableRow from '@tiptap/extension-table-row'
+import TaskItem from '@tiptap/extension-task-item'
+import TaskList from '@tiptap/extension-task-list'
+import { TextStyle } from '@tiptap/extension-text-style'
 import StarterKit from '@tiptap/starter-kit'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { onBeforeUnmount, watch } from 'vue'
+import BubbleToolbar from './bubble-menu/BubbleToolbar.vue'
 
 const props = defineProps<TiptapEditorProps>()
-const emit = defineEmits<{
-  'update:content': [content: string]
-}>()
+const emits = defineEmits<TiptapEditorEmits>()
 
 const editor = useEditor({
   content: props.content,
@@ -17,9 +26,28 @@ const editor = useEditor({
       heading: {
         levels: [1, 2, 3],
       },
+      link: {
+        openOnClick: false,
+      },
     }),
     Placeholder.configure({
       placeholder: '输入 / 唤起命令，或者直接开始写作。',
+    }),
+    TextStyle,
+    Color,
+    Highlight.configure({ multicolor: true }),
+    TaskList,
+    TaskItem.configure({
+      nested: true,
+    }),
+    Table.configure({
+      resizable: true,
+    }),
+    TableRow,
+    TableHeader,
+    TableCell,
+    Image.configure({
+      inline: true,
     }),
   ],
   editorProps: {
@@ -39,7 +67,7 @@ function emitUpdatedContent() {
     return
   }
 
-  emit('update:content', editor.value.getHTML())
+  emits('update:content', editor.value.getHTML())
 }
 
 function syncEditorContent(content: string) {
@@ -73,61 +101,38 @@ onBeforeUnmount(destroyEditor)
 <template>
   <ElCard
     shadow="never"
-    body-class="!flex !min-h-0 !flex-1 !flex-col !p-0"
-    class="flex h-full min-h-full min-w-0 flex-1 flex-col overflow-visible !border-none bg-white"
+    body-class="tiptap-editor__card-body"
+    class="tiptap-editor"
   >
-    <EditorContent v-if="editor" :editor="editor" class="min-h-0 flex-1" />
+    <BubbleToolbar v-if="editor" :editor="editor" />
+    <EditorContent v-if="editor" :editor="editor" class="tiptap-editor__content" />
   </ElCard>
 </template>
 
 <style scoped lang="scss">
-:deep(.editor-surface__content) {
-  box-sizing: border-box;
-  min-height: max(100%, 500px);
-  outline: none;
-  font-size: 16px;
-  line-height: 1.8;
-  color: var(--el-text-color-primary);
+.tiptap-editor {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100%;
+  height: 100%;
+  overflow: visible;
+  background: transparent;
+  border: none !important;
+  box-shadow: none !important;
 
-  h1, h2, h3 {
-    font-weight: 700;
-    margin-top: 2em;
-    margin-bottom: 0.5em;
-    color: var(--el-text-color-primary);
+  :deep(.tiptap-editor__card-body) {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0;
   }
 
-  h1 { font-size: 2.2em; border-bottom: 1px solid var(--el-border-color-light); padding-bottom: 0.3em; }
-  h2 { font-size: 1.6em; }
-  h3 { font-size: 1.3em; }
-
-  p { margin-bottom: 1.25em; }
-
-  ul, ol {
-    padding-left: 1.5em;
-    margin-bottom: 1.25em;
-    li { margin-bottom: 0.5em; }
-  }
-
-  blockquote {
-    border-left: 4px solid var(--el-color-primary);
-    padding-left: 1rem;
-    color: var(--el-text-color-secondary);
-    font-style: italic;
-    margin: 1.5em 0;
-  }
-
-  p.is-editor-empty:first-child::before {
-    content: attr(data-placeholder);
-    color: var(--el-text-color-placeholder);
-    float: left;
-    height: 0;
-    pointer-events: none;
-  }
-
-  hr {
-    border: none;
-    border-top: 1px solid var(--el-border-color);
-    margin: 2em 0;
+  .tiptap-editor__content {
+    flex: 1 1 0%;
+    min-height: 0;
   }
 }
 </style>

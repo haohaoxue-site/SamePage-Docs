@@ -1,37 +1,179 @@
 <script setup lang="ts">
-import type { DocumentNodeDetail } from '@haohaoxue/samepage-domain'
+import type { DocumentEditorPaneEmits, DocumentEditorPaneProps } from '../typing'
+import type { SvgIconCategory } from '@/components/svg-icon/typing'
+import { computed } from 'vue'
 import { TiptapEditor } from '@/components/tiptap-editor'
 
-defineProps<{
-  document: DocumentNodeDetail | null
-  isLoading: boolean
-}>()
+type EmptyActionEvent = 'createDocument' | 'openFallbackDocument' | 'retryLoad'
 
-const emit = defineEmits<{
-  updateTitle: [title: string]
-  updateContent: [content: string]
-}>()
+interface EmptyAction {
+  event: EmptyActionEvent
+  label: string
+  type?: 'primary' | 'default'
+}
+
+interface EmptyState {
+  title: string
+  description: string
+  icon: string
+  iconCategory: SvgIconCategory
+  spin?: boolean
+  actions: EmptyAction[]
+}
+
+const props = defineProps<DocumentEditorPaneProps>()
+
+const emits = defineEmits<DocumentEditorPaneEmits>()
+
+const emptyState = computed<EmptyState>(() => {
+  if (props.paneState === 'loading') {
+    return {
+      title: '正在准备文档',
+      description: props.isLoading ? '正在加载当前文档，请稍候。' : '正在恢复最近打开的内容，请稍候。',
+      icon: 'spinner-orbit',
+      iconCategory: 'ui',
+      spin: true,
+      actions: [] as EmptyAction[],
+    }
+  }
+
+  if (props.paneState === 'empty') {
+    return {
+      title: '还没有文档',
+      description: '先创建第一篇文档，之后进入工作区会自动回到最近内容。',
+      icon: 'document-add',
+      iconCategory: 'ui',
+      actions: [
+        {
+          event: 'createDocument',
+          label: '新建第一篇文档',
+          type: 'primary',
+        },
+      ],
+    }
+  }
+
+  if (props.paneState === 'not-found') {
+    return {
+      title: '文档不存在',
+      description: '这个链接可能已经失效，或者文档已被删除。',
+      icon: 'document-unknown',
+      iconCategory: 'ui',
+      actions: props.hasFallbackDocument
+        ? [
+            {
+              event: 'openFallbackDocument',
+              label: '打开可用文档',
+              type: 'primary',
+            },
+          ]
+        : [
+            {
+              event: 'createDocument',
+              label: '新建文档',
+              type: 'primary',
+            },
+          ],
+    }
+  }
+
+  if (props.paneState === 'forbidden') {
+    return {
+      title: '无权访问这篇文档',
+      description: '你可以先回到其他可访问的文档继续工作。',
+      icon: 'lock',
+      iconCategory: 'ui',
+      actions: props.hasFallbackDocument
+        ? [
+            {
+              event: 'openFallbackDocument',
+              label: '打开可用文档',
+              type: 'primary',
+            },
+          ]
+        : [],
+    }
+  }
+
+  if (props.paneState === 'error') {
+    return {
+      title: '文档加载失败',
+      description: '当前内容暂时无法打开，你可以重试或先回到其他文档。',
+      icon: 'warning',
+      iconCategory: 'ui',
+      actions: [
+        {
+          event: 'retryLoad',
+          label: '重新加载',
+          type: 'primary',
+        },
+        ...(
+          props.hasFallbackDocument
+            ? [{
+                event: 'openFallbackDocument' as const,
+                label: '打开可用文档',
+              }]
+            : []
+        ),
+      ],
+    }
+  }
+
+  return {
+    title: '选择一篇文档',
+    description: '已进入文档工作区，先打开一篇文档再开始编辑。',
+    icon: 'document-view',
+    iconCategory: 'ui',
+    actions: props.hasFallbackDocument
+      ? [
+          {
+            event: 'openFallbackDocument',
+            label: '打开第一篇文档',
+            type: 'primary',
+          },
+        ]
+      : [
+          {
+            event: 'createDocument',
+            label: '新建文档',
+            type: 'primary',
+          },
+        ],
+  }
+})
+
+function emitEmptyAction(event: EmptyActionEvent) {
+  switch (event) {
+    case 'createDocument':
+      emits('createDocument')
+      return
+    case 'openFallbackDocument':
+      emits('openFallbackDocument')
+      return
+    case 'retryLoad':
+      emits('retryLoad')
+  }
+}
 </script>
 
 <template>
-  <section class="flex min-h-0 flex-1 flex-col">
+  <section class="document-editor-pane">
     <template v-if="document">
-      <div class="border-b border-border/80 px-8 py-6">
+      <div class="document-editor-pane__title-bar">
         <ElInput
-          data-testid="document-title-input"
           :model-value="document.title"
-          class="document-title-input"
+          class="document-editor-pane__title-input"
           placeholder="输入文档标题"
-          @input="emit('updateTitle', $event)"
+          @input="emits('updateTitle', $event)"
         />
       </div>
 
-      <div class="flex min-h-0 flex-1 overflow-y-auto px-8 py-8">
-        <div data-testid="document-editor-pane" class="flex min-h-full flex-1 flex-col">
+      <div class="document-editor-pane__editor-shell">
+        <div class="document-editor-pane__editor-container">
           <TiptapEditor
-            class="flex min-h-full flex-1 flex-col"
+            class="document-editor-pane__editor"
             :content="document.content"
-            @update:content="emit('updateContent', $event)"
+            @update:content="emits('updateContent', $event)"
           />
         </div>
       </div>
@@ -39,41 +181,161 @@ const emit = defineEmits<{
 
     <div
       v-else
-      class="flex flex-1 items-center justify-center px-8 py-10"
+      class="document-editor-pane__empty-state"
     >
-      <ElEmpty :description="isLoading ? '加载中...' : '未选择文档'">
+      <ElEmpty>
         <template #image>
-          <div
-            class="mx-auto h-16 w-16 flex items-center justify-center rounded-[24px] bg-primary/10 text-primary"
-          >
-            <div :class="isLoading ? 'i-carbon-progress-bar-round animate-spin' : 'i-carbon-document-add'" class="text-3xl" />
+          <div class="document-editor-pane__empty-icon-shell">
+            <SvgIcon
+              :category="emptyState.iconCategory"
+              :icon="emptyState.icon"
+              size="1.75rem"
+              :class="{ 'animate-spin': emptyState.spin }"
+            />
           </div>
         </template>
+
+        <template #description>
+          <div class="document-editor-pane__empty-description">
+            <div class="document-editor-pane__empty-title">
+              {{ emptyState.title }}
+            </div>
+
+            <div class="document-editor-pane__empty-copy">
+              {{ emptyState.description }}
+            </div>
+          </div>
+        </template>
+
+        <div
+          v-if="emptyState.actions.length"
+          class="document-editor-pane__empty-actions"
+        >
+          <ElButton
+            v-for="action in emptyState.actions"
+            :key="action.event"
+            :type="action.type"
+            @click="emitEmptyAction(action.event)"
+          >
+            {{ action.label }}
+          </ElButton>
+        </div>
       </ElEmpty>
     </div>
   </section>
 </template>
 
 <style scoped lang="scss">
-.document-title-input {
-  :deep(.el-input__wrapper) {
-    padding: 0;
-    background: transparent;
-    box-shadow: none;
+.document-editor-pane {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  min-height: 0;
+
+  .document-editor-pane__title-bar {
+    padding: 1rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
+    background: var(--brand-bg-surface);
   }
 
-  :deep(.el-input__inner) {
-    height: auto;
-    padding: 0;
-    font-size: 2.25rem;
-    font-weight: 700;
-    line-height: 1.1;
-    letter-spacing: -0.02em;
-    color: #1f2329;
+  .document-editor-pane__title-input {
+    :deep(.el-input__wrapper) {
+      padding: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    :deep(.el-input__inner) {
+      height: auto;
+      padding: 0;
+      font-size: 1.6rem;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      color: var(--brand-text-primary);
+    }
+
+    :deep(.el-input__inner::placeholder) {
+      color: var(--brand-text-placeholder);
+    }
   }
 
-  :deep(.el-input__inner::placeholder) {
-    color: #c5c9d0;
+  .document-editor-pane__editor-shell {
+    display: flex;
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1rem;
+    background-image: radial-gradient(
+      circle at top,
+      color-mix(in srgb, var(--brand-primary) 3%, transparent) 0%,
+      transparent 48%
+    );
+  }
+
+  .document-editor-pane__editor-container {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    width: 100%;
+    min-height: 100%;
+    margin-inline: auto;
+  }
+
+  .document-editor-pane__editor {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    min-height: 100%;
+  }
+
+  .document-editor-pane__empty-state {
+    display: flex;
+    flex: 1 1 0%;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem 2rem;
+  }
+
+  .document-editor-pane__empty-icon-shell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 4rem;
+    height: 4rem;
+    margin-inline: auto;
+    border-radius: 24px;
+    color: var(--brand-primary);
+    background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  }
+
+  .document-editor-pane__empty-description {
+    text-align: center;
+
+    > * + * {
+      margin-top: 0.5rem;
+    }
+  }
+
+  .document-editor-pane__empty-title {
+    color: var(--brand-text-primary);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .document-editor-pane__empty-copy {
+    color: var(--brand-text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.5rem;
+  }
+
+  .document-editor-pane__empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
   }
 }
 </style>

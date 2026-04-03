@@ -1,14 +1,20 @@
-import type { DocumentSpaceScope, DocumentTreeNode } from '@haohaoxue/samepage-domain'
-import type { CreateDocumentNodeDto, UpdateDocumentNodeDto } from './documents.dto'
 import type {
-  DocumentBaseEntity,
-  DocumentNodeEntity,
-  DocumentTreeSectionEntity,
-} from './documents.interface'
+  CreateDocumentRequest,
+  DocumentBase,
+  DocumentDetail,
+  DocumentItem,
+  DocumentRecent,
+  DocumentSection,
+  DocumentSectionId,
+  DocumentSpaceScope,
+  UpdateDocumentRequest,
+} from '@haohaoxue/samepage-domain'
+import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
+import { resolveOwnedDocumentSectionId } from '@haohaoxue/samepage-shared'
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import {
-  DocumentNodeMemberRole,
-  DocumentNodeStatus,
+  DocumentMemberRole,
+  DocumentStatus,
   Prisma,
 } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
@@ -16,7 +22,7 @@ import { stripHtmlTags, summarizeHtml } from '../../utils/html'
 
 const RECENT_DOCUMENT_LIMIT = 8
 
-const documentNodeSelect = {
+const documentSelect = {
   id: true,
   ownerId: true,
   parentId: true,
@@ -33,16 +39,19 @@ const documentNodeSelect = {
       displayName: true,
     },
   },
-} satisfies Prisma.DocumentNodeSelect
+} satisfies Prisma.DocumentSelect
 
-type PersistedDocumentNode = Prisma.DocumentNodeGetPayload<{
-  select: typeof documentNodeSelect
+type PersistedDocument = Prisma.DocumentGetPayload<{
+  select: typeof documentSelect
 }>
 
+/**
+ * 文档树构建上下文。
+ */
 interface TreeContext {
-  nodes: PersistedDocumentNode[]
-  nodesById: Map<string, PersistedDocumentNode>
-  childrenByParent: Map<string | null, PersistedDocumentNode[]>
+  documents: PersistedDocument[]
+  documentsById: Map<string, PersistedDocument>
+  childrenByParent: Map<string | null, PersistedDocument[]>
   sharedRootIds: Set<string>
 }
 
@@ -50,23 +59,23 @@ interface TreeContext {
 export class DocumentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, payload: CreateDocumentNodeDto): Promise<DocumentNodeEntity> {
+  async createDocument(userId: string, payload: CreateDocumentRequest): Promise<DocumentDetail> {
     const normalizedParentId = payload.parentId ?? null
     const normalizedContent = payload.content ?? ''
     let scope: DocumentSpaceScope = 'PERSONAL'
 
     if (normalizedParentId) {
-      const context = await this.loadTreeContext(userId)
-      const resolvedParent = this.resolveAccessibleNode(context, userId, normalizedParentId)
+      const context = await this.loadDocumentContext(userId)
+      const resolvedParent = this.resolveAccessibleDocument(context, userId, normalizedParentId)
 
-      if (resolvedParent.node.ownerId !== userId) {
+      if (resolvedParent.document.ownerId !== userId) {
         throw new ForbiddenException('当前用户无权在共享文档下创建子文档')
       }
 
-      scope = resolvedParent.node.spaceScope
+      scope = resolvedParent.document.spaceScope
     }
 
-    const lastSibling = await this.prisma.documentNode.findFirst({
+    const lastSibling = await this.prisma.document.findFirst({
       where: {
         ownerId: userId,
         parentId: normalizedParentId,
@@ -80,7 +89,7 @@ export class DocumentsService {
       },
     })
 
-    const node = await this.prisma.documentNode.create({
+    const document = await this.prisma.document.create({
       data: {
         ownerId: userId,
         parentId: normalizedParentId,
@@ -90,171 +99,171 @@ export class DocumentsService {
         summary: summarizeHtml(normalizedContent),
         order: (lastSibling?.order ?? -1) + 1,
       },
-      select: documentNodeSelect,
+      select: documentSelect,
     })
 
-    return toDocumentNodeEntity(
-      node,
-      scope === 'TEAM' ? 'team' : 'personal',
+    return toDocumentDetail(
+      document,
+      resolveOwnedDocumentSectionId(scope),
       false,
     )
   }
 
-  async findTree(userId: string): Promise<DocumentTreeSectionEntity[]> {
-    const context = await this.loadTreeContext(userId)
+  async getDocumentTree(userId: string): Promise<DocumentSection[]> {
+    const context = await this.loadDocumentContext(userId)
 
     return [
       {
-        id: 'personal',
+        id: DOCUMENT_SECTION_ID.PERSONAL,
         label: '当前用户',
         nodes: this.buildOwnedSection(context, userId, 'PERSONAL'),
       },
       {
-        id: 'shared',
+        id: DOCUMENT_SECTION_ID.SHARED,
         label: '分享',
         nodes: this.buildSharedSection(context),
       },
       {
-        id: 'team',
+        id: DOCUMENT_SECTION_ID.TEAM,
         label: '团队',
         nodes: this.buildOwnedSection(context, userId, 'TEAM'),
       },
     ]
   }
 
-  async findRecent(userId: string): Promise<DocumentBaseEntity[]> {
-    const context = await this.loadTreeContext(userId)
-    const visibleNodeIds = new Set<string>()
+  async getRecentDocuments(userId: string): Promise<DocumentRecent[]> {
+    const context = await this.loadDocumentContext(userId)
+    const visibleDocumentIds = new Set<string>()
 
-    for (const node of context.nodes) {
-      if (node.ownerId === userId) {
-        visibleNodeIds.add(node.id)
+    for (const document of context.documents) {
+      if (document.ownerId === userId) {
+        visibleDocumentIds.add(document.id)
       }
     }
 
     for (const sharedRootId of context.sharedRootIds) {
-      this.collectDescendantIds(sharedRootId, context, visibleNodeIds)
+      this.collectDescendantDocumentIds(sharedRootId, context, visibleDocumentIds)
     }
 
-    return Array.from(visibleNodeIds)
-      .map(id => context.nodesById.get(id))
-      .filter((node): node is PersistedDocumentNode => Boolean(node))
-      .filter(node => hasNodeContent(node.content))
+    return Array.from(visibleDocumentIds)
+      .map(id => context.documentsById.get(id))
+      .filter((document): document is PersistedDocument => Boolean(document))
+      .filter(document => hasDocumentContent(document.content))
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
       .slice(0, RECENT_DOCUMENT_LIMIT)
-      .map(node => toDocumentBaseEntity(node))
+      .map(document => toDocumentRecent(document, context, userId))
   }
 
-  async findOne(userId: string, id: string): Promise<DocumentNodeEntity> {
-    const context = await this.loadTreeContext(userId)
-    const resolvedNode = this.resolveAccessibleNode(context, userId, id)
+  async getDocumentById(userId: string, id: string): Promise<DocumentDetail> {
+    const context = await this.loadDocumentContext(userId)
+    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
 
-    return toDocumentNodeEntity(
-      resolvedNode.node,
-      resolvedNode.section,
+    return toDocumentDetail(
+      resolvedDocument.document,
+      resolvedDocument.section,
       this.hasChildren(id, context),
     )
   }
 
-  async update(
+  async updateDocument(
     userId: string,
     id: string,
-    payload: UpdateDocumentNodeDto,
-  ): Promise<DocumentNodeEntity> {
-    const context = await this.loadTreeContext(userId)
-    const resolvedNode = this.resolveAccessibleNode(context, userId, id)
+    payload: UpdateDocumentRequest,
+  ): Promise<DocumentDetail> {
+    const context = await this.loadDocumentContext(userId)
+    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
 
-    if (resolvedNode.node.ownerId !== userId) {
+    if (resolvedDocument.document.ownerId !== userId) {
       throw new ForbiddenException('当前用户无权编辑该文档')
     }
 
-    const node = await this.prisma.documentNode.update({
+    const document = await this.prisma.document.update({
       where: { id },
       data: {
         title: payload.title,
         content: payload.content,
         summary: summarizeHtml(payload.content),
       },
-      select: documentNodeSelect,
+      select: documentSelect,
     }).catch((error) => {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException(`Document node "${id}" not found`)
+        throw new NotFoundException(`Document "${id}" not found`)
       }
       throw error
     })
 
-    return toDocumentNodeEntity(
-      node,
-      resolvedNode.section,
+    return toDocumentDetail(
+      document,
+      resolvedDocument.section,
       this.hasChildren(id, context),
     )
   }
 
-  async remove(userId: string, id: string): Promise<void> {
-    const context = await this.loadTreeContext(userId)
-    const resolvedNode = this.resolveAccessibleNode(context, userId, id)
+  async deleteDocument(userId: string, id: string): Promise<void> {
+    const context = await this.loadDocumentContext(userId)
+    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
 
-    if (resolvedNode.node.ownerId !== userId) {
+    if (resolvedDocument.document.ownerId !== userId) {
       throw new ForbiddenException('当前用户无权删除该文档')
     }
 
-    const removableNodeIds = new Set<string>()
-    this.collectDescendantIds(id, context, removableNodeIds)
+    const removableDocumentIds = new Set<string>()
+    this.collectDescendantDocumentIds(id, context, removableDocumentIds)
 
-    await this.prisma.documentNode.deleteMany({
+    await this.prisma.document.deleteMany({
       where: {
         id: {
-          in: Array.from(removableNodeIds),
+          in: Array.from(removableDocumentIds),
         },
       },
     })
   }
 
-  private async loadTreeContext(userId: string): Promise<TreeContext> {
-    const [nodes, sharedMemberships] = await Promise.all([
-      this.prisma.documentNode.findMany({
-        where: { status: { in: [DocumentNodeStatus.ACTIVE, DocumentNodeStatus.LOCKED] } },
-        select: documentNodeSelect,
+  private async loadDocumentContext(userId: string): Promise<TreeContext> {
+    const [documents, sharedMemberships] = await Promise.all([
+      this.prisma.document.findMany({
+        where: { status: { in: [DocumentStatus.ACTIVE, DocumentStatus.LOCKED] } },
+        select: documentSelect,
         orderBy: [
           { order: 'asc' },
           { updatedAt: 'desc' },
         ],
       }),
-      this.prisma.documentNodeMember.findMany({
+      this.prisma.documentMember.findMany({
         where: {
           userId,
-          role: DocumentNodeMemberRole.VIEWER,
+          role: DocumentMemberRole.VIEWER,
         },
         select: {
-          nodeId: true,
+          documentId: true,
         },
       }),
     ])
 
-    const nodesById = new Map(nodes.map(node => [node.id, node]))
-    const childrenByParent = new Map<string | null, PersistedDocumentNode[]>()
+    const documentsById = new Map(documents.map(document => [document.id, document]))
+    const childrenByParent = new Map<string | null, PersistedDocument[]>()
 
-    for (const node of nodes) {
-      const siblings = childrenByParent.get(node.parentId) ?? []
-      siblings.push(node)
-      childrenByParent.set(node.parentId, siblings)
+    for (const document of documents) {
+      const siblings = childrenByParent.get(document.parentId) ?? []
+      siblings.push(document)
+      childrenByParent.set(document.parentId, siblings)
     }
 
     const membershipIds = sharedMemberships
-      .map(item => item.nodeId)
-      .filter(nodeId => nodesById.has(nodeId))
+      .map(item => item.documentId)
+      .filter(documentId => documentsById.has(documentId))
 
     const membershipSet = new Set(membershipIds)
     const sharedRootIds = new Set(
-      membershipIds.filter((nodeId) => {
-        let currentNode = nodesById.get(nodeId)
+      membershipIds.filter((documentId) => {
+        let currentDocument = documentsById.get(documentId)
 
-        while (currentNode?.parentId) {
-          if (membershipSet.has(currentNode.parentId)) {
+        while (currentDocument?.parentId) {
+          if (membershipSet.has(currentDocument.parentId)) {
             return false
           }
 
-          currentNode = nodesById.get(currentNode.parentId)
+          currentDocument = documentsById.get(currentDocument.parentId)
         }
 
         return true
@@ -262,8 +271,8 @@ export class DocumentsService {
     )
 
     return {
-      nodes,
-      nodesById,
+      documents,
+      documentsById,
       childrenByParent,
       sharedRootIds,
     }
@@ -273,141 +282,238 @@ export class DocumentsService {
     context: TreeContext,
     userId: string,
     scope: DocumentSpaceScope,
-  ): DocumentTreeNode[] {
-    const sectionNodes = context.nodes.filter(node => node.ownerId === userId && node.spaceScope === scope)
-    const sectionNodeIds = new Set(sectionNodes.map(node => node.id))
-    const roots = sectionNodes.filter(node => !node.parentId || !sectionNodeIds.has(node.parentId))
+  ): DocumentItem[] {
+    const sectionDocuments = context.documents.filter(document => document.ownerId === userId && document.spaceScope === scope)
+    const sectionDocumentIds = new Set(sectionDocuments.map(document => document.id))
+    const roots = sectionDocuments.filter(document => !document.parentId || !sectionDocumentIds.has(document.parentId))
 
-    return roots.map(node =>
-      this.buildSectionBranch(node, context, {
-        sectionNodeIds,
+    return roots.map(document =>
+      this.buildSectionBranch(document, context, {
+        sectionDocumentIds,
         sharedByDisplayName: null,
       }),
     )
   }
 
-  private buildSharedSection(context: TreeContext): DocumentTreeNode[] {
+  private buildSharedSection(context: TreeContext): DocumentItem[] {
     return Array.from(context.sharedRootIds)
-      .map(rootId => context.nodesById.get(rootId))
-      .filter((node): node is PersistedDocumentNode => Boolean(node))
-      .map(node =>
-        this.buildSectionBranch(node, context, {
-          sharedByDisplayName: node.owner.displayName,
+      .map(rootId => context.documentsById.get(rootId))
+      .filter((document): document is PersistedDocument => Boolean(document))
+      .map(document =>
+        this.buildSectionBranch(document, context, {
+          sharedByDisplayName: document.owner.displayName,
         }),
       )
   }
 
   private buildSectionBranch(
-    node: PersistedDocumentNode,
+    document: PersistedDocument,
     context: TreeContext,
     options: {
-      sectionNodeIds?: Set<string>
+      sectionDocumentIds?: Set<string>
       sharedByDisplayName: string | null
     },
-  ): DocumentTreeNode {
-    const nextChildren = (context.childrenByParent.get(node.id) ?? [])
-      .filter(child => !options.sectionNodeIds || options.sectionNodeIds.has(child.id))
+  ): DocumentItem {
+    const nextChildren = (context.childrenByParent.get(document.id) ?? [])
+      .filter(child => !options.sectionDocumentIds || options.sectionDocumentIds.has(child.id))
       .map(child => this.buildSectionBranch(child, context, {
-        sectionNodeIds: options.sectionNodeIds,
+        sectionDocumentIds: options.sectionDocumentIds,
         sharedByDisplayName: null,
       }))
 
     return {
-      ...toDocumentBaseEntity(node),
-      parentId: node.parentId,
+      ...toDocumentBase(document),
+      parentId: document.parentId,
       hasChildren: nextChildren.length > 0,
-      hasContent: hasNodeContent(node.content),
+      hasContent: hasDocumentContent(document.content),
       sharedByDisplayName: options.sharedByDisplayName,
       children: nextChildren,
     }
   }
 
-  private resolveAccessibleNode(
+  private resolveAccessibleDocument(
     context: TreeContext,
     userId: string,
     id: string,
   ): {
-    node: PersistedDocumentNode
-    section: 'personal' | 'shared' | 'team'
+    document: PersistedDocument
+    section: DocumentSectionId
   } {
-    const node = context.nodesById.get(id)
+    const document = context.documentsById.get(id)
 
-    if (!node) {
-      throw new NotFoundException(`Document node "${id}" not found`)
+    if (!document) {
+      throw new NotFoundException(`Document "${id}" not found`)
     }
 
-    if (node.ownerId === userId) {
+    if (document.ownerId === userId) {
       return {
-        node,
-        section: node.spaceScope === 'TEAM' ? 'team' : 'personal',
+        document,
+        section: resolveOwnedDocumentSectionId(document.spaceScope),
       }
     }
 
-    let currentNode: PersistedDocumentNode | undefined = node
+    let currentDocument: PersistedDocument | undefined = document
 
-    while (currentNode) {
-      if (context.sharedRootIds.has(currentNode.id)) {
+    while (currentDocument) {
+      if (context.sharedRootIds.has(currentDocument.id)) {
         return {
-          node,
-          section: 'shared',
+          document,
+          section: DOCUMENT_SECTION_ID.SHARED,
         }
       }
 
-      currentNode = currentNode.parentId
-        ? context.nodesById.get(currentNode.parentId)
+      currentDocument = currentDocument.parentId
+        ? context.documentsById.get(currentDocument.parentId)
         : undefined
     }
 
-    throw new NotFoundException(`Document node "${id}" not found`)
+    throw new NotFoundException(`Document "${id}" not found`)
   }
 
-  private collectDescendantIds(
+  private collectDescendantDocumentIds(
     rootId: string,
     context: TreeContext,
-    visibleNodeIds: Set<string>,
+    visibleDocumentIds: Set<string>,
   ) {
-    if (visibleNodeIds.has(rootId)) {
+    if (visibleDocumentIds.has(rootId)) {
       return
     }
 
-    visibleNodeIds.add(rootId)
+    visibleDocumentIds.add(rootId)
 
     for (const child of context.childrenByParent.get(rootId) ?? []) {
-      this.collectDescendantIds(child.id, context, visibleNodeIds)
+      this.collectDescendantDocumentIds(child.id, context, visibleDocumentIds)
     }
   }
 
-  private hasChildren(nodeId: string, context: TreeContext) {
-    return (context.childrenByParent.get(nodeId)?.length ?? 0) > 0
+  private hasChildren(documentId: string, context: TreeContext) {
+    return (context.childrenByParent.get(documentId)?.length ?? 0) > 0
   }
 }
 
-function toDocumentBaseEntity(node: PersistedDocumentNode): DocumentBaseEntity {
+function toDocumentBase(document: PersistedDocument): DocumentBase {
   return {
-    id: node.id,
-    title: node.title,
-    summary: node.summary,
-    createdAt: node.createdAt.toISOString(),
-    updatedAt: node.updatedAt.toISOString(),
+    id: document.id,
+    title: document.title,
+    summary: document.summary,
+    createdAt: document.createdAt.toISOString(),
+    updatedAt: document.updatedAt.toISOString(),
   }
 }
 
-function toDocumentNodeEntity(
-  node: PersistedDocumentNode,
-  section: 'personal' | 'shared' | 'team',
+function toDocumentRecent(
+  document: PersistedDocument,
+  context: TreeContext,
+  userId: string,
+): DocumentRecent {
+  return {
+    id: document.id,
+    title: document.title,
+    section: resolveRecentDocumentSection(document, userId),
+    ancestorTitles: collectRecentAncestorTitles(document, context, userId),
+    createdAt: document.createdAt.toISOString(),
+    updatedAt: document.updatedAt.toISOString(),
+  }
+}
+
+function resolveRecentDocumentSection(
+  document: PersistedDocument,
+  userId: string,
+): DocumentSectionId {
+  if (document.ownerId !== userId) {
+    return DOCUMENT_SECTION_ID.SHARED
+  }
+
+  return resolveOwnedDocumentSectionId(document.spaceScope)
+}
+
+function collectRecentAncestorTitles(
+  document: PersistedDocument,
+  context: TreeContext,
+  userId: string,
+) {
+  if (document.ownerId === userId) {
+    return collectOwnedAncestorTitles(document, context, userId)
+  }
+
+  const sharedRootId = findSharedRootId(document, context)
+
+  if (!sharedRootId || sharedRootId === document.id) {
+    return []
+  }
+
+  const ancestorTitles: string[] = []
+  let currentDocument = document.parentId
+    ? context.documentsById.get(document.parentId)
+    : undefined
+
+  while (currentDocument) {
+    ancestorTitles.push(currentDocument.title)
+
+    if (currentDocument.id === sharedRootId) {
+      return ancestorTitles.reverse()
+    }
+
+    currentDocument = currentDocument.parentId
+      ? context.documentsById.get(currentDocument.parentId)
+      : undefined
+  }
+
+  return []
+}
+
+function collectOwnedAncestorTitles(
+  document: PersistedDocument,
+  context: TreeContext,
+  userId: string,
+) {
+  const ancestorTitles: string[] = []
+  let currentDocument = document.parentId
+    ? context.documentsById.get(document.parentId)
+    : undefined
+
+  while (currentDocument?.ownerId === userId) {
+    ancestorTitles.push(currentDocument.title)
+    currentDocument = currentDocument.parentId
+      ? context.documentsById.get(currentDocument.parentId)
+      : undefined
+  }
+
+  return ancestorTitles.reverse()
+}
+
+function findSharedRootId(document: PersistedDocument, context: TreeContext) {
+  let currentDocument: PersistedDocument | undefined = document
+
+  while (currentDocument) {
+    if (context.sharedRootIds.has(currentDocument.id)) {
+      return currentDocument.id
+    }
+
+    currentDocument = currentDocument.parentId
+      ? context.documentsById.get(currentDocument.parentId)
+      : undefined
+  }
+
+  return null
+}
+
+function toDocumentDetail(
+  document: PersistedDocument,
+  section: DocumentSectionId,
   hasChildren: boolean,
-): DocumentNodeEntity {
+): DocumentDetail {
   return {
-    ...toDocumentBaseEntity(node),
-    parentId: node.parentId,
-    content: node.content,
+    ...toDocumentBase(document),
+    parentId: document.parentId,
+    content: document.content,
     hasChildren,
-    hasContent: hasNodeContent(node.content),
-    scope: node.spaceScope,
+    hasContent: hasDocumentContent(document.content),
+    scope: document.spaceScope,
     section,
   }
 }
 
-function hasNodeContent(content: string) {
+function hasDocumentContent(content: string) {
   return stripHtmlTags(content).trim().length > 0
 }

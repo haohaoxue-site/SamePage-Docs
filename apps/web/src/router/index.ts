@@ -1,9 +1,9 @@
 import type { Router, RouterHistory } from 'vue-router'
 import { createRouter, createWebHistory } from 'vue-router'
+import { rememberWorkspaceEntryPath } from '@/layouts/utils/workspace-entry'
 import { useAuthStore } from '@/stores/auth'
 
 import { adminRoute, protectedRoutes, publicRoutes } from './routes'
-import './typing'
 
 export function loadAdminRoutes(router: Router) {
   if (router.hasRoute('admin'))
@@ -54,6 +54,14 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
     }
 
     return true
+  })
+
+  router.afterEach((to) => {
+    if (to.meta.public || to.path.startsWith('/admin')) {
+      return
+    }
+
+    rememberWorkspaceEntryPath(to.fullPath)
   })
 
   return router

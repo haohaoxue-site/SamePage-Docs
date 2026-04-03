@@ -5,7 +5,7 @@ import type {
 import { ElMessage } from 'element-plus'
 import { shallowRef } from 'vue'
 import {
-  listSystemAdminUsers,
+  getSystemAdminUsers,
   updateSystemAdminUserRole,
   updateSystemAdminUserStatus,
 } from '@/apis/system-admin'
@@ -21,7 +21,7 @@ export function useAdminUsers() {
     errorMessage.value = ''
 
     try {
-      users.value = await listSystemAdminUsers()
+      users.value = await getSystemAdminUsers()
     }
     catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '加载用户列表失败'

@@ -1,4 +1,5 @@
-import type { RequestResponse } from '@haohaoxue/samepage-contracts'
+import type { RequestResponse } from '@haohaoxue/samepage-domain'
+import type { TokenExchangeResponseDto } from '@/apis/auth/typing'
 import rawAxios, { AxiosHeaders } from 'axios'
 import { useAuthStore } from '@/stores/auth'
 
@@ -7,7 +8,7 @@ const http = rawAxios.create({
   timeout: 6000 * 60,
 })
 
-let refreshPromise: Promise<string | null> | null = null
+let refreshPromise: Promise<TokenExchangeResponseDto | null> | null = null
 
 http.interceptors.request.use((config) => {
   if (config.withCookieAuth) {
@@ -50,11 +51,11 @@ http.interceptors.response.use(
     ) {
       originalRequest._retry = true
 
-      const refreshedAccessToken = await refreshAccessTokenOnce()
+      const refreshedSession = await refreshAccessTokenOnce()
 
-      if (refreshedAccessToken) {
+      if (refreshedSession?.accessToken) {
         const headers = AxiosHeaders.from(originalRequest.headers)
-        headers.set('Authorization', `Bearer ${refreshedAccessToken}`)
+        headers.set('Authorization', `Bearer ${refreshedSession.accessToken}`)
         originalRequest.headers = headers
         return http.request(originalRequest)
       }
@@ -65,7 +66,9 @@ http.interceptors.response.use(
     }
 
     const message = data?.message ?? error.message
-    return Promise.reject(new Error(message || '请求失败'))
+    const requestError = new Error(message || '请求失败') as Error & { status?: number }
+    requestError.status = status
+    return Promise.reject(requestError)
   },
 )
 
@@ -82,21 +85,27 @@ async function refreshAccessTokenOnce() {
       timeout: 6000 * 60,
       withCredentials: true,
     })
-    .request<RequestResponse<{ accessToken: string }>>({
+    .request<RequestResponse<TokenExchangeResponseDto>>({
       method: 'post',
       url: '/auth/refresh',
     })
     .then((response) => {
       const responseData = response.data
 
-      if (!responseData || (responseData.code !== 200 && responseData.code !== 201) || !responseData.data?.accessToken) {
+      if (
+        !responseData
+        || (responseData.code !== 200 && responseData.code !== 201)
+        || !responseData.data?.accessToken
+        || !responseData.data.user
+      ) {
         useAuthStore().clearSession()
         return null
       }
 
       const authStore = useAuthStore()
       authStore.accessToken = responseData.data.accessToken
-      return responseData.data.accessToken
+      authStore.user = responseData.data.user
+      return responseData.data
     })
     .catch(() => {
       useAuthStore().clearSession()

@@ -72,6 +72,7 @@ export class AccessTokenGuard implements CanActivate {
       throw new UnauthorizedException('User is inactive')
     }
 
+    await this.rbacService.syncBootstrapRolesForUser(user.id)
     const roleContext = await this.rbacService.getUserRoleAndPermissions(user.id)
 
     request.authUser = {
