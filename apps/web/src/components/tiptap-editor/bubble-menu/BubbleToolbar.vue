@@ -1,42 +1,68 @@
 <script setup lang="ts">
 import type { BubbleToolbarProps } from '../typing'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
-import { ref } from 'vue'
+import { useTiptapEditorLinkPanel } from '../composables/useTiptapEditorLinkPanel'
 import ColorPickerDropdown from './ColorPickerDropdown.vue'
 import TurnIntoDropdown from './TurnIntoDropdown.vue'
 
 const props = defineProps<BubbleToolbarProps>()
 
-const linkPopoverVisible = ref(false)
-const linkUrl = ref('')
+const linkPanel = useTiptapEditorLinkPanel(() => props.editor)
+const LinkPanel = linkPanel.LinkPanel
 
-function toggleLink() {
-  const attrs = props.editor.getAttributes('link')
-  linkUrl.value = attrs.href || 'https://'
-  linkPopoverVisible.value = true
+function runCommand(command: (editor: BubbleToolbarProps['editor']) => void) {
+  command(props.editor)
 }
 
-function applyLink() {
-  const href = linkUrl.value.trim()
-  if (!href) {
-    props.editor.chain().focus().unsetLink().run()
-  }
-  else {
-    props.editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
-  }
-  linkPopoverVisible.value = false
+function shouldShowToolbar({
+  editor,
+  from,
+  to,
+}: {
+  editor: BubbleToolbarProps['editor']
+  from: number
+  to: number
+}) {
+  return editor.isActive('link') || from !== to
 }
 
-function removeLink() {
-  props.editor.chain().focus().unsetLink().run()
-  linkPopoverVisible.value = false
+function shouldShowLinkPanel({
+  from,
+  to,
+}: {
+  from: number
+  to: number
+}) {
+  return linkPanel.isOpen.value && from !== to
+}
+
+function toggleBold() {
+  runCommand(editor => editor.chain().focus().toggleBold().run())
+}
+
+function toggleItalic() {
+  runCommand(editor => editor.chain().focus().toggleItalic().run())
+}
+
+function toggleUnderline() {
+  runCommand(editor => editor.chain().focus().toggleUnderline().run())
+}
+
+function toggleStrike() {
+  runCommand(editor => editor.chain().focus().toggleStrike().run())
+}
+
+function toggleCode() {
+  runCommand(editor => editor.chain().focus().toggleCode().run())
 }
 </script>
 
 <template>
   <BubbleMenu
     :editor="editor"
-    :tippy-options="{ duration: 150, maxWidth: 'none' }"
+    plugin-key="bubbleToolbarMenu"
+    :should-show="shouldShowToolbar"
+    :options="{ placement: 'top', offset: 8 }"
   >
     <div class="bubble-toolbar">
       <div class="bubble-toolbar__row">
@@ -48,89 +74,78 @@ function removeLink() {
         <button
           class="bubble-btn"
           :class="{ 'is-active': editor.isActive('bold') }"
-          title="Bold"
-          @click="editor.chain().focus().toggleBold().run()"
+          title="加粗"
+          type="button"
+          @mousedown.prevent
+          @click="toggleBold"
         >
-          <span class="font-bold text-sm">B</span>
+          <span class="bubble-btn__text font-bold text-sm">B</span>
         </button>
 
         <button
           class="bubble-btn"
           :class="{ 'is-active': editor.isActive('italic') }"
-          title="Italic"
-          @click="editor.chain().focus().toggleItalic().run()"
+          title="斜体"
+          type="button"
+          @mousedown.prevent
+          @click="toggleItalic"
         >
-          <span class="text-sm italic">I</span>
+          <span class="bubble-btn__text text-sm italic">I</span>
         </button>
 
         <button
           class="bubble-btn"
           :class="{ 'is-active': editor.isActive('underline') }"
-          title="Underline"
-          @click="editor.chain().focus().toggleUnderline().run()"
+          title="下划线"
+          type="button"
+          @mousedown.prevent
+          @click="toggleUnderline"
         >
-          <span class="text-sm underline">U</span>
+          <span class="bubble-btn__text text-sm underline">U</span>
         </button>
-      </div>
-
-      <div class="bubble-toolbar__row">
-        <ElPopover
-          v-model:visible="linkPopoverVisible"
-          trigger="click"
-          placement="bottom-start"
-          :offset="6"
-          :show-arrow="false"
-          :width="320"
-          popper-class="bubble-link-popover"
+        <button
+          class="bubble-btn"
+          :class="{ 'is-active': editor.isActive('link') }"
+          title="链接"
+          type="button"
+          @mousedown.prevent
+          @click="linkPanel.toggle"
         >
-          <template #reference>
-            <button
-              class="bubble-btn"
-              :class="{ 'is-active': editor.isActive('link') }"
-              title="Link"
-              @click="toggleLink"
-            >
-              <SvgIcon category="ui" icon="link" size="1rem" />
-            </button>
-          </template>
-
-          <div class="link-input-panel">
-            <ElInput
-              v-model="linkUrl"
-              size="small"
-              placeholder="Paste link..."
-              @keydown.enter="applyLink"
-            />
-            <div class="link-input-panel__actions">
-              <ElButton size="small" type="primary" @click="applyLink">
-                Apply
-              </ElButton>
-              <ElButton v-if="editor.isActive('link')" size="small" @click="removeLink">
-                Remove
-              </ElButton>
-            </div>
-          </div>
-        </ElPopover>
+          <SvgIcon category="ui" icon="link" class="bubble-btn__icon" />
+        </button>
 
         <button
           class="bubble-btn"
           :class="{ 'is-active': editor.isActive('strike') }"
-          title="Strikethrough"
-          @click="editor.chain().focus().toggleStrike().run()"
+          title="删除线"
+          type="button"
+          @mousedown.prevent
+          @click="toggleStrike"
         >
-          <span class="text-sm line-through">S</span>
+          <span class="bubble-btn__text text-sm line-through">S</span>
         </button>
 
         <button
           class="bubble-btn"
           :class="{ 'is-active': editor.isActive('code') }"
-          title="Inline Code"
-          @click="editor.chain().focus().toggleCode().run()"
+          title="代码"
+          type="button"
+          @mousedown.prevent
+          @click="toggleCode"
         >
-          <SvgIcon category="ui" icon="code" size="1rem" />
+          <SvgIcon category="ui" icon="code" class="bubble-btn__icon" />
         </button>
       </div>
     </div>
+  </BubbleMenu>
+
+  <BubbleMenu
+    :editor="editor"
+    plugin-key="bubbleToolbarLinkPanel"
+    :should-show="shouldShowLinkPanel"
+    :options="{ placement: 'bottom', offset: 8 }"
+  >
+    <LinkPanel />
   </BubbleMenu>
 </template>
 
@@ -147,6 +162,7 @@ function removeLink() {
 
   &__row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 2px;
   }
@@ -154,20 +170,8 @@ function removeLink() {
   &__divider {
     width: 1px;
     height: 20px;
-    background-color: var(--el-border-color-light);
     margin: 0 4px;
-  }
-}
-
-.link-input-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-
-  &__actions {
-    display: flex;
-    gap: 6px;
-    justify-content: flex-end;
+    background-color: var(--el-border-color-light);
   }
 }
 </style>
@@ -177,6 +181,7 @@ function removeLink() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: 32px;
   height: 32px;
   border-radius: 6px;
@@ -184,6 +189,7 @@ function removeLink() {
   background: transparent;
   cursor: pointer;
   color: var(--el-text-color-primary);
+  line-height: 1;
   transition: all 0.15s;
 
   &:hover {
@@ -194,11 +200,24 @@ function removeLink() {
     background-color: var(--el-color-primary-light-8);
     color: var(--el-color-primary);
   }
+
+  &__text,
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  &__icon {
+    display: block;
+  }
 }
 
 .bubble-turn-into-popover,
-.bubble-color-picker-popover,
-.bubble-link-popover {
+.bubble-color-picker-popover {
   padding: 8px !important;
   border-radius: 10px !important;
   border: 1px solid var(--brand-border-base) !important;

@@ -22,6 +22,7 @@ const authStore = useAuthStore()
 const appearanceStore = useAppearanceStore()
 const menuVisible = shallowRef(false)
 const appearanceMenuVisible = shallowRef(false)
+const avatarImageLoadFailed = shallowRef(false)
 const { currentUser: sessionUser, isLoggingOut, logout } = useAuthSession()
 
 const appearanceOptions = [
@@ -82,10 +83,26 @@ const currentAppearanceLabel = computed(() =>
   appearanceOptions.find(option => option.value === appearanceStore.preference)?.label ?? '跟随系统',
 )
 
+const currentAvatarUrl = computed(() => {
+  const avatarUrl = currentUser.value.avatarUrl?.trim()
+
+  if (!avatarUrl || avatarImageLoadFailed.value) {
+    return null
+  }
+
+  return avatarUrl
+})
+
+const currentAvatarAlt = computed(() => `${currentUser.value.displayName} 的头像`)
+
 watch(menuVisible, (visible) => {
   if (!visible) {
     appearanceMenuVisible.value = false
   }
+})
+
+watch(() => currentUser.value.avatarUrl, () => {
+  avatarImageLoadFailed.value = false
 })
 
 function toggleAppearanceMenu() {
@@ -112,6 +129,10 @@ function handleSettingsClick() {
   appearanceMenuVisible.value = false
   menuVisible.value = false
   ElMessage.info('全局设置功能建设中')
+}
+
+function handleAvatarImageError() {
+  avatarImageLoadFailed.value = true
 }
 
 async function handleLogout() {
@@ -142,33 +163,51 @@ function getLogoutIconName() {
         circle
         class="session-user-avatar-trigger"
       >
-        <img
-          v-if="currentUser.avatarUrl"
-          :src="currentUser.avatarUrl"
-          class="h-full w-full object-cover"
+        <ElAvatar
+          :size="40"
+          class="session-user-avatar-trigger__avatar"
         >
-        <div
-          v-else
-          class="session-user-avatar-fallback"
-        >
-          {{ currentUser.initial }}
-        </div>
+          <img
+            v-if="currentAvatarUrl"
+            :key="currentAvatarUrl"
+            :src="currentAvatarUrl"
+            :alt="currentAvatarAlt"
+            referrerpolicy="no-referrer"
+            class="session-user-avatar-image"
+            @error="handleAvatarImageError"
+          >
+          <span
+            v-else
+            class="session-user-avatar-fallback"
+          >
+            {{ currentUser.initial }}
+          </span>
+        </ElAvatar>
       </ElButton>
     </template>
 
     <div class="session-user-menu">
       <div class="session-user-profile">
-        <img
-          v-if="currentUser.avatarUrl"
-          :src="currentUser.avatarUrl"
+        <ElAvatar
+          :size="40"
           class="session-user-profile__avatar"
         >
-        <div
-          v-else
-          class="session-user-profile__avatar-fallback"
-        >
-          {{ currentUser.initial }}
-        </div>
+          <img
+            v-if="currentAvatarUrl"
+            :key="currentAvatarUrl"
+            :src="currentAvatarUrl"
+            :alt="currentAvatarAlt"
+            referrerpolicy="no-referrer"
+            class="session-user-avatar-image"
+            @error="handleAvatarImageError"
+          >
+          <span
+            v-else
+            class="session-user-profile__avatar-fallback"
+          >
+            {{ currentUser.initial }}
+          </span>
+        </ElAvatar>
 
         <div class="session-user-profile__meta">
           <div class="truncate text-[13px] font-semibold text-main">
@@ -343,8 +382,7 @@ function getLogoutIconName() {
   padding: 1px;
 }
 
-.session-user-profile__avatar,
-.session-user-profile__avatar-fallback {
+.session-user-profile__avatar {
   flex-shrink: 0;
   width: 2.5rem;
   height: 2.5rem;
@@ -352,18 +390,23 @@ function getLogoutIconName() {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-border-base) 70%, transparent);
 }
 
-.session-user-profile__avatar {
-  object-fit: cover;
-}
-
 .session-user-profile__avatar-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--brand-primary);
+  width: 100%;
+  height: 100%;
+  color: color-mix(in srgb, var(--brand-text-primary) 82%, var(--brand-primary) 18%);
   font-size: 13px;
   font-weight: 700;
-  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  background:
+    radial-gradient(circle at 30% 28%, color-mix(in srgb, white 72%, transparent), transparent 46%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--brand-fill-light) 88%, var(--brand-bg-surface)),
+      color-mix(in srgb, var(--brand-fill-base) 76%, var(--brand-bg-surface-raised))
+    );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
 }
 
 .session-user-profile__meta {
@@ -576,6 +619,19 @@ function getLogoutIconName() {
       border-color: color-mix(in srgb, var(--brand-primary) 20%, var(--brand-border-base));
       background: var(--brand-bg-surface);
     }
+
+    &__avatar {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+    }
+  }
+
+  &-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   &-fallback {
@@ -584,10 +640,17 @@ function getLogoutIconName() {
     justify-content: center;
     width: 100%;
     height: 100%;
-    color: var(--brand-primary);
+    color: color-mix(in srgb, var(--brand-text-primary) 82%, var(--brand-primary) 18%);
     font-size: 0.875rem;
     font-weight: 700;
-    background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+    background:
+      radial-gradient(circle at 30% 28%, color-mix(in srgb, white 72%, transparent), transparent 46%),
+      linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--brand-fill-light) 88%, var(--brand-bg-surface)),
+        color-mix(in srgb, var(--brand-fill-base) 76%, var(--brand-bg-surface-raised))
+      );
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
   }
 }
 </style>

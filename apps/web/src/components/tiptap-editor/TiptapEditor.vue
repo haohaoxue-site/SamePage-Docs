@@ -15,6 +15,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { onBeforeUnmount, watch } from 'vue'
 import BubbleToolbar from './bubble-menu/BubbleToolbar.vue'
+import { ResetMarksOnPlainEnter } from './extensions/ResetMarksOnPlainEnter'
 
 const props = defineProps<TiptapEditorProps>()
 const emits = defineEmits<TiptapEditorEmits>()
@@ -49,6 +50,7 @@ const editor = useEditor({
     Image.configure({
       inline: true,
     }),
+    ResetMarksOnPlainEnter,
   ],
   editorProps: {
     attributes: {
@@ -56,10 +58,6 @@ const editor = useEditor({
     },
   },
   onUpdate: emitUpdatedContent,
-})
-
-defineExpose({
-  editor,
 })
 
 function emitUpdatedContent() {
@@ -96,17 +94,17 @@ watch(
 )
 
 onBeforeUnmount(destroyEditor)
+
+defineExpose({
+  editor,
+})
 </script>
 
 <template>
-  <ElCard
-    shadow="never"
-    body-class="tiptap-editor__card-body"
-    class="tiptap-editor"
-  >
+  <section class="tiptap-editor">
     <BubbleToolbar v-if="editor" :editor="editor" />
     <EditorContent v-if="editor" :editor="editor" class="tiptap-editor__content" />
-  </ElCard>
+  </section>
 </template>
 
 <style scoped lang="scss">
@@ -119,16 +117,7 @@ onBeforeUnmount(destroyEditor)
   height: 100%;
   overflow: visible;
   background: transparent;
-  border: none !important;
-  box-shadow: none !important;
-
-  :deep(.tiptap-editor__card-body) {
-    display: flex;
-    flex: 1 1 0%;
-    flex-direction: column;
-    min-height: 0;
-    padding: 0;
-  }
+  border: none;
 
   .tiptap-editor__content {
     flex: 1 1 0%;

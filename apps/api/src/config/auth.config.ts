@@ -1,6 +1,29 @@
 import { registerAs } from '@nestjs/config'
 import { getEnv } from './env.schema'
 
+const JWT_DEFAULTS = {
+  issuer: 'samepage-api',
+  audience: 'samepage-web',
+  accessTtlSeconds: 900,
+  refreshTtlSeconds: 60 * 60 * 24 * 30,
+} satisfies Omit<JwtConfig, 'accessSecret'>
+
+const GITHUB_OAUTH_DEFAULTS = {
+  issuer: 'https://github.com/login/oauth',
+  authorizationEndpoint: 'https://github.com/login/oauth/authorize',
+  tokenEndpoint: 'https://github.com/login/oauth/access_token',
+  userinfoEndpoint: 'https://api.github.com/user',
+  scopes: 'read:user user:email',
+} satisfies Omit<OAuthProviderConfig, 'clientId' | 'clientSecret'>
+
+const LINUX_DO_OAUTH_DEFAULTS = {
+  discoveryIssuer: 'https://connect.linux.do/',
+  authorizationEndpoint: 'https://connect.linux.do/oauth2/authorize',
+  tokenEndpoint: 'https://connect.linux.do/oauth2/token',
+  userinfoEndpoint: 'https://connect.linux.do/api/user',
+  scopes: 'openid profile email',
+} satisfies Omit<OAuthProviderConfig, 'clientId' | 'clientSecret'>
+
 /**
  * JWT 签发与校验配置
  */
@@ -8,7 +31,6 @@ export interface JwtConfig {
   issuer: string
   audience: string
   accessSecret: string
-  refreshSecret: string
   accessTtlSeconds: number
   refreshTtlSeconds: number
 }
@@ -19,6 +41,8 @@ export interface JwtConfig {
 export interface OAuthProviderConfig {
   clientId?: string
   clientSecret?: string
+  issuer?: string
+  discoveryIssuer?: string
   authorizationEndpoint?: string
   tokenEndpoint?: string
   userinfoEndpoint?: string
@@ -29,42 +53,24 @@ export interface OAuthProviderConfig {
  * OAuth 配置
  */
 export interface OAuthConfig {
-  localCallbackUrl: string
-  productionCallbackUrl: string
-  apiBaseUrlLocal: string
-  apiBaseUrlProduction: string
   github: OAuthProviderConfig
   linuxDo: OAuthProviderConfig
 }
 
 export const jwtConfig = registerAs('jwt', (): JwtConfig => ({
-  issuer: getEnv().JWT_ISSUER,
-  audience: getEnv().JWT_AUDIENCE,
+  ...JWT_DEFAULTS,
   accessSecret: getEnv().JWT_ACCESS_SECRET,
-  refreshSecret: getEnv().JWT_REFRESH_SECRET,
-  accessTtlSeconds: getEnv().JWT_ACCESS_EXPIRES_IN_SEC,
-  refreshTtlSeconds: getEnv().JWT_REFRESH_EXPIRES_IN_SEC,
 }))
 
 export const oauthConfig = registerAs('oauth', (): OAuthConfig => ({
-  localCallbackUrl: getEnv().AUTH_WEB_CALLBACK_LOCAL,
-  productionCallbackUrl: getEnv().AUTH_WEB_CALLBACK_PROD,
-  apiBaseUrlLocal: getEnv().AUTH_API_BASE_URL_LOCAL,
-  apiBaseUrlProduction: getEnv().AUTH_API_BASE_URL_PROD,
   github: {
+    ...GITHUB_OAUTH_DEFAULTS,
     clientId: getEnv().GITHUB_CLIENT_ID,
     clientSecret: getEnv().GITHUB_CLIENT_SECRET,
-    authorizationEndpoint: getEnv().GITHUB_AUTHORIZATION_ENDPOINT,
-    tokenEndpoint: getEnv().GITHUB_TOKEN_ENDPOINT,
-    userinfoEndpoint: getEnv().GITHUB_USERINFO_ENDPOINT,
-    scopes: getEnv().GITHUB_SCOPE,
   },
   linuxDo: {
+    ...LINUX_DO_OAUTH_DEFAULTS,
     clientId: getEnv().LINUX_DO_CLIENT_ID,
     clientSecret: getEnv().LINUX_DO_CLIENT_SECRET,
-    authorizationEndpoint: getEnv().LINUX_DO_AUTHORIZATION_ENDPOINT,
-    tokenEndpoint: getEnv().LINUX_DO_TOKEN_ENDPOINT,
-    userinfoEndpoint: getEnv().LINUX_DO_USERINFO_ENDPOINT,
-    scopes: getEnv().LINUX_DO_SCOPE,
   },
 }))

@@ -1,6 +1,6 @@
 import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type { OAuthConfig, OAuthProviderConfig } from '../../../config/auth.config'
-import { AUTH_PROVIDER } from '@haohaoxue/samepage-domain'
+import { AUTH_CALLBACK_PATH, AUTH_PROVIDER, SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { AuthProvider } from '@prisma/client'
@@ -29,14 +29,10 @@ const OAUTH_PROVIDER_DB_PROVIDER = {
 
 @Injectable()
 export class OAuthProviderService {
-  private readonly providerCache = new Map<AuthProviderName, OAuthRuntimeProvider>()
-  private readonly isProduction: boolean
+  private readonly providerCache = new Map<AuthProviderName, Promise<OAuthRuntimeProvider>>()
+  constructor(private readonly configService: ConfigService) {}
 
-  constructor(private readonly configService: ConfigService) {
-    this.isProduction = this.configService.getOrThrow<boolean>('server.isProduction')
-  }
-
-  getProvider(provider: AuthProviderName): OAuthRuntimeProvider {
+  async getProvider(provider: AuthProviderName): Promise<OAuthRuntimeProvider> {
     const cached = this.providerCache.get(provider)
     if (cached) {
       return cached
@@ -51,66 +47,115 @@ export class OAuthProviderService {
     )
 
     this.providerCache.set(provider, result)
-    return result
+
+    try {
+      return await result
+    }
+    catch (error) {
+      this.providerCache.delete(provider)
+      throw error
+    }
   }
 
-  resolveWebCallbackUrl(): string {
-    const oauthConfig = this.configService.getOrThrow<OAuthConfig>('oauth')
-
-    return this.isProduction
-      ? oauthConfig.productionCallbackUrl
-      : oauthConfig.localCallbackUrl
+  resolveWebCallbackUrl(webOrigin: string): string {
+    return new URL(AUTH_CALLBACK_PATH, this.normalizeOrigin(webOrigin)).toString()
   }
 
-  resolveApiCallbackUrl(provider: AuthProviderName): string {
-    const apiBaseUrl = this.isProduction
-      ? this.configService.getOrThrow<string>('oauth.apiBaseUrlProduction')
-      : this.configService.getOrThrow<string>('oauth.apiBaseUrlLocal')
-
-    return `${apiBaseUrl}/api/auth/oauth/${provider}/callback`
+  resolveApiCallbackUrl(provider: AuthProviderName, webOrigin: string): string {
+    return new URL(`${SERVER_PATH}/auth/oauth/${provider}/callback`, this.normalizeOrigin(webOrigin)).toString()
   }
 
-  private buildProvider(
+  private async buildProvider(
     name: AuthProviderName,
     dbProvider: AuthProvider,
     providerConfig: OAuthProviderConfig,
-  ): OAuthRuntimeProvider {
-    if (
-      !providerConfig.clientId
-      || !providerConfig.clientSecret
-      || !providerConfig.authorizationEndpoint
-      || !providerConfig.tokenEndpoint
-      || !providerConfig.userinfoEndpoint
-    ) {
+  ): Promise<OAuthRuntimeProvider> {
+    if (!providerConfig.clientId || !providerConfig.clientSecret) {
       throw new BadRequestException(`${name} OAuth provider is not configured`)
     }
 
-    const serverMetadata: client.ServerMetadata = {
-      issuer: new URL(providerConfig.authorizationEndpoint).origin,
-      authorization_endpoint: providerConfig.authorizationEndpoint,
-      token_endpoint: providerConfig.tokenEndpoint,
-      userinfo_endpoint: providerConfig.userinfoEndpoint,
-    }
+    const configuration = await this.createConfiguration(name, providerConfig)
+    const userinfoEndpoint = configuration.serverMetadata().userinfo_endpoint ?? providerConfig.userinfoEndpoint
 
-    let configuration: client.Configuration
-
-    try {
-      configuration = new client.Configuration(
-        serverMetadata,
-        providerConfig.clientId,
-        providerConfig.clientSecret,
-      )
-    }
-    catch {
-      throw new InternalServerErrorException(`Failed to initialize ${name} OAuth provider`)
+    if (!userinfoEndpoint) {
+      throw new BadRequestException(`${name} OAuth provider is not configured`)
     }
 
     return {
       name,
       dbProvider,
       config: configuration,
-      userinfoEndpoint: providerConfig.userinfoEndpoint,
+      userinfoEndpoint,
       scopes: providerConfig.scopes,
     }
+  }
+
+  private async createConfiguration(
+    name: AuthProviderName,
+    providerConfig: OAuthProviderConfig,
+  ): Promise<client.Configuration> {
+    try {
+      if (providerConfig.discoveryIssuer) {
+        return await client.discovery(
+          new URL(providerConfig.discoveryIssuer),
+          providerConfig.clientId!,
+          providerConfig.clientSecret!,
+        )
+      }
+
+      if (
+        !providerConfig.authorizationEndpoint
+        || !providerConfig.tokenEndpoint
+        || !providerConfig.userinfoEndpoint
+      ) {
+        throw new BadRequestException(`${name} OAuth provider is not configured`)
+      }
+
+      const issuer = providerConfig.issuer ?? new URL('/', providerConfig.authorizationEndpoint).href
+      const serverMetadata: client.ServerMetadata = {
+        issuer,
+        authorization_endpoint: providerConfig.authorizationEndpoint,
+        token_endpoint: providerConfig.tokenEndpoint,
+        userinfo_endpoint: providerConfig.userinfoEndpoint,
+      }
+
+      return new client.Configuration(
+        serverMetadata,
+        providerConfig.clientId!,
+        providerConfig.clientSecret!,
+      )
+    }
+    catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error
+      }
+
+      throw new InternalServerErrorException(`Failed to initialize ${name} OAuth provider`)
+    }
+  }
+
+  private normalizeOrigin(rawWebOrigin: string): string {
+    const normalizedValue = rawWebOrigin.trim().replace(/\/+$/g, '')
+    let url: URL
+
+    try {
+      url = new URL(normalizedValue)
+    }
+    catch {
+      throw new BadRequestException('Invalid web origin')
+    }
+
+    if (
+      url.origin !== normalizedValue
+      || url.pathname !== '/'
+      || url.search.length
+      || url.hash.length
+      || url.username.length
+      || url.password.length
+    ) {
+      throw new BadRequestException('Invalid web origin')
+    }
+
+    return url.origin
   }
 }

@@ -20,9 +20,9 @@
     "type-check": "pnpm -r type-check"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^8.0.0",
-    "eslint": "^10.1.0",
+    "@antfu/eslint-config": "^8.1.1",
+    "eslint": "^10.2.0",
     "typescript": "catalog:",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.4"
   }
 }

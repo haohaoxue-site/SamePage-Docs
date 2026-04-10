@@ -4,12 +4,13 @@ import type {
   LogoutResponseDto,
   TokenExchangeResponseDto,
 } from './typing'
+import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import { axios } from '@/utils/axios'
 
 export * from './typing'
 
 export function buildOAuthStartUrl(provider: AuthProviderName) {
-  return `${import.meta.env.VITE_APP_SERVER_PATH}/auth/oauth/${provider}/start`
+  return `${SERVER_PATH}/auth/oauth/${provider}/start`
 }
 
 export function exchangeAuthCode(data: ExchangeCodeDto): Promise<TokenExchangeResponseDto> {

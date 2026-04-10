@@ -32,10 +32,11 @@ export class AuthController {
   @Get('oauth/:provider/start')
   async startOAuth(
     @Param('provider') provider: string,
+    @Req() request: FastifyRequest,
     @Res() response: FastifyReply,
   ): Promise<FastifyReply> {
     const normalizedProvider = this.parseProvider(provider)
-    const authorizeUrl = await this.authService.buildOAuthAuthorizationUrl(normalizedProvider)
+    const authorizeUrl = await this.authService.buildOAuthAuthorizationUrl(normalizedProvider, request)
 
     return response.redirect(authorizeUrl, 302)
   }

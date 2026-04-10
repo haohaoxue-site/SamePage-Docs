@@ -10,4 +10,6 @@ export const AUTH_PROVIDER_VALUES = [
   AUTH_PROVIDER.LINUX_DO,
 ] as const
 
+export const AUTH_CALLBACK_PATH = '/auth/callback'
+
 export const AuthProviderSchema = z.enum(AUTH_PROVIDER_VALUES)

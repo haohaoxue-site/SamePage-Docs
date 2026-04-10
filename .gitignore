@@ -149,7 +149,6 @@ components.d.ts
 .agents
 .claude
 .codex
-.encryption-key
 .playwright-cli
 AGENTS.md
 CLAUDE.md

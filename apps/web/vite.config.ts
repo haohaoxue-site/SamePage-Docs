@@ -1,6 +1,8 @@
 import process from 'node:process'
 import { fileURLToPath, URL } from 'node:url'
+import { SERVER_PATH, SERVER_PORT } from '@haohaoxue/samepage-contracts/server'
 import vue from '@vitejs/plugin-vue'
+import vueJsx from '@vitejs/plugin-vue-jsx'
 import UnoCSS from 'unocss/vite'
 import AutoImport from 'unplugin-auto-import/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
@@ -13,11 +15,12 @@ const elementPlusResolver = ElementPlusResolver({
 })
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
+  loadEnv(mode, process.cwd(), '')
 
   return {
     plugins: [
       vue(),
+      vueJsx(),
       UnoCSS(),
       AutoImport({
         dts: './auto-imports.d.ts',
@@ -36,9 +39,10 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        [env.VITE_APP_SERVER_PATH]: {
-          target: env.VITE_APP_SERVER_PATH_TARGET,
+        [SERVER_PATH]: {
+          target: `http://localhost:${SERVER_PORT}`,
           changeOrigin: true,
+          xfwd: true,
           ws: true,
         },
       },

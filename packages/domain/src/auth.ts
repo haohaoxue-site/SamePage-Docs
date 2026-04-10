@@ -1,7 +1,7 @@
 import type { AuthProviderSchema } from '@haohaoxue/samepage-contracts'
 import type { z } from 'zod'
 
-export { AUTH_PROVIDER, AUTH_PROVIDER_VALUES, AuthProviderSchema } from '@haohaoxue/samepage-contracts'
+export { AuthProviderSchema } from '@haohaoxue/samepage-contracts'
 
 export type AuthProviderName = z.infer<typeof AuthProviderSchema>
 

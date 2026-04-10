@@ -37,9 +37,9 @@ function getStatusStateClass(status: SystemAdminUserStatus) {
             <div class="admin-user-table__avatar">
               {{ row.displayName.slice(0, 1) }}
             </div>
-            <div class="flex flex-col">
-              <span class="text-sm font-semibold text-main">{{ row.displayName }}</span>
-              <span class="text-xs text-secondary">{{ row.email || '未绑定邮箱' }}</span>
+            <div class="min-w-0 flex flex-col">
+              <span class="truncate text-sm font-semibold text-main">{{ row.displayName }}</span>
+              <span class="truncate text-xs text-secondary">{{ row.email || '未绑定邮箱' }}</span>
             </div>
           </div>
         </template>
@@ -130,11 +130,14 @@ function getStatusStateClass(status: SystemAdminUserStatus) {
   }
 
   .admin-user-table__avatar {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 2.5rem;
+    min-width: 2.5rem;
     height: 2.5rem;
+    min-height: 2.5rem;
     border-radius: 9999px;
     color: var(--brand-primary);
     font-weight: 700;

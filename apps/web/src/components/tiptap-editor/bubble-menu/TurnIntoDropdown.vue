@@ -17,55 +17,55 @@ const items = computed<TurnIntoItem[]>(() => {
   const e = props.editor
   return [
     {
-      label: 'Text',
+      label: '正文',
       icon: 'T',
       isActive: () => e.isActive('paragraph') && !e.isActive('bulletList') && !e.isActive('orderedList') && !e.isActive('codeBlock') && !e.isActive('blockquote'),
       command: () => e.chain().focus().setParagraph().run(),
     },
     {
-      label: 'Heading 1',
+      label: '标题 1',
       icon: 'H1',
       isActive: () => e.isActive('heading', { level: 1 }),
       command: () => e.chain().focus().toggleHeading({ level: 1 }).run(),
     },
     {
-      label: 'Heading 2',
+      label: '标题 2',
       icon: 'H2',
       isActive: () => e.isActive('heading', { level: 2 }),
       command: () => e.chain().focus().toggleHeading({ level: 2 }).run(),
     },
     {
-      label: 'Heading 3',
+      label: '标题 3',
       icon: 'H3',
       isActive: () => e.isActive('heading', { level: 3 }),
       command: () => e.chain().focus().toggleHeading({ level: 3 }).run(),
     },
     {
-      label: 'Bulleted list',
+      label: '无序列表',
       icon: 'list-ul',
       isActive: () => e.isActive('bulletList'),
       command: () => e.chain().focus().toggleBulletList().run(),
     },
     {
-      label: 'Numbered list',
+      label: '有序列表',
       icon: 'list-ol',
       isActive: () => e.isActive('orderedList'),
       command: () => e.chain().focus().toggleOrderedList().run(),
     },
     {
-      label: 'Code',
+      label: '代码块',
       icon: 'code',
       isActive: () => e.isActive('codeBlock'),
       command: () => e.chain().focus().toggleCodeBlock().run(),
     },
     {
-      label: 'Quote',
+      label: '引用',
       icon: 'quote',
       isActive: () => e.isActive('blockquote'),
       command: () => e.chain().focus().toggleBlockquote().run(),
     },
     {
-      label: 'Task list',
+      label: '任务列表',
       icon: 'task',
       isActive: () => e.isActive('taskList'),
       command: () => e.chain().focus().toggleTaskList().run(),
@@ -90,37 +90,35 @@ function handleSelect(item: TurnIntoItem) {
     popper-class="bubble-turn-into-popover"
   >
     <template #reference>
-      <button class="bubble-btn" title="Turn into">
+      <button class="bubble-btn" title="文本" type="button" @mousedown.prevent>
         <span class="text-sm font-semibold">T</span>
       </button>
     </template>
 
     <div class="turn-into-menu">
-      <div class="turn-into-menu__header">
-        Turn into
-      </div>
       <div
         v-for="item in items"
         :key="item.label"
         class="turn-into-menu__item"
         :class="{ 'is-active': item.isActive() }"
+        @mousedown.prevent
         @click="handleSelect(item)"
       >
         <span class="turn-into-menu__icon">
           <template v-if="item.icon === 'list-ul'">
-            <SvgIcon category="ui" icon="list-bulleted" size="1rem" />
+            <SvgIcon category="ui" icon="list-bulleted" />
           </template>
           <template v-else-if="item.icon === 'list-ol'">
-            <SvgIcon category="ui" icon="list-numbered" size="1rem" />
+            <SvgIcon category="ui" icon="list-numbered" />
           </template>
           <template v-else-if="item.icon === 'code'">
-            <SvgIcon category="ui" icon="code" size="1rem" />
+            <SvgIcon category="ui" icon="code" />
           </template>
           <template v-else-if="item.icon === 'quote'">
-            <SvgIcon category="ui" icon="quotes" size="1rem" />
+            <SvgIcon category="ui" icon="quotes" />
           </template>
           <template v-else-if="item.icon === 'task'">
-            <SvgIcon category="ui" icon="task" size="1rem" />
+            <SvgIcon category="ui" icon="task" />
           </template>
           <template v-else>
             <span class="font-semibold text-sm">{{ item.icon }}</span>
@@ -135,13 +133,6 @@ function handleSelect(item: TurnIntoItem) {
 
 <style scoped lang="scss">
 .turn-into-menu {
-  &__header {
-    padding: 4px 8px 8px;
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-    font-weight: 500;
-  }
-
   &__item {
     display: flex;
     align-items: center;

@@ -6,13 +6,12 @@ import type {
   AccessTokenPayload,
   AuthUserContext,
   OAuthProfile,
-  RefreshTokenPayload,
   TokenExchangeResult,
 } from './auth.interface'
 import { Buffer } from 'node:buffer'
 import { createHash, createSecretKey, randomBytes, randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
-import { AUTH_PROVIDER } from '@haohaoxue/samepage-domain'
+import { AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
 import {
   BadRequestException,
   Injectable,
@@ -35,12 +34,12 @@ const OAUTH_STATE_TTL_SECONDS = 10 * 60
 const LOGIN_CODE_TTL_SECONDS = 2 * 60
 const OAUTH_FETCH_RETRY_DELAYS_MS = [300, 900]
 const RETRYABLE_OAUTH_FETCH_ERROR_RE = /fetch failed|timeout/i
+const OAUTH_STATE_VERSION = 1
 
 @Injectable()
 export class AuthService {
   private readonly jwtConfig
   private readonly accessSecretKey
-  private readonly refreshSecretKey
   private readonly isProduction
 
   constructor(
@@ -51,15 +50,15 @@ export class AuthService {
   ) {
     this.jwtConfig = this.configService.getOrThrow<JwtConfig>('jwt')
     this.accessSecretKey = createSecretKey(Buffer.from(this.jwtConfig.accessSecret, 'utf8'))
-    this.refreshSecretKey = createSecretKey(Buffer.from(this.jwtConfig.refreshSecret, 'utf8'))
     this.isProduction = this.configService.getOrThrow<boolean>('server.isProduction')
   }
 
-  async buildOAuthAuthorizationUrl(provider: AuthProviderName): Promise<string> {
-    const runtimeProvider = this.oauthProviderService.getProvider(provider)
-    const callbackUrl = this.oauthProviderService.resolveApiCallbackUrl(provider)
+  async buildOAuthAuthorizationUrl(provider: AuthProviderName, request: FastifyRequest): Promise<string> {
+    const runtimeProvider = await this.oauthProviderService.getProvider(provider)
+    const webOrigin = this.resolveCurrentUrl(request).origin
+    const callbackUrl = this.oauthProviderService.resolveApiCallbackUrl(provider, webOrigin)
 
-    const state = client.randomState()
+    const state = this.createOAuthState(webOrigin)
     const codeVerifier = client.randomPKCECodeVerifier()
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier)
 
@@ -86,7 +85,7 @@ export class AuthService {
   }
 
   async handleOAuthCallback(provider: AuthProviderName, request: FastifyRequest): Promise<string> {
-    const runtimeProvider = this.oauthProviderService.getProvider(provider)
+    const runtimeProvider = await this.oauthProviderService.getProvider(provider)
     const currentUrl = this.resolveCurrentUrl(request)
     const state = currentUrl.searchParams.get('state')
 
@@ -135,8 +134,10 @@ export class AuthService {
       data: { consumedAt: new Date() },
     })
 
-    const loginCode = await this.createLoginCode(user.id)
-    const redirectUrl = new URL(this.oauthProviderService.resolveWebCallbackUrl())
+    const webOrigin = this.extractWebOriginFromState(oauthState.state)
+    const webCallbackUrl = this.oauthProviderService.resolveWebCallbackUrl(webOrigin)
+    const loginCode = await this.createLoginCode(user.id, webCallbackUrl)
+    const redirectUrl = new URL(webCallbackUrl)
     redirectUrl.searchParams.set('code', loginCode)
 
     return redirectUrl.toString()
@@ -237,19 +238,45 @@ export class AuthService {
     }
   }
 
-  private async createLoginCode(userId: string): Promise<string> {
+  private async createLoginCode(userId: string, redirectUri: string): Promise<string> {
     const loginCode = randomBytes(32).toString('base64url')
 
     await this.prisma.authLoginCode.create({
       data: {
         userId,
         codeHash: this.hash(loginCode),
-        redirectUri: this.oauthProviderService.resolveWebCallbackUrl(),
+        redirectUri,
         expiresAt: new Date(Date.now() + LOGIN_CODE_TTL_SECONDS * 1000),
       },
     })
 
     return loginCode
+  }
+
+  private createOAuthState(webOrigin: string): string {
+    return Buffer.from(JSON.stringify({
+      v: OAUTH_STATE_VERSION,
+      nonce: client.randomState(),
+      webOrigin,
+    }), 'utf8').toString('base64url')
+  }
+
+  private extractWebOriginFromState(state: string): string {
+    try {
+      const payload = JSON.parse(Buffer.from(state, 'base64url').toString('utf8')) as {
+        v?: unknown
+        webOrigin?: unknown
+      }
+
+      if (payload.v !== OAUTH_STATE_VERSION || typeof payload.webOrigin !== 'string') {
+        throw new Error('Invalid OAuth state payload')
+      }
+
+      return payload.webOrigin
+    }
+    catch {
+      throw new UnauthorizedException('OAuth state is invalid')
+    }
   }
 
   private async upsertUserByOAuth(provider: AuthProvider, profile: OAuthProfile): Promise<User> {
@@ -549,27 +576,9 @@ export class AuthService {
       .sign(this.accessSecretKey)
   }
 
-  private async signRefreshToken(userId: string, familyId: string, tokenId: string): Promise<string> {
-    const payload: RefreshTokenPayload = {
-      tokenType: 'refresh',
-      familyId,
-      tokenId,
-    }
-
-    return new SignJWT(payload)
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-      .setSubject(userId)
-      .setIssuer(this.jwtConfig.issuer)
-      .setAudience(this.jwtConfig.audience)
-      .setIssuedAt()
-      .setExpirationTime(`${this.jwtConfig.refreshTtlSeconds}s`)
-      .setJti(randomUUID())
-      .sign(this.refreshSecretKey)
-  }
-
   private async createRefreshSession(userId: string, request: FastifyRequest, familyId = randomUUID()): Promise<{ rawToken: string, tokenId: string, familyId: string }> {
     const tokenId = randomUUID()
-    const rawToken = await this.signRefreshToken(userId, familyId, tokenId)
+    const rawToken = this.generateRefreshToken()
     const tokenHash = this.hash(rawToken)
 
     await this.prisma.authRefreshToken.create({
@@ -597,7 +606,7 @@ export class AuthService {
   ): Promise<{ rawToken: string }> {
     return this.prisma.$transaction(async (tx) => {
       const tokenId = randomUUID()
-      const rawToken = await this.signRefreshToken(tokenRecord.userId, tokenRecord.familyId, tokenId)
+      const rawToken = this.generateRefreshToken()
       const tokenHash = this.hash(rawToken)
 
       await tx.authRefreshToken.create({
@@ -687,6 +696,10 @@ export class AuthService {
 
   private hash(value: string): string {
     return createHash('sha256').update(value).digest('hex')
+  }
+
+  private generateRefreshToken(): string {
+    return randomBytes(32).toString('base64url')
   }
 
   private extractRequestIp(request: FastifyRequest): string | undefined {

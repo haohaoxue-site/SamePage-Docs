@@ -1,10 +1,11 @@
 import type { RequestResponse } from '@haohaoxue/samepage-domain'
 import type { TokenExchangeResponseDto } from '@/apis/auth/typing'
+import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import rawAxios, { AxiosHeaders } from 'axios'
 import { useAuthStore } from '@/stores/auth'
 
 const http = rawAxios.create({
-  baseURL: import.meta.env.VITE_APP_SERVER_PATH,
+  baseURL: SERVER_PATH,
   timeout: 6000 * 60,
 })
 
@@ -81,7 +82,7 @@ async function refreshAccessTokenOnce() {
 
   refreshPromise = rawAxios
     .create({
-      baseURL: import.meta.env.VITE_APP_SERVER_PATH,
+      baseURL: SERVER_PATH,
       timeout: 6000 * 60,
       withCredentials: true,
     })

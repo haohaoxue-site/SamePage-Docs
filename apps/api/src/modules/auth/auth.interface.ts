@@ -23,15 +23,6 @@ export interface AccessTokenPayload extends JWTPayload {
 }
 
 /**
- * Refresh 令牌载荷
- */
-export interface RefreshTokenPayload extends JWTPayload {
-  tokenType: 'refresh'
-  familyId: string
-  tokenId: string
-}
-
-/**
  * 当前登录用户上下文
  */
 export interface AuthUserContext {

@@ -17,8 +17,11 @@ const { providers, startLogin } = useLoginView()
           </div>
 
           <h1 class="mb-4 text-3xl font-bold text-main">
-            系统登录
+            欢迎登录
           </h1>
+          <p class="mb-6 text-sm leading-6 text-secondary">
+            选择 GitHub 或 LinuxDo 账号，继续访问 SamePage Docs 协作空间。
+          </p>
 
           <div class="flex flex-col gap-4">
             <ElButton
@@ -27,13 +30,21 @@ const { providers, startLogin } = useLoginView()
               class="login-provider-btn group"
               @click="startLogin(item.provider)"
             >
-              <div class="login-provider-btn__content">
-                <span class="font-semibold text-main">{{ item.title }}</span>
-                <span class="login-provider-btn__description">{{ item.description }}</span>
+              <div class="login-provider-btn__leading">
+                <span class="login-provider-btn__icon-wrap">
+                  <SvgIcon category="ui" :icon="item.icon" size="1.125rem" class="login-provider-btn__icon" />
+                </span>
+                <div class="login-provider-btn__content">
+                  <span class="font-semibold text-main">{{ item.title }}</span>
+                  <span class="login-provider-btn__description">{{ item.description }}</span>
+                </div>
               </div>
               <SvgIcon category="ui" icon="arrow-right" size="1rem" class="login-provider-btn__arrow" />
             </ElButton>
           </div>
+          <p class="mt-4 text-xs text-secondary">
+            首次登录会自动创建账号并同步头像信息。
+          </p>
         </div>
         <div class="login-view__hero">
           <div class="login-view__hero-overlay">
@@ -69,7 +80,6 @@ const { providers, startLogin } = useLoginView()
     max-width: 56rem;
     overflow: hidden;
     border-color: color-mix(in srgb, var(--brand-border-base) 60%, transparent);
-    box-shadow: 0 25px 50px -12px color-mix(in srgb, var(--brand-text-primary) 12%, transparent);
   }
 
   .login-view__panel {
@@ -99,10 +109,11 @@ const { providers, startLogin } = useLoginView()
       margin-left: 0;
       width: 100%;
       height: auto;
-      justify-content: space-between;
+      position: relative;
+      justify-content: flex-start;
       border-color: var(--brand-border-base);
       border-radius: 0.75rem;
-      padding: 1rem;
+      padding: 1rem 2.75rem 1rem 1rem;
       background-color: var(--brand-bg-surface);
       transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 
@@ -111,10 +122,33 @@ const { providers, startLogin } = useLoginView()
         background-color: color-mix(in srgb, var(--brand-primary) 5%, var(--brand-bg-surface));
       }
 
+      .login-provider-btn__leading {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .login-provider-btn__icon-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.625rem;
+        border: 1px solid color-mix(in srgb, var(--brand-border-base) 70%, transparent);
+        background: color-mix(in srgb, var(--brand-primary) 4%, var(--brand-bg-surface));
+      }
+
+      .login-provider-btn__icon {
+        color: var(--brand-text-primary);
+      }
+
       .login-provider-btn__content {
         display: flex;
         flex-direction: column;
         align-items: flex-start;
+        text-align: left;
       }
 
       .login-provider-btn__description {
@@ -124,6 +158,11 @@ const { providers, startLogin } = useLoginView()
       }
 
       .login-provider-btn__arrow {
+        position: absolute;
+        top: 50%;
+        right: 1rem;
+        transform: translateY(-50%);
+        pointer-events: none;
         color: var(--brand-text-secondary);
         transition:
           transform 0.2s ease,
@@ -132,7 +171,7 @@ const { providers, startLogin } = useLoginView()
 
       &:hover .login-provider-btn__arrow {
         color: var(--brand-primary);
-        transform: translateX(0.25rem);
+        transform: translate(0.25rem, -50%);
       }
     }
   }

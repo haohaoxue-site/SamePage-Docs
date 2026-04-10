@@ -1,3 +1,4 @@
+import { AUTH_CALLBACK_PATH } from '@haohaoxue/samepage-contracts'
 import { flushPromises, mount } from '@vue/test-utils'
 import { vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
@@ -79,7 +80,7 @@ describe('auth flow', () => {
     window.sessionStorage.setItem(AUTH_REDIRECT_KEY, '/admin/users')
 
     const router = createAppRouter(createMemoryHistory())
-    await router.push('/auth/callback?code=callback-code')
+    await router.push(`${AUTH_CALLBACK_PATH}?code=callback-code`)
     await router.isReady()
 
     mount(App, {

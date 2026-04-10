@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router'
+import { AUTH_CALLBACK_PATH } from '@haohaoxue/samepage-contracts'
 import AdminShellContainer from '@/layouts/containers/admin-shell.vue'
 import WorkspaceContainer from '@/layouts/containers/workspace.vue'
 import AuthCallbackView from '@/views/auth/callback/index.vue'
@@ -30,7 +31,7 @@ export const publicRoutes: RouteRecordRaw[] = [
     meta: { public: true },
   },
   {
-    path: '/auth/callback',
+    path: AUTH_CALLBACK_PATH,
     name: 'auth-callback',
     component: AuthCallbackView,
     meta: { public: true },
@@ -74,11 +75,8 @@ export const adminRoute: RouteRecordRaw = {
   path: '/admin',
   name: 'admin',
   component: AdminShellContainer,
+  redirect: '/admin/overview',
   children: [
-    {
-      path: '',
-      redirect: '/admin/overview',
-    },
     ...adminNavigationItems.map(item => ({
       path: item.path.replace('/admin/', ''),
       name: item.routeName,

@@ -1,46 +1,57 @@
 <script setup lang="ts">
 import type { ColorPickerDropdownProps } from '../typing'
-import { reactive, ref } from 'vue'
+import { reactive, shallowRef } from 'vue'
 
 const props = defineProps<ColorPickerDropdownProps>()
 
-const visible = ref(false)
+const visible = shallowRef(false)
+
+interface RecentColor {
+  /** 最近使用颜色的应用维度 */
+  kind: 'text' | 'highlight'
+  /** 颜色值 */
+  color: string
+}
 
 const textColors = [
-  { label: 'Default', value: '' },
-  { label: 'Gray', value: '#787774' },
-  { label: 'Brown', value: '#9f6b53' },
-  { label: 'Orange', value: '#d9730d' },
-  { label: 'Yellow', value: '#cb8d02' },
-  { label: 'Green', value: '#448361' },
-  { label: 'Blue', value: '#337ea9' },
-  { label: 'Purple', value: '#9065b0' },
-  { label: 'Pink', value: '#c14c8a' },
-  { label: 'Red', value: '#d44c47' },
+  { label: '默认', value: '' },
+  { label: '灰色', value: '#787774' },
+  { label: '棕色', value: '#9f6b53' },
+  { label: '橙色', value: '#d9730d' },
+  { label: '黄色', value: '#cb8d02' },
+  { label: '绿色', value: '#448361' },
+  { label: '蓝色', value: '#337ea9' },
+  { label: '紫色', value: '#9065b0' },
+  { label: '粉色', value: '#c14c8a' },
+  { label: '红色', value: '#d44c47' },
 ]
 
 const bgColors = [
-  { label: 'Default', value: '' },
-  { label: 'Gray', value: '#f1f1ef' },
-  { label: 'Brown', value: '#f4eeee' },
-  { label: 'Orange', value: '#fbecdd' },
-  { label: 'Yellow', value: '#fbf3db' },
-  { label: 'Green', value: '#edf3ec' },
-  { label: 'Blue', value: '#e7f3f8' },
-  { label: 'Purple', value: '#f6f3f9' },
-  { label: 'Pink', value: '#faf1f5' },
-  { label: 'Red', value: '#fdebec' },
+  { label: '默认', value: '' },
+  { label: '灰色', value: '#f1f1ef' },
+  { label: '棕色', value: '#f4eeee' },
+  { label: '橙色', value: '#fbecdd' },
+  { label: '黄色', value: '#fbf3db' },
+  { label: '绿色', value: '#edf3ec' },
+  { label: '蓝色', value: '#e7f3f8' },
+  { label: '紫色', value: '#f6f3f9' },
+  { label: '粉色', value: '#faf1f5' },
+  { label: '红色', value: '#fdebec' },
 ]
 
-const recentColors = reactive<string[]>([])
+const recentColors = reactive<RecentColor[]>([])
 
-function addRecent(color: string) {
+function addRecent(kind: RecentColor['kind'], color: string) {
   if (!color)
     return
-  const idx = recentColors.indexOf(color)
+
+  const idx = recentColors.findIndex(item => item.kind === kind && item.color === color)
+
   if (idx !== -1)
     recentColors.splice(idx, 1)
-  recentColors.unshift(color)
+
+  recentColors.unshift({ kind, color })
+
   if (recentColors.length > 4)
     recentColors.pop()
 }
@@ -51,7 +62,7 @@ function applyTextColor(color: string) {
   }
   else {
     props.editor.chain().focus().setColor(color).run()
-    addRecent(color)
+    addRecent('text', color)
   }
 }
 
@@ -61,20 +72,73 @@ function applyBgColor(color: string) {
   }
   else {
     props.editor.chain().focus().setHighlight({ color }).run()
-    addRecent(color)
+    addRecent('highlight', color)
   }
 }
 
+function applyRecentColor(item: RecentColor) {
+  if (item.kind === 'text') {
+    applyTextColor(item.color)
+    return
+  }
+
+  applyBgColor(item.color)
+}
+
+function isColorButtonActive() {
+  return Boolean(getActiveTextColor() || getActiveHighlightColor())
+}
+
+function getActiveTextColor(): string {
+  const color = props.editor.getAttributes('textStyle').color
+
+  return typeof color === 'string' ? color : ''
+}
+
+function getActiveHighlightColor(): string {
+  if (!props.editor.isActive('highlight')) {
+    return ''
+  }
+
+  const color = props.editor.getAttributes('highlight').color
+
+  return typeof color === 'string' ? color : ''
+}
+
+function getColorButtonIndicatorColor() {
+  return getActiveTextColor() || getActiveHighlightColor() || 'var(--el-text-color-secondary)'
+}
+
 function isActiveTextColor(color: string): boolean {
-  if (!color)
-    return !props.editor.getAttributes('textStyle').color
-  return props.editor.getAttributes('textStyle').color === color
+  return color ? getActiveTextColor() === color : !getActiveTextColor()
 }
 
 function isActiveBgColor(color: string): boolean {
   if (!color)
     return !props.editor.isActive('highlight')
   return props.editor.isActive('highlight', { color })
+}
+
+function getRecentColorKey(item: RecentColor) {
+  return `${item.kind}:${item.color}`
+}
+
+function getRecentColorStyle(item: RecentColor) {
+  return item.kind === 'highlight' ? { backgroundColor: item.color } : undefined
+}
+
+function getRecentColorLabelStyle(item: RecentColor) {
+  return {
+    color: item.kind === 'text'
+      ? item.color
+      : isLightColor(item.color)
+        ? '#37352f'
+        : '#fff',
+  }
+}
+
+function getRecentColorTitle(item: RecentColor) {
+  return `${item.kind === 'text' ? '文字' : '背景'}：${item.color}`
 }
 </script>
 
@@ -99,41 +163,51 @@ function isLightColor(hex: string): boolean {
     popper-class="bubble-color-picker-popover"
   >
     <template #reference>
-      <button class="bubble-btn" title="Color">
-        <span class="color-btn-icon">A</span>
+      <button
+        class="bubble-btn"
+        :class="{ 'is-active': isColorButtonActive() }"
+        title="颜色"
+        type="button"
+        @mousedown.prevent
+      >
+        <span class="color-btn-icon" :style="{ '--color-btn-indicator': getColorButtonIndicatorColor() }">A</span>
       </button>
     </template>
 
     <div class="color-picker">
       <template v-if="recentColors.length > 0">
         <div class="color-picker__section-title">
-          Recently used
+          最近使用
         </div>
         <div class="color-picker__grid">
           <button
-            v-for="color in recentColors"
-            :key="color"
+            v-for="item in recentColors"
+            :key="getRecentColorKey(item)"
             class="color-picker__swatch"
-            :style="{ backgroundColor: color }"
-            :title="color"
-            @click="applyTextColor(color)"
+            :class="{ 'is-text': item.kind === 'text' }"
+            :style="getRecentColorStyle(item)"
+            :title="getRecentColorTitle(item)"
+            type="button"
+            @mousedown.prevent
+            @click="applyRecentColor(item)"
           >
-            <span class="color-picker__swatch-label" :style="{ color: isLightColor(color) ? '#37352f' : '#fff' }">A</span>
+            <span class="color-picker__swatch-label" :style="getRecentColorLabelStyle(item)">A</span>
           </button>
         </div>
       </template>
 
       <div class="color-picker__section-title">
-        Text color
+        文字颜色
       </div>
       <div class="color-picker__grid">
         <button
           v-for="c in textColors"
           :key="`text-${c.value}`"
-          class="color-picker__swatch"
+          class="color-picker__swatch is-text"
           :class="{ 'is-active': isActiveTextColor(c.value), 'is-default': !c.value }"
-          :style="!c.value ? {} : { backgroundColor: 'transparent' }"
           :title="c.label"
+          type="button"
+          @mousedown.prevent
           @click="applyTextColor(c.value)"
         >
           <span class="color-picker__swatch-label" :style="{ color: c.value || '#37352f' }">A</span>
@@ -141,7 +215,7 @@ function isLightColor(hex: string): boolean {
       </div>
 
       <div class="color-picker__section-title">
-        Background color
+        背景颜色
       </div>
       <div class="color-picker__grid">
         <button
@@ -151,6 +225,8 @@ function isLightColor(hex: string): boolean {
           :class="{ 'is-active': isActiveBgColor(c.value), 'is-default': !c.value }"
           :style="c.value ? { backgroundColor: c.value } : {}"
           :title="c.label"
+          type="button"
+          @mousedown.prevent
           @click="applyBgColor(c.value)"
         >
           <span class="color-picker__swatch-label">A</span>
@@ -165,13 +241,24 @@ function isLightColor(hex: string): boolean {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background-color: var(--el-color-primary-light-8);
-  color: var(--el-color-primary);
-  font-size: 12px;
+  position: relative;
+  width: 14px;
+  height: 16px;
+  color: currentColor;
+  font-size: 14px;
   font-weight: 700;
+  line-height: 1;
+
+  &::after {
+    position: absolute;
+    right: 0;
+    bottom: -2px;
+    left: 0;
+    height: 2px;
+    content: '';
+    border-radius: 999px;
+    background: var(--color-btn-indicator);
+  }
 }
 
 .color-picker {
@@ -214,7 +301,8 @@ function isLightColor(hex: string): boolean {
       border-color: var(--el-color-primary);
     }
 
-    &.is-default {
+    &.is-default,
+    &.is-text {
       border-color: var(--el-border-color);
     }
   }

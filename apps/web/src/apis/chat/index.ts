@@ -5,12 +5,13 @@ import type {
   ChatSessionSummary,
   GetChatModelsResponseDto,
 } from './typing'
+import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import { useAuthStore } from '@/stores/auth'
 import { axios } from '@/utils/axios'
 
 export * from './typing'
 
-const API_BASE_URL = import.meta.env.VITE_APP_SERVER_PATH
+const API_BASE_URL = SERVER_PATH
 
 export function getChatSessions(): Promise<ChatSessionSummary[]> {
   return axios.request({
