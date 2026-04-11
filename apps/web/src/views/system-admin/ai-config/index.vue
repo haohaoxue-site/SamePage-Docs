@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import type { FormInstance } from 'element-plus'
+import { computed, onMounted, useTemplateRef } from 'vue'
+import { formatDateTime } from '@/utils/dayjs'
 import { useSystemAiConfig } from './composables/useSystemAiConfig'
 
+const systemAiConfigFormRef = useTemplateRef<FormInstance>('systemAiConfigFormRef')
 const {
   currentConfig,
   errorMessage,
   form,
+  formRules,
   isLoading,
   isSaving,
   loadConfig,
@@ -21,6 +25,10 @@ const configStatusLabel = computed(() => {
 })
 
 const configStatusStateClass = computed(() => currentConfig.value?.enabled ? 'enabled' : 'disabled')
+
+async function handleSaveConfig() {
+  await saveConfig(systemAiConfigFormRef.value)
+}
 
 onMounted(loadConfig)
 </script>
@@ -42,7 +50,14 @@ onMounted(loadConfig)
             配置系统级 AI 默认参数。
           </p>
 
-          <ElForm :model="form" label-position="top" class="space-y-6" @submit.prevent="saveConfig">
+          <ElForm
+            ref="systemAiConfigFormRef"
+            :model="form"
+            :rules="formRules"
+            label-position="top"
+            class="space-y-6"
+            @submit.prevent="handleSaveConfig"
+          >
             <div class="system-ai-config__toggle-card">
               <div class="flex flex-col">
                 <span class="text-sm font-semibold text-main">启用系统级配置</span>
@@ -52,15 +67,15 @@ onMounted(loadConfig)
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <ElFormItem label="API 地址基准 (Base URL)">
+              <ElFormItem label="API 地址基准 (Base URL)" prop="baseUrl">
                 <ElInput v-model="form.baseUrl" placeholder="https://api.openai.com/v1" class="system-ai-config__input" />
               </ElFormItem>
-              <ElFormItem label="默认模型名称">
+              <ElFormItem label="默认模型名称" prop="defaultModel">
                 <ElInput v-model="form.defaultModel" placeholder="gpt-4o-mini" class="system-ai-config__input" />
               </ElFormItem>
             </div>
 
-            <ElFormItem label="API Key">
+            <ElFormItem label="API Key" prop="apiKey">
               <ElInput v-model="form.apiKey" type="password" placeholder="输入新的 Key 以前置保存" show-password class="system-ai-config__input" />
               <div class="system-ai-config__secret-hint">
                 <SvgIcon category="ui" icon="info" size="1rem" class="text-primary" />
@@ -116,7 +131,7 @@ onMounted(loadConfig)
 
           <div v-if="currentConfig?.updatedAt" class="system-ai-config__updated-at">
             <SvgIcon category="ui" icon="time" size="0.875rem" />
-            <span>最后更新于 {{ new Date(currentConfig.updatedAt).toLocaleString('zh-CN', { hour12: false }) }}</span>
+            <span>最后更新于 {{ formatDateTime(currentConfig.updatedAt) }}</span>
           </div>
         </ElCard>
       </div>

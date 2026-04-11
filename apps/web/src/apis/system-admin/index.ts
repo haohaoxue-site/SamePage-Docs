@@ -4,10 +4,11 @@ import type {
   SystemAdminOverviewDto,
   SystemAdminUserItemDto,
   SystemAiConfigDto,
+  SystemAuthGovernanceDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAdminUserStatusDto,
-  UpdateSystemAdminUserSystemRoleDto,
   UpdateSystemAiConfigDto,
+  UpdateSystemAuthGovernanceDto,
 } from './typing'
 import { axios } from '@/utils/axios'
 
@@ -38,13 +39,19 @@ export function updateSystemAdminUserStatus(
   })
 }
 
-export function updateSystemAdminUserRole(
-  id: string,
-  data: UpdateSystemAdminUserSystemRoleDto,
-): Promise<UpdateSystemAdminUserResponseDto> {
+export function getSystemAuthGovernance(): Promise<SystemAuthGovernanceDto> {
   return axios.request({
-    method: 'patch',
-    url: `/system-admin/users/${id}/system-role`,
+    method: 'get',
+    url: '/system-admin/auth-governance',
+  })
+}
+
+export function updateSystemAuthGovernance(
+  data: UpdateSystemAuthGovernanceDto,
+): Promise<SystemAuthGovernanceDto> {
+  return axios.request({
+    method: 'put',
+    url: '/system-admin/auth-governance',
     data,
   })
 }

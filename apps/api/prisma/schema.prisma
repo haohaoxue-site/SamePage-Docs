@@ -30,6 +30,10 @@ enum AuthProvider {
   LINUX_DO
 }
 
+enum AuthEmailVerificationPurpose {
+  REGISTER_VERIFY
+}
+
 enum ChatSessionMessageRole {
   USER
   ASSISTANT
@@ -49,11 +53,14 @@ model User {
   refreshTokens      AuthRefreshToken[]
   loginCodes         AuthLoginCode[]
   userRoles          UserRole[]
+  localCredential      LocalCredential?
   ownedDocuments       Document[]      @relation("DocumentOwner")
   documentMemberships DocumentMember[]
   chatSessions         ChatSession[]
   adminAuditLogs       AdminAuditLog[] @relation("AdminAuditLogActor")
   updatedAiConfigs     SystemAiConfig[] @relation("SystemAiConfigUpdater")
+  systemAdminConfig      SystemAuthConfig?  @relation("SystemAuthConfigSystemAdmin")
+  updatedAuthConfigs     SystemAuthConfig[] @relation("SystemAuthConfigUpdater")
 }
 
 model OauthAccount {
@@ -126,6 +133,32 @@ model AuthLoginCode {
   @@index([userId, expiresAt])
 }
 
+model LocalCredential {
+  userId            String   @id
+  passwordHash      String
+  mustChangePassword Boolean  @default(false)
+  emailVerifiedAt   DateTime?
+  passwordUpdatedAt DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuthEmailVerificationToken {
+  id         String                       @id @default(uuid())
+  email      String
+  tokenHash  String                       @unique
+  purpose    AuthEmailVerificationPurpose
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime                     @default(now())
+  updatedAt  DateTime                     @updatedAt
+  deletedAt  DateTime?
+
+  @@index([email, purpose, expiresAt])
+}
+
 model Role {
   id              String           @id @default(uuid())
   code            String           @unique
@@ -171,6 +204,23 @@ model UserRole {
 
   @@id([userId, roleId])
   @@index([roleId])
+}
+
+model SystemAuthConfig {
+  id                        String   @id @default("default")
+  allowPasswordRegistration Boolean  @default(true)
+  allowGithubRegistration   Boolean  @default(true)
+  allowLinuxDoRegistration  Boolean  @default(true)
+  systemAdminUserId         String?  @unique
+  systemAdminEmail          String   @unique
+  updatedByUserId           String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  deletedAt                 DateTime?
+  systemAdminUser           User?    @relation("SystemAuthConfigSystemAdmin", fields: [systemAdminUserId], references: [id], onDelete: SetNull)
+  updatedByUser             User?    @relation("SystemAuthConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
 }
 
 model Document {

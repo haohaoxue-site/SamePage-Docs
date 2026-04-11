@@ -1,3 +1,4 @@
+import type { AuthMethodName } from './auth'
 import type { UserStatus } from './user'
 
 export type SystemAdminUserStatus = UserStatus
@@ -22,6 +23,7 @@ export interface SystemAdminUserItemDto {
   avatarUrl: string | null
   status: SystemAdminUserStatus
   isSystemAdmin: boolean
+  authMethods: AuthMethodName[]
   ownedDocumentCount: number
   sharedDocumentCount: number
   createdAt: string
@@ -32,14 +34,27 @@ export interface UpdateSystemAdminUserStatusDto {
   status: SystemAdminUserStatus
 }
 
-export interface UpdateSystemAdminUserSystemRoleDto {
-  enabled: boolean
-}
-
 export interface UpdateSystemAdminUserResponseDto {
   id: string
   status: SystemAdminUserStatus
   isSystemAdmin: boolean
+}
+
+export interface SystemAuthGovernanceDto {
+  allowPasswordRegistration: boolean
+  allowGithubRegistration: boolean
+  allowLinuxDoRegistration: boolean
+  systemAdminEmail: string
+  systemAdminDisplayName: string | null
+  systemAdminMustChangePassword: boolean
+  systemAdminLastLoginAt: string | null
+  systemAdminPasswordUpdatedAt: string | null
+}
+
+export interface UpdateSystemAuthGovernanceDto {
+  allowPasswordRegistration: boolean
+  allowGithubRegistration: boolean
+  allowLinuxDoRegistration: boolean
 }
 
 export interface SystemAiConfigDto {

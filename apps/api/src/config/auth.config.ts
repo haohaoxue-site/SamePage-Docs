@@ -1,4 +1,5 @@
 import { registerAs } from '@nestjs/config'
+import { getDerivedSecretMaterial } from './app-secret'
 import { getEnv } from './env.schema'
 
 const JWT_DEFAULTS = {
@@ -59,7 +60,7 @@ export interface OAuthConfig {
 
 export const jwtConfig = registerAs('jwt', (): JwtConfig => ({
   ...JWT_DEFAULTS,
-  accessSecret: getEnv().JWT_ACCESS_SECRET,
+  accessSecret: getDerivedSecretMaterial().jwtAccessSecret,
 }))
 
 export const oauthConfig = registerAs('oauth', (): OAuthConfig => ({
@@ -73,4 +74,20 @@ export const oauthConfig = registerAs('oauth', (): OAuthConfig => ({
     clientId: getEnv().LINUX_DO_CLIENT_ID,
     clientSecret: getEnv().LINUX_DO_CLIENT_SECRET,
   },
+}))
+
+export interface CryptoConfig {
+  encryptionKey: string
+}
+
+export const cryptoConfig = registerAs('crypto', (): CryptoConfig => ({
+  encryptionKey: getDerivedSecretMaterial().encryptionKey,
+}))
+
+export interface BootstrapConfig {
+  systemAdminEmail: string
+}
+
+export const bootstrapConfig = registerAs('bootstrap', (): BootstrapConfig => ({
+  systemAdminEmail: getEnv().SYSTEM_ADMIN,
 }))

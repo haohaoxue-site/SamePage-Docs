@@ -3,6 +3,7 @@ import type { TokenExchangeResponseDto } from '@/apis/auth/typing'
 import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import rawAxios, { AxiosHeaders } from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import { createRequestErrorFromResponseEnvelope, toRequestError } from '@/utils/request-error'
 
 const http = rawAxios.create({
   baseURL: SERVER_PATH,
@@ -14,7 +15,6 @@ let refreshPromise: Promise<TokenExchangeResponseDto | null> | null = null
 http.interceptors.request.use((config) => {
   if (config.withCookieAuth) {
     config.withCredentials = true
-    return config
   }
 
   const authStore = useAuthStore()
@@ -34,7 +34,10 @@ http.interceptors.response.use(
   (response) => {
     const data = response.data as RequestResponse
     if (!data || (data.code !== 200 && data.code !== 201)) {
-      return Promise.reject(new Error(data?.message || '请求失败'))
+      return Promise.reject(createRequestErrorFromResponseEnvelope(data, {
+        source: 'axios',
+        status: response.status,
+      }))
     }
     return data.data as any
   },
@@ -66,10 +69,17 @@ http.interceptors.response.use(
       useAuthStore().clearSession()
     }
 
-    const message = data?.message ?? error.message
-    const requestError = new Error(message || '请求失败') as Error & { status?: number }
-    requestError.status = status
-    return Promise.reject(requestError)
+    if (data != null) {
+      return Promise.reject(createRequestErrorFromResponseEnvelope(data, {
+        source: 'axios',
+        status,
+      }))
+    }
+
+    return Promise.reject(toRequestError(error, {
+      source: 'axios',
+      status,
+    }))
   },
 )
 

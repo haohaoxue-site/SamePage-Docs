@@ -1,24 +1,22 @@
-import { AUTH_CALLBACK_PATH } from '@haohaoxue/samepage-contracts'
+import { AUTH_CALLBACK_PATH, AUTH_METHOD } from '@haohaoxue/samepage-contracts'
 import { flushPromises, mount } from '@vue/test-utils'
 import { vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
 import App from '@/App.vue'
 import { createAppRouter } from '@/router'
 import { AUTH_REDIRECT_KEY, useAuthStore } from '@/stores/auth'
+import { createMockUser } from '../utils/test-helpers'
 
 vi.mock('@/apis/auth', () => ({
   buildOAuthStartUrl: vi.fn(() => '/api/auth/oauth/github/start'),
   exchangeAuthCode: vi.fn(async () => ({
     accessToken: 'new-access-token',
     expiresIn: 900,
-    user: {
-      id: 'user-1',
-      email: 'alice@example.com',
-      displayName: 'Alice',
-      avatarUrl: null,
+    user: createMockUser({
       roles: ['system_admin'],
       permissions: ['system_admin:overview:read'],
-    },
+      authMethods: [AUTH_METHOD.GITHUB],
+    }),
   })),
   logoutAuthSession: vi.fn(async () => ({
     loggedOut: true,
@@ -26,14 +24,11 @@ vi.mock('@/apis/auth', () => ({
   refreshAccessToken: vi.fn(async () => ({
     accessToken: 'refreshed-access-token',
     expiresIn: 900,
-    user: {
-      id: 'user-1',
-      email: 'alice@example.com',
-      displayName: 'Alice',
-      avatarUrl: null,
+    user: createMockUser({
       roles: ['system_admin'],
       permissions: ['system_admin:overview:read'],
-    },
+      authMethods: [AUTH_METHOD.GITHUB],
+    }),
   })),
 }))
 
@@ -47,16 +42,25 @@ vi.mock('@/apis/system-admin', () => ({
     sharedDocuments: 8,
     lockedDocuments: 1,
     aiConfigEnabled: true,
-    systemAiBaseUrl: 'https://api.openai.com/v1',
+    systemAiBaseUrl: 'https://api.hw7mrx.com/v1',
     systemAiDefaultModel: 'gpt-4.1-mini',
   })),
   getSystemAdminUsers: vi.fn(async () => []),
   updateSystemAdminUserStatus: vi.fn(),
-  updateSystemAdminUserRole: vi.fn(),
+  getSystemAuthGovernance: vi.fn(async () => ({
+    allowPasswordRegistration: true,
+    allowGithubRegistration: true,
+    allowLinuxDoRegistration: true,
+    systemAdminEmail: 'alice@example.com',
+    systemAdminDisplayName: 'Alice',
+    systemAdminMustChangePassword: false,
+    systemAdminLastLoginAt: '2026-03-25T12:00:00.000Z',
+    systemAdminPasswordUpdatedAt: '2026-03-25T12:10:00.000Z',
+  })),
   getSystemAiConfig: vi.fn(async () => ({
     id: null,
     enabled: false,
-    provider: 'openai-compatible',
+    provider: 'hw7mrx-compatible',
     baseUrl: null,
     defaultModel: null,
     hasApiKey: false,

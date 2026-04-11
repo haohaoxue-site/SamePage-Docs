@@ -13,6 +13,8 @@ import {
   getChatSessions,
   streamChatCompletion,
 } from '@/apis/chat'
+import dayjs from '@/utils/dayjs'
+import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 /**
  * 聊天会话摘要模型。
@@ -61,7 +63,7 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
       await selectSession(nextActiveSessionId)
     }
     catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '加载聊天会话失败')
+      ElMessage.error(getRequestErrorDisplayMessage(error, '加载聊天会话失败'))
     }
     finally {
       isLoadingSessions.value = false
@@ -77,7 +79,7 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
       return session
     }
     catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '创建聊天会话失败')
+      ElMessage.error(getRequestErrorDisplayMessage(error, '创建聊天会话失败'))
       return null
     }
   }
@@ -94,7 +96,7 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
       activeSession.value = await getChatSession(id)
     }
     catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '加载聊天会话失败')
+      ElMessage.error(getRequestErrorDisplayMessage(error, '加载聊天会话失败'))
     }
   }
 
@@ -117,7 +119,7 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
       await selectSession(nextSession.id)
     }
     catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '删除聊天会话失败')
+      ElMessage.error(getRequestErrorDisplayMessage(error, '删除聊天会话失败'))
     }
   }
 
@@ -155,7 +157,7 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
     const nextTitle = session.messages.length === 0
       ? buildSessionTitle(normalizedContent)
       : session.title
-    const updatedAt = new Date().toISOString()
+    const updatedAt = dayjs().toISOString()
 
     activeSession.value = {
       ...session,
@@ -177,35 +179,29 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
 
     isStreaming.value = true
     streamingContent.value = ''
-    let hasStreamError = false
+    try {
+      await streamChatCompletion(
+        session.id,
+        provider,
+        normalizedContent,
+        (chunk) => {
+          streamingContent.value += chunk
+          updateActiveAssistantMessage(streamingContent.value)
+        },
+      )
 
-    await streamChatCompletion(
-      session.id,
-      provider,
-      normalizedContent,
-      (chunk) => {
-        streamingContent.value += chunk
-        updateActiveAssistantMessage(streamingContent.value)
-      },
-      () => {
-        isStreaming.value = false
-        streamingContent.value = ''
-      },
-      (error) => {
-        hasStreamError = true
-        isStreaming.value = false
-        const errorMessage = error instanceof Error && error.message
-          ? error.message
-          : '抱歉，请求失败，请稍后重试。'
-
-        updateActiveAssistantMessage(errorMessage, { onlyWhenEmpty: true })
-        streamingContent.value = ''
-      },
-    )
-
-    if (!hasStreamError) {
       await refreshActiveSession(session.id)
       await refreshSessionList()
+    }
+    catch (error) {
+      updateActiveAssistantMessage(
+        getRequestErrorDisplayMessage(error, '抱歉，请求失败，请稍后重试。'),
+        { onlyWhenEmpty: true },
+      )
+    }
+    finally {
+      isStreaming.value = false
+      streamingContent.value = ''
     }
   }
 
@@ -215,7 +211,7 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
       activeSessionId.value = sessionId
     }
     catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '刷新聊天详情失败')
+      ElMessage.error(getRequestErrorDisplayMessage(error, '刷新聊天详情失败'))
     }
   }
 
@@ -224,7 +220,7 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
       sessions.value = await getChatSessions()
     }
     catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '刷新聊天列表失败')
+      ElMessage.error(getRequestErrorDisplayMessage(error, '刷新聊天列表失败'))
     }
   }
 

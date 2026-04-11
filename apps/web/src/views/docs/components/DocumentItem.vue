@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import type {
-  DocumentItemEmits,
-  DocumentItemProps,
-} from '../typing'
+import type { DocumentItemEmits, DocumentItemProps } from '../typing'
 import { computed } from 'vue'
 
 const props = defineProps<DocumentItemProps>()

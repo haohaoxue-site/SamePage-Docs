@@ -7,6 +7,14 @@ function injectDeletedAtFilter(args: Record<string, any>): void {
   }
 }
 
+function createSoftDeleteWhere(where: Record<string, any> | undefined): Record<string, any> {
+  const nextWhere = { ...(where ?? {}) }
+  if (!('deletedAt' in nextWhere)) {
+    nextWhere.deletedAt = null
+  }
+  return nextWhere
+}
+
 export const softDeleteExtension = Prisma.defineExtension({
   query: {
     $allModels: {
@@ -67,19 +75,38 @@ export const softDeleteExtension = Prisma.defineExtension({
         }
         return query(args)
       },
+    },
+  },
+  model: {
+    $allModels: {
+      async delete<T>(
+        this: T,
+        args: Prisma.Args<T, 'delete'>,
+      ): Promise<Prisma.Result<T, Prisma.Args<T, 'delete'>, 'delete'>> {
+        const context = Prisma.getExtensionContext(this) as unknown as {
+          update: (args: Prisma.Args<T, 'update'>) => Promise<Prisma.Result<T, Prisma.Args<T, 'update'>, 'update'>>
+        }
 
-      async delete({ model, args }) {
-        return (Prisma.getExtensionContext(this) as any)[model].update({
-          ...args,
+        return context.update({
+          ...(args as Record<string, unknown>),
+          where: createSoftDeleteWhere((args as { where?: Record<string, any> }).where),
           data: { deletedAt: new Date() },
-        })
+        } as Prisma.Args<T, 'update'>) as Promise<Prisma.Result<T, Prisma.Args<T, 'delete'>, 'delete'>>
       },
 
-      async deleteMany({ model, args }) {
-        return (Prisma.getExtensionContext(this) as any)[model].updateMany({
-          ...args,
+      async deleteMany<T>(
+        this: T,
+        args?: Prisma.Args<T, 'deleteMany'>,
+      ): Promise<Prisma.Result<T, Prisma.Args<T, 'deleteMany'>, 'deleteMany'>> {
+        const context = Prisma.getExtensionContext(this) as unknown as {
+          updateMany: (args: Prisma.Args<T, 'updateMany'>) => Promise<Prisma.Result<T, Prisma.Args<T, 'updateMany'>, 'updateMany'>>
+        }
+
+        return context.updateMany({
+          ...((args ?? {}) as Record<string, unknown>),
+          where: createSoftDeleteWhere((args as { where?: Record<string, any> } | undefined)?.where),
           data: { deletedAt: new Date() },
-        })
+        } as Prisma.Args<T, 'updateMany'>) as Promise<Prisma.Result<T, Prisma.Args<T, 'deleteMany'>, 'deleteMany'>>
       },
     },
   },

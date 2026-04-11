@@ -1,3 +1,5 @@
+import type { AuthMethodName } from './auth'
+
 export type UserStatus = 'ACTIVE' | 'DISABLED'
 
 export interface CurrentUserDto {
@@ -8,6 +10,9 @@ export interface CurrentUserDto {
   status: UserStatus
   roles: string[]
   permissions: string[]
+  authMethods: AuthMethodName[]
+  mustChangePassword: boolean
+  emailVerified: boolean
 }
 
 export interface UserPermissionList {

@@ -1,3 +1,5 @@
+import type { AuthMethodName } from '@haohaoxue/samepage-domain'
+import { AUTH_METHOD_VALUES } from '@haohaoxue/samepage-contracts'
 import { ApiProperty } from '@nestjs/swagger'
 import { UserStatus } from '@prisma/client'
 
@@ -22,6 +24,15 @@ export class CurrentUserDto {
 
   @ApiProperty({ type: [String] })
   permissions!: string[]
+
+  @ApiProperty({ enum: AUTH_METHOD_VALUES, isArray: true })
+  authMethods!: AuthMethodName[]
+
+  @ApiProperty()
+  mustChangePassword!: boolean
+
+  @ApiProperty()
+  emailVerified!: boolean
 }
 
 export class UserPermissionListDto {

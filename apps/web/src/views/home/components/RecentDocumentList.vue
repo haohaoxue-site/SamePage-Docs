@@ -2,6 +2,7 @@
 import type { DocumentSectionId } from '@haohaoxue/samepage-domain'
 import type { RecentDocumentListProps } from '../typing'
 import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
+import { formatMonthDayTime } from '@/utils/dayjs'
 
 defineProps<RecentDocumentListProps>()
 
@@ -12,13 +13,7 @@ const SECTION_LABEL_MAP: Record<DocumentSectionId, string> = {
 }
 
 function formatDocumentUpdatedAt(value: string) {
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date(value))
+  return formatMonthDayTime(value)
 }
 
 function formatDocumentSource(section: DocumentSectionId, ancestorTitles: string[]) {

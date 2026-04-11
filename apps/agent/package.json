@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": "true",
   "scripts": {
+    "lint:fix": "eslint . --fix",
+    "type-check": "tsc --noEmit -p tsconfig.json --pretty false",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest --passWithNoTests"
   },

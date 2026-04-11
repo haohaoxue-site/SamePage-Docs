@@ -1,13 +1,8 @@
-import type {
-  ChatProviderConfig,
-  ChatProviderLookup,
-  ChatSessionDetail,
-  ChatSessionSummary,
-  GetChatModelsResponseDto,
-} from './typing'
+import type { ChatProviderConfig, ChatProviderLookup, ChatSessionDetail, ChatSessionSummary, GetChatModelsResponseDto } from './typing'
 import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import { useAuthStore } from '@/stores/auth'
 import { axios } from '@/utils/axios'
+import { createRequestError, createRequestErrorFromHttpResponse, toRequestError } from '@/utils/request-error'
 
 export * from './typing'
 
@@ -56,8 +51,6 @@ export async function streamChatCompletion(
   provider: ChatProviderConfig,
   content: string,
   onChunk: (content: string) => void,
-  onDone: () => void,
-  onError: (error: Error) => void,
 ): Promise<void> {
   const authStore = useAuthStore()
 
@@ -75,14 +68,15 @@ export async function streamChatCompletion(
   })
 
   if (!response.ok) {
-    onError(new Error(await readApiError(response)))
-    return
+    throw await readApiError(response)
   }
 
   const reader = response.body?.getReader()
   if (!reader) {
-    onError(new Error('no response body'))
-    return
+    throw createRequestError({
+      source: 'stream',
+      message: 'no response body',
+    })
   }
 
   const decoder = new TextDecoder()
@@ -106,53 +100,41 @@ export async function streamChatCompletion(
 
         const data = trimmed.slice(6)
         if (data === '[DONE]') {
-          onDone()
           return
         }
 
+        let parsed: { content?: string, error?: string } | null = null
         try {
-          const parsed = JSON.parse(data) as { content?: string, error?: string }
-          if (parsed.error) {
-            onError(new Error(parsed.error))
-            return
-          }
-          if (parsed.content) {
-            onChunk(parsed.content)
-          }
+          parsed = JSON.parse(data) as { content?: string, error?: string }
         }
         catch {
+          continue
+        }
+
+        if (parsed.error) {
+          throw createRequestError({
+            source: 'stream',
+            data: {
+              message: parsed.error,
+            },
+          })
+        }
+
+        if (parsed.content) {
+          onChunk(parsed.content)
         }
       }
     }
-
-    onDone()
   }
   catch (error) {
-    onError(error instanceof Error ? error : new Error(String(error)))
+    throw toRequestError(error, {
+      source: 'stream',
+    })
   }
 }
 
 async function readApiError(response: Response) {
-  try {
-    const payload = await response.json() as {
-      message?: string | string[]
-      error?: string
-    }
-
-    if (Array.isArray(payload.message) && payload.message.length) {
-      return payload.message.join(', ')
-    }
-
-    if (typeof payload.message === 'string' && payload.message.trim()) {
-      return payload.message
-    }
-
-    if (typeof payload.error === 'string' && payload.error.trim()) {
-      return payload.error
-    }
-  }
-  catch {
-  }
-
-  return `请求失败（HTTP ${response.status}）`
+  return createRequestErrorFromHttpResponse(response, {
+    source: 'stream',
+  })
 }

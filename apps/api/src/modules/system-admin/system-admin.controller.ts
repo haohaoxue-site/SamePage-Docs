@@ -25,10 +25,11 @@ import {
   SystemAdminOverviewDto,
   SystemAdminUserItemDto,
   SystemAiConfigDto,
+  SystemAuthGovernanceDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAdminUserStatusDto,
-  UpdateSystemAdminUserSystemRoleDto,
   UpdateSystemAiConfigDto,
+  UpdateSystemAuthGovernanceDto,
 } from './system-admin.dto'
 import { SystemAdminService } from './system-admin.service'
 
@@ -70,20 +71,23 @@ export class SystemAdminController {
     )
   }
 
-  @ApiOperation({ summary: '授予或撤销系统管理员' })
-  @ApiRequestResponse(UpdateSystemAdminUserResponseDto)
-  @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_USER_UPDATE_ROLE)
-  @Patch('users/:id/system-role')
-  async updateUserSystemRole(
+  @ApiOperation({ summary: '获取认证治理配置' })
+  @ApiRequestResponse(SystemAuthGovernanceDto)
+  @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_AUTH_GOVERNANCE_READ)
+  @Get('auth-governance')
+  async getAuthGovernance(): Promise<SystemAuthGovernanceDto> {
+    return this.systemAdminService.getAuthGovernance()
+  }
+
+  @ApiOperation({ summary: '更新认证治理配置' })
+  @ApiRequestResponse(SystemAuthGovernanceDto)
+  @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_AUTH_GOVERNANCE_UPDATE)
+  @Put('auth-governance')
+  async updateAuthGovernance(
     @CurrentUser() authUser: AuthUserContext,
-    @Param('id') userId: string,
-    @Body() payload: UpdateSystemAdminUserSystemRoleDto,
-  ): Promise<UpdateSystemAdminUserResponseDto> {
-    return this.systemAdminService.updateUserSystemRole(
-      authUser.id,
-      userId,
-      payload.enabled,
-    )
+    @Body() payload: UpdateSystemAuthGovernanceDto,
+  ): Promise<SystemAuthGovernanceDto> {
+    return this.systemAdminService.updateAuthGovernance(authUser.id, payload)
   }
 
   @ApiOperation({ summary: '获取系统 AI 配置' })

@@ -3,7 +3,10 @@ import { AUTH_CALLBACK_PATH } from '@haohaoxue/samepage-contracts'
 import AdminShellContainer from '@/layouts/containers/admin-shell.vue'
 import WorkspaceContainer from '@/layouts/containers/workspace.vue'
 import AuthCallbackView from '@/views/auth/callback/index.vue'
+import ChangePasswordView from '@/views/auth/change-password/index.vue'
 import LoginView from '@/views/auth/login/index.vue'
+import PasswordRegisterVerifyView from '@/views/auth/register-verify/index.vue'
+import PasswordRegisterRequestView from '@/views/auth/register/index.vue'
 import ChatView from '@/views/chat/index.vue'
 import DocsView from '@/views/docs/index.vue'
 import HomeView from '@/views/home/index.vue'
@@ -36,9 +39,27 @@ export const publicRoutes: RouteRecordRaw[] = [
     component: AuthCallbackView,
     meta: { public: true },
   },
+  {
+    path: '/register',
+    name: 'register',
+    component: PasswordRegisterRequestView,
+    meta: { public: true },
+  },
+  {
+    path: '/register/verify',
+    name: 'register-verify',
+    component: PasswordRegisterVerifyView,
+    meta: { public: true },
+  },
 ]
 
 export const protectedRoutes: RouteRecordRaw[] = [
+  {
+    path: '/auth/change-password',
+    name: 'change-password',
+    component: ChangePasswordView,
+    meta: { allowWhenPasswordChangeRequired: true },
+  },
   {
     path: '/',
     component: WorkspaceContainer,

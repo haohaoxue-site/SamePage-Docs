@@ -3,7 +3,14 @@ import { ROLES } from '@haohaoxue/samepage-contracts'
 import { useSessionStorage } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, shallowRef } from 'vue'
-import { exchangeAuthCode, logoutAuthSession, refreshAccessToken } from '@/apis/auth'
+import {
+  changePassword,
+  exchangeAuthCode,
+  loginWithPassword,
+  logoutAuthSession,
+  refreshAccessToken,
+  registerWithPassword,
+} from '@/apis/auth'
 import { DEFAULT_ADMIN_NAVIGATION_ITEM } from '@/router/navigation'
 
 export const AUTH_PERSIST_KEY = 'samepage_auth'
@@ -16,19 +23,42 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => Boolean(accessToken.value))
   const isSystemAdmin = computed(() => user.value?.roles.includes(ROLES.SYSTEM_ADMIN) ?? false)
-  const defaultRouteName = computed(() => isSystemAdmin.value ? DEFAULT_ADMIN_NAVIGATION_ITEM.routeName : 'home')
+  const requiresPasswordChange = computed(() => user.value?.mustChangePassword ?? false)
+  const defaultRouteName = computed(() => {
+    if (requiresPasswordChange.value) {
+      return 'change-password'
+    }
+
+    return isSystemAdmin.value ? DEFAULT_ADMIN_NAVIGATION_ITEM.routeName : 'home'
+  })
 
   async function login(code: string) {
     const result = await exchangeAuthCode({ code })
-    accessToken.value = result.accessToken
-    user.value = result.user
+    applyAuthSession(result.accessToken, result.user)
+    return result
+  }
+
+  async function passwordLogin(email: string, password: string) {
+    const result = await loginWithPassword({ email, password })
+    applyAuthSession(result.accessToken, result.user)
+    return result
+  }
+
+  async function passwordRegister(token: string, displayName: string, password: string) {
+    const result = await registerWithPassword({ token, displayName, password })
+    applyAuthSession(result.accessToken, result.user)
+    return result
+  }
+
+  async function updatePassword(currentPassword: string, newPassword: string) {
+    const result = await changePassword({ currentPassword, newPassword })
+    applyAuthSession(result.accessToken, result.user)
     return result
   }
 
   async function refreshToken() {
     const result = await refreshAccessToken()
-    accessToken.value = result.accessToken
-    user.value = result.user
+    applyAuthSession(result.accessToken, result.user)
     return result
   }
 
@@ -48,6 +78,11 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
+  function applyAuthSession(nextAccessToken: string, nextUser: AuthUserDto) {
+    accessToken.value = nextAccessToken
+    user.value = nextUser
+  }
+
   function savePendingRedirect(path: string) {
     pendingRedirect.value = path
   }
@@ -63,11 +98,16 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isAuthenticated,
     isSystemAdmin,
+    requiresPasswordChange,
     defaultRouteName,
     login,
+    passwordLogin,
+    passwordRegister,
+    updatePassword,
     refreshToken,
     logout,
     clearSession,
+    applyAuthSession,
     savePendingRedirect,
     consumeRedirect,
   }

@@ -5,13 +5,14 @@ import type { JwtConfig } from '../../config/auth.config'
 import type {
   AccessTokenPayload,
   AuthUserContext,
+  AuthUserDto,
   OAuthProfile,
   TokenExchangeResult,
 } from './auth.interface'
 import { Buffer } from 'node:buffer'
 import { createHash, createSecretKey, randomBytes, randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
-import { AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
+import { AUTH_METHOD, AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
 import {
   BadRequestException,
   Injectable,
@@ -26,9 +27,12 @@ import { parse, serialize } from 'cookie'
 import { SignJWT } from 'jose'
 import * as client from 'openid-client'
 import { PrismaService } from '../../database/prisma.service'
+import { resolveAuthMethod, resolveAuthMethods } from '../../utils/auth-methods'
+import { hashPassword, verifyPassword } from '../../utils/password'
 import { RbacService } from '../rbac/rbac.service'
 import { REFRESH_TOKEN_COOKIE_NAME } from './auth.constants'
 import { OAuthProviderService } from './providers/oauth-provider.service'
+import { SystemAuthService } from './system-auth.service'
 
 const OAUTH_STATE_TTL_SECONDS = 10 * 60
 const LOGIN_CODE_TTL_SECONDS = 2 * 60
@@ -47,10 +51,171 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly rbacService: RbacService,
     private readonly oauthProviderService: OAuthProviderService,
+    private readonly systemAuthService: SystemAuthService,
   ) {
     this.jwtConfig = this.configService.getOrThrow<JwtConfig>('jwt')
     this.accessSecretKey = createSecretKey(Buffer.from(this.jwtConfig.accessSecret, 'utf8'))
     this.isProduction = this.configService.getOrThrow<boolean>('server.isProduction')
+  }
+
+  async getRegistrationOptions() {
+    return this.systemAuthService.getRegistrationOptions()
+  }
+
+  async requestEmailVerification(email: string, request: FastifyRequest): Promise<void> {
+    const webOrigin = this.resolveCurrentUrl(request).origin
+    await this.systemAuthService.issueRegistrationVerification(email, webOrigin)
+  }
+
+  async confirmEmailVerification(rawToken: string): Promise<{ email: string }> {
+    return this.systemAuthService.validateRegistrationVerificationToken(rawToken)
+  }
+
+  async registerWithPassword(
+    rawToken: string,
+    displayName: string,
+    password: string,
+    request: FastifyRequest,
+  ): Promise<TokenExchangeResult> {
+    const normalizedDisplayName = displayName.trim()
+
+    if (!normalizedDisplayName.length) {
+      throw new BadRequestException('显示名称不能为空')
+    }
+
+    await this.systemAuthService.assertRegistrationAllowed(AUTH_METHOD.PASSWORD)
+    const passwordHash = await hashPassword(password)
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const { email } = await this.systemAuthService.consumeRegistrationVerificationToken(rawToken, tx)
+      const existingUser = await tx.user.findUnique({
+        where: { email },
+        select: { id: true },
+      })
+
+      if (existingUser) {
+        throw new BadRequestException('该邮箱已存在账号，请直接登录')
+      }
+
+      const createdUser = await tx.user.create({
+        data: {
+          email,
+          displayName: normalizedDisplayName,
+        },
+      })
+
+      await tx.localCredential.create({
+        data: {
+          userId: createdUser.id,
+          passwordHash,
+          emailVerifiedAt: new Date(),
+          passwordUpdatedAt: new Date(),
+        },
+      })
+
+      return createdUser
+    })
+
+    return this.issueAuthSession(user.id, request)
+  }
+
+  async loginWithPassword(
+    email: string,
+    password: string,
+    request: FastifyRequest,
+  ): Promise<TokenExchangeResult> {
+    const normalizedEmail = normalizeEmail(email)
+    const credential = await this.prisma.localCredential.findFirst({
+      where: {
+        user: {
+          email: normalizedEmail,
+        },
+      },
+      select: {
+        passwordHash: true,
+        emailVerifiedAt: true,
+        user: {
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+      },
+    })
+
+    if (!credential) {
+      throw new UnauthorizedException('邮箱或密码错误')
+    }
+
+    if (credential.user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('User is inactive')
+    }
+
+    if (!credential.emailVerifiedAt) {
+      throw new UnauthorizedException('邮箱尚未完成验证')
+    }
+
+    const isPasswordValid = await verifyPassword(password, credential.passwordHash)
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('邮箱或密码错误')
+    }
+
+    return this.issueAuthSession(credential.user.id, request)
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    request: FastifyRequest,
+  ): Promise<TokenExchangeResult> {
+    if (currentPassword === newPassword) {
+      throw new BadRequestException('新密码不能与当前密码相同')
+    }
+
+    const credential = await this.prisma.localCredential.findUnique({
+      where: { userId },
+      select: {
+        passwordHash: true,
+      },
+    })
+
+    if (!credential) {
+      throw new BadRequestException('当前账号未启用邮箱密码登录')
+    }
+
+    const isPasswordValid = await verifyPassword(currentPassword, credential.passwordHash)
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('当前密码错误')
+    }
+
+    const passwordHash = await hashPassword(newPassword)
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.localCredential.update({
+        where: { userId },
+        data: {
+          passwordHash,
+          mustChangePassword: false,
+          emailVerifiedAt: new Date(),
+          passwordUpdatedAt: new Date(),
+        },
+      })
+
+      await tx.authRefreshToken.updateMany({
+        where: {
+          userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      })
+    })
+
+    return this.issueAuthSession(userId, request)
   }
 
   async buildOAuthAuthorizationUrl(provider: AuthProviderName, request: FastifyRequest): Promise<string> {
@@ -176,17 +341,7 @@ export class AuthService {
       throw new UnauthorizedException('Login code already consumed')
     }
 
-    await this.rbacService.syncBootstrapRolesForUser(loginCode.user.id)
-    const authUser = await this.buildAuthUserContext(loginCode.user.id)
-    await this.touchUserLastLogin(loginCode.user.id)
-    const accessToken = await this.signAccessToken(authUser)
-
-    const session = await this.createRefreshSession(
-      loginCode.user.id,
-      request,
-    )
-
-    return this.buildTokenExchangeResult(loginCode.user, authUser, accessToken, session.rawToken)
+    return this.issueAuthSession(loginCode.user.id, request)
   }
 
   async refreshTokens(request: FastifyRequest): Promise<TokenExchangeResult> {
@@ -215,7 +370,7 @@ export class AuthService {
     await this.touchUserLastLogin(tokenRecord.user.id)
     const accessToken = await this.signAccessToken(authUser)
 
-    return this.buildTokenExchangeResult(tokenRecord.user, authUser, accessToken, rotatedSession.rawToken)
+    return this.buildTokenExchangeResult(tokenRecord.user.id, authUser, accessToken, rotatedSession.rawToken)
   }
 
   async logout(request: FastifyRequest): Promise<{ clearCookie: string }> {
@@ -236,6 +391,16 @@ export class AuthService {
     return {
       clearCookie: this.clearRefreshCookie(),
     }
+  }
+
+  private async issueAuthSession(userId: string, request: FastifyRequest): Promise<TokenExchangeResult> {
+    await this.rbacService.syncBootstrapRolesForUser(userId)
+    const authUser = await this.buildAuthUserContext(userId)
+    await this.touchUserLastLogin(userId)
+    const accessToken = await this.signAccessToken(authUser)
+    const session = await this.createRefreshSession(userId, request)
+
+    return this.buildTokenExchangeResult(userId, authUser, accessToken, session.rawToken)
   }
 
   private async createLoginCode(userId: string, redirectUri: string): Promise<string> {
@@ -308,35 +473,37 @@ export class AuthService {
           rawProfile: profile.rawProfile as Prisma.InputJsonValue,
         },
       })
-      await this.rbacService.ensureDefaultUserRole(existingUser.id)
-      await this.rbacService.ensureConfiguredSystemAdminRole(existingUser.id, normalizedEmail ?? existingUser.email)
+
       return existingUser
     }
 
-    const user = await this.prisma.$transaction(async (tx) => {
-      let targetUser = normalizedEmail && profile.emailVerified
-        ? await tx.user.findUnique({ where: { email: normalizedEmail } })
-        : null
+    const existingUserByEmail = normalizedEmail && profile.emailVerified
+      ? await this.prisma.user.findUnique({
+          where: { email: normalizedEmail },
+        })
+      : null
 
-      if (!targetUser) {
-        targetUser = await tx.user.create({
-          data: {
-            email: normalizedEmail,
-            displayName: profile.displayName ?? profile.username ?? `user-${randomUUID().slice(0, 8)}`,
-            avatarUrl: profile.avatarUrl,
-          },
-        })
-      }
-      else {
-        targetUser = await tx.user.update({
-          where: { id: targetUser.id },
-          data: {
-            email: targetUser.email ?? (profile.emailVerified ? normalizedEmail : null),
-            displayName: targetUser.displayName || profile.displayName || profile.username,
-            avatarUrl: targetUser.avatarUrl ?? profile.avatarUrl,
-          },
-        })
-      }
+    if (!existingUserByEmail) {
+      await this.systemAuthService.assertRegistrationAllowed(resolveAuthMethod(provider))
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const targetUser = existingUserByEmail
+        ? await tx.user.update({
+            where: { id: existingUserByEmail.id },
+            data: {
+              email: existingUserByEmail.email ?? normalizedEmail ?? null,
+              displayName: existingUserByEmail.displayName || profile.displayName || profile.username || `user-${randomUUID().slice(0, 8)}`,
+              avatarUrl: existingUserByEmail.avatarUrl ?? profile.avatarUrl,
+            },
+          })
+        : await tx.user.create({
+            data: {
+              email: normalizedEmail,
+              displayName: profile.displayName ?? profile.username ?? `user-${randomUUID().slice(0, 8)}`,
+              avatarUrl: profile.avatarUrl,
+            },
+          })
 
       await tx.oauthAccount.create({
         data: {
@@ -352,11 +519,6 @@ export class AuthService {
 
       return targetUser
     })
-
-    await this.rbacService.ensureDefaultUserRole(user.id)
-    await this.rbacService.ensureConfiguredSystemAdminRole(user.id, user.email)
-
-    return user
   }
 
   private async fetchOAuthProfile(
@@ -426,7 +588,6 @@ export class AuthService {
       }
     }
     catch {
-      // GitHub 邮箱接口偶发超时时退回 profile.email。
     }
 
     const profileEmail = verifiedPrimaryEmail ?? anyEmail ?? (typeof profile.email === 'string' ? profile.email : undefined)
@@ -549,6 +710,46 @@ export class AuthService {
     }
   }
 
+  private async buildAuthUserDto(userId: string, authUser: AuthUserContext): Promise<AuthUserDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        avatarUrl: true,
+        localCredential: {
+          select: {
+            mustChangePassword: true,
+            emailVerifiedAt: true,
+          },
+        },
+        oauthAccounts: {
+          select: {
+            provider: true,
+            providerEmailVerified: true,
+          },
+        },
+      },
+    })
+
+    if (!user) {
+      throw new UnauthorizedException('User not found')
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      roles: authUser.roles,
+      permissions: authUser.permissions,
+      authMethods: resolveAuthMethods(Boolean(user.localCredential), user.oauthAccounts),
+      mustChangePassword: user.localCredential?.mustChangePassword ?? false,
+      emailVerified: Boolean(user.localCredential?.emailVerifiedAt) || user.oauthAccounts.some(item => item.providerEmailVerified === true),
+    }
+  }
+
   private async touchUserLastLogin(userId: string) {
     await this.prisma.user.update({
       where: { id: userId },
@@ -640,23 +841,16 @@ export class AuthService {
     })
   }
 
-  private buildTokenExchangeResult(
-    user: { id: string, email: string | null, displayName: string, avatarUrl: string | null },
+  private async buildTokenExchangeResult(
+    userId: string,
     authUser: AuthUserContext,
     accessToken: string,
     rawRefreshToken: string,
-  ): TokenExchangeResult {
+  ): Promise<TokenExchangeResult> {
     return {
       accessToken,
       expiresIn: this.jwtConfig.accessTtlSeconds,
-      user: {
-        id: user.id,
-        email: user.email,
-        displayName: user.displayName,
-        avatarUrl: user.avatarUrl,
-        roles: authUser.roles,
-        permissions: authUser.permissions,
-      },
+      user: await this.buildAuthUserDto(userId, authUser),
       refreshTokenCookie: this.buildRefreshCookie(rawRefreshToken),
     }
   }
@@ -730,4 +924,14 @@ export class AuthService {
 
     return new URL(request.url, `${protocol}://${host}`)
   }
+}
+
+function normalizeEmail(email: string): string {
+  const normalizedEmail = email.trim().toLowerCase()
+
+  if (!normalizedEmail.length) {
+    throw new BadRequestException('邮箱不能为空')
+  }
+
+  return normalizedEmail
 }

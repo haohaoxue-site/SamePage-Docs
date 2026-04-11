@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminAuditLogListProps } from '../typing'
+import { formatDateTime } from '@/utils/dayjs'
 
 defineProps<AdminAuditLogListProps>()
 
@@ -47,7 +48,7 @@ function formatMetadata(metadata: Record<string, unknown> | null) {
           </div>
           <div class="admin-audit-log-list__timestamp">
             <SvgIcon category="ui" icon="time" size="0.75rem" />
-            {{ new Date(log.createdAt).toLocaleString('zh-CN', { hour12: false }) }}
+            {{ formatDateTime(log.createdAt) }}
           </div>
           <div v-if="log.targetId" class="admin-audit-log-list__target-id">
             ID: {{ log.targetId }}

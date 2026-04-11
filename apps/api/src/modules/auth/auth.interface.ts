@@ -1,3 +1,4 @@
+import type { AuthMethodName } from '@haohaoxue/samepage-domain'
 import type { JWTPayload } from 'jose'
 
 /**
@@ -32,18 +33,26 @@ export interface AuthUserContext {
 }
 
 /**
+ * 当前登录用户响应。
+ */
+export interface AuthUserDto {
+  id: string
+  email: string | null
+  displayName: string
+  avatarUrl: string | null
+  roles: string[]
+  permissions: string[]
+  authMethods: AuthMethodName[]
+  mustChangePassword: boolean
+  emailVerified: boolean
+}
+
+/**
  * Token exchange 统一返回类型
  */
 export interface TokenExchangeResult {
   accessToken: string
   expiresIn: number
-  user: {
-    id: string
-    email: string | null
-    displayName: string
-    avatarUrl: string | null
-    roles: string[]
-    permissions: string[]
-  }
+  user: AuthUserDto
   refreshTokenCookie: string
 }

@@ -1,9 +1,10 @@
+import { AUTH_METHOD } from '@haohaoxue/samepage-contracts'
 import { flushPromises, mount } from '@vue/test-utils'
 import { vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
 import App from '@/App.vue'
 import { createAppRouter, loadAdminRoutes } from '@/router'
-import { useAuthStore } from '@/stores/auth'
+import { seedAuthState } from '../utils/test-helpers'
 
 vi.mock('@/apis/system-admin', () => ({
   getSystemAdminOverview: vi.fn(async () => ({
@@ -15,38 +16,42 @@ vi.mock('@/apis/system-admin', () => ({
     sharedDocuments: 8,
     lockedDocuments: 1,
     aiConfigEnabled: true,
-    systemAiBaseUrl: 'https://api.openai.com/v1',
+    systemAiBaseUrl: 'https://api.hw7mrx.com/v1',
     systemAiDefaultModel: 'gpt-4.1-mini',
   })),
-  getSystemAdminUsers: vi.fn(async () => ([
-    {
-      id: 'user-1',
-      email: 'alice@example.com',
-      displayName: 'Alice',
-      avatarUrl: null,
-      status: 'ACTIVE',
-      isSystemAdmin: true,
-      ownedDocumentCount: 4,
-      sharedDocumentCount: 2,
-      createdAt: '2026-03-25T10:00:00.000Z',
-      lastLoginAt: '2026-03-25T12:00:00.000Z',
-    },
-  ])),
+  getSystemAdminUsers: vi.fn(async () => [{
+    id: 'user-1',
+    email: 'alice@example.com',
+    displayName: 'Alice',
+    avatarUrl: null,
+    status: 'ACTIVE',
+    isSystemAdmin: true,
+    authMethods: [AUTH_METHOD.PASSWORD, AUTH_METHOD.GITHUB],
+    ownedDocumentCount: 4,
+    sharedDocumentCount: 2,
+    createdAt: '2026-03-25T10:00:00.000Z',
+    lastLoginAt: '2026-03-25T12:00:00.000Z',
+  }]),
   updateSystemAdminUserStatus: vi.fn(async () => ({
     id: 'user-1',
     status: 'DISABLED',
     isSystemAdmin: true,
   })),
-  updateSystemAdminUserRole: vi.fn(async () => ({
-    id: 'user-1',
-    status: 'ACTIVE',
-    isSystemAdmin: false,
+  getSystemAuthGovernance: vi.fn(async () => ({
+    allowPasswordRegistration: true,
+    allowGithubRegistration: true,
+    allowLinuxDoRegistration: false,
+    systemAdminEmail: 'alice@example.com',
+    systemAdminDisplayName: 'Alice',
+    systemAdminMustChangePassword: false,
+    systemAdminLastLoginAt: '2026-03-25T12:00:00.000Z',
+    systemAdminPasswordUpdatedAt: '2026-03-25T12:10:00.000Z',
   })),
   getSystemAiConfig: vi.fn(async () => ({
     id: 'config-1',
     enabled: true,
-    provider: 'openai-compatible',
-    baseUrl: 'https://api.openai.com/v1',
+    provider: 'hw7mrx-compatible',
+    baseUrl: 'https://api.hw7mrx.com/v1',
     defaultModel: 'gpt-4.1-mini',
     hasApiKey: true,
     maskedApiKey: '••••••••1234',
@@ -56,8 +61,8 @@ vi.mock('@/apis/system-admin', () => ({
   updateSystemAiConfig: vi.fn(async () => ({
     id: 'config-1',
     enabled: true,
-    provider: 'openai-compatible',
-    baseUrl: 'https://api.openai.com/v1',
+    provider: 'hw7mrx-compatible',
+    baseUrl: 'https://api.hw7mrx.com/v1',
     defaultModel: 'gpt-4.1-mini',
     hasApiKey: true,
     maskedApiKey: '••••••••1234',
@@ -74,22 +79,9 @@ vi.mock('@/apis/system-admin', () => ({
   })),
 }))
 
-function seedAuthState() {
-  const authStore = useAuthStore()
-  authStore.accessToken = 'test-access-token'
-  authStore.user = {
-    id: 'user-1',
-    email: 'alice@example.com',
-    displayName: 'Alice',
-    avatarUrl: null,
-    roles: ['system_admin'],
-    permissions: ['system_admin:overview:read'],
-  }
-}
-
 describe('admin console', () => {
   it('renders the admin overview route', async () => {
-    seedAuthState()
+    seedAuthState({ roles: ['system_admin'], permissions: ['system_admin:overview:read'] })
 
     const router = createAppRouter(createMemoryHistory())
     await router.push('/admin')
@@ -111,7 +103,7 @@ describe('admin console', () => {
   })
 
   it('renders the admin users route', async () => {
-    seedAuthState()
+    seedAuthState({ roles: ['system_admin'], permissions: ['system_admin:overview:read'] })
 
     const router = createAppRouter(createMemoryHistory())
     await router.push('/admin/users')
@@ -127,7 +119,8 @@ describe('admin console', () => {
 
     expect(wrapper.text()).toContain('用户管理')
     expect(wrapper.text()).toContain('Alice')
-    expect(wrapper.text()).toContain('吊销权限')
+    expect(wrapper.text()).toContain('邮箱密码注册')
+    expect(wrapper.text()).toContain('系统管理员')
   })
 
   it('redirects unauthenticated admin access to login', async () => {
@@ -141,16 +134,7 @@ describe('admin console', () => {
   })
 
   it('redirects authenticated non-admin users away from admin routes', async () => {
-    const authStore = useAuthStore()
-    authStore.accessToken = 'test-access-token'
-    authStore.user = {
-      id: 'user-2',
-      email: 'bob@example.com',
-      displayName: 'Bob',
-      avatarUrl: null,
-      roles: [],
-      permissions: [],
-    }
+    seedAuthState({ id: 'user-2', email: 'bob@example.com', displayName: 'Bob', authMethods: [AUTH_METHOD.GITHUB] })
 
     const router = createAppRouter(createMemoryHistory())
     loadAdminRoutes(router)

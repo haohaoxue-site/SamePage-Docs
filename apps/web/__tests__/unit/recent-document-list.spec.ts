@@ -2,21 +2,8 @@ import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory } from 'vue-router'
 import { createAppRouter } from '@/router'
-import { useAuthStore } from '@/stores/auth'
 import RecentDocumentList from '@/views/home/components/RecentDocumentList.vue'
-
-function seedAuthState() {
-  const authStore = useAuthStore()
-  authStore.accessToken = 'test-access-token'
-  authStore.user = {
-    id: 'user-1',
-    email: 'alice@example.com',
-    displayName: 'Alice',
-    avatarUrl: null,
-    roles: [],
-    permissions: [],
-  }
-}
+import { seedAuthState } from '../utils/test-helpers'
 
 describe('recentDocumentList', () => {
   it('renders recent document cards', async () => {

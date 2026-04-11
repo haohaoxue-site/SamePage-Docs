@@ -1,6 +1,8 @@
-import { AUTH_PROVIDER, AUTH_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
+import type { AUTH_METHOD_VALUES } from '@haohaoxue/samepage-contracts'
+import { AUTH_METHOD_LABELS, AUTH_PROVIDER, AUTH_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
 
 type AuthProviderName = (typeof AUTH_PROVIDER_VALUES)[number]
+type AuthMethodName = (typeof AUTH_METHOD_VALUES)[number]
 
 const NON_ALPHANUMERIC_RE = /[^a-z0-9]+/g
 
@@ -23,4 +25,8 @@ export function normalizeAuthProviderName(value: string): AuthProviderName | nul
   const compactValue = normalizedValue.replace(NON_ALPHANUMERIC_RE, '')
 
   return AUTH_PROVIDER_ALIAS_MAP[compactValue] ?? null
+}
+
+export function formatAuthMethod(method: AuthMethodName): string {
+  return AUTH_METHOD_LABELS[method]
 }

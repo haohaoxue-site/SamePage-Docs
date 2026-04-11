@@ -1,6 +1,7 @@
 import type { SystemAdminOverviewDto } from '@/apis/system-admin'
 import { shallowRef } from 'vue'
 import { getSystemAdminOverview } from '@/apis/system-admin'
+import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 export function useAdminOverview() {
   const overview = shallowRef<SystemAdminOverviewDto | null>(null)
@@ -15,7 +16,7 @@ export function useAdminOverview() {
       overview.value = await getSystemAdminOverview()
     }
     catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '加载系统概览失败'
+      errorMessage.value = getRequestErrorDisplayMessage(error, '加载系统概览失败')
     }
     finally {
       isLoading.value = false

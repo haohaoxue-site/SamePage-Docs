@@ -3,6 +3,7 @@ import { useStorage } from '@vueuse/core'
 import { ElMessage } from 'element-plus'
 import { computed, reactive, shallowRef, watch } from 'vue'
 import { getChatModels } from '@/apis/chat'
+import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 const CHAT_PROVIDER_STORAGE_KEY = 'samepage_chat_provider'
 const CHAT_MODEL_CACHE_STORAGE_KEY = 'samepage_chat_model_cache'
@@ -152,7 +153,7 @@ export function useChatProviderSettings() {
       ElMessage.success(result.models.length > 0 ? `已获取 ${result.models.length} 个模型` : '当前提供商未返回模型列表')
     }
     catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '获取模型列表失败')
+      ElMessage.error(getRequestErrorDisplayMessage(error, '获取模型列表失败'))
     }
     finally {
       isLoadingModels.value = false

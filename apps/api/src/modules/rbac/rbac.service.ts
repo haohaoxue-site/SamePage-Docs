@@ -1,21 +1,15 @@
 import type { Prisma } from '@prisma/client'
-import type { BootstrapConfig } from '../../config/bootstrap.config'
 import { ROLES } from '@haohaoxue/samepage-contracts'
 import { Injectable, OnModuleInit } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../database/prisma.service'
 import { DEFAULT_RBAC_SEED } from './rbac.constants'
 
 @Injectable()
 export class RbacService implements OnModuleInit {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
     await this.seedDefaults()
-    await this.syncConfiguredSystemAdmins()
   }
 
   async seedDefaults() {
@@ -106,76 +100,85 @@ export class RbacService implements OnModuleInit {
     await this.attachUserRole(userId, roleId)
   }
 
-  async ensureConfiguredSystemAdminRole(userId: string, email?: string | null): Promise<boolean> {
-    const bootstrapConfig = this.configService.getOrThrow<BootstrapConfig>('bootstrap')
-    const normalizedEmail = email?.trim().toLowerCase()
-    const shouldGrant = normalizedEmail
-      ? bootstrapConfig.systemAdminEmails.includes(normalizedEmail)
-      : false
-
-    if (!shouldGrant) {
-      return false
-    }
-
+  async ensureSystemAdminRole(userId: string): Promise<void> {
     const roleId = await this.getRoleIdByCode(ROLES.SYSTEM_ADMIN)
     await this.attachUserRole(userId, roleId)
-    return true
   }
 
-  async syncBootstrapRolesForUser(userId: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        email: true,
-      },
-    })
-
-    if (!user) {
-      return
-    }
-
-    await this.ensureDefaultUserRole(userId)
-    await this.ensureConfiguredSystemAdminRole(userId, user.email)
-  }
-
-  private async attachUserRole(userId: string, roleId: string) {
-    await this.prisma.userRole.upsert({
+  async revokeSystemAdminRole(userId: string): Promise<void> {
+    const roleId = await this.getRoleIdByCode(ROLES.SYSTEM_ADMIN)
+    await this.prisma.$bypass.userRole.deleteMany({
       where: {
-        userId_roleId: {
-          userId,
-          roleId,
-        },
-      },
-      update: {},
-      create: {
         userId,
         roleId,
       },
     })
   }
 
-  private async syncConfiguredSystemAdmins() {
-    const bootstrapConfig = this.configService.getOrThrow<BootstrapConfig>('bootstrap')
+  async enforceSystemAdminRole(systemAdminUserId: string | null): Promise<void> {
+    const roleId = await this.getRoleIdByCode(ROLES.SYSTEM_ADMIN)
 
-    if (!bootstrapConfig.systemAdminEmails.length) {
+    if (systemAdminUserId) {
+      await this.attachUserRole(systemAdminUserId, roleId)
+    }
+
+    await this.prisma.$bypass.userRole.deleteMany({
+      where: systemAdminUserId
+        ? {
+            roleId,
+            NOT: {
+              userId: systemAdminUserId,
+            },
+          }
+        : {
+            roleId,
+          },
+    })
+  }
+
+  async syncBootstrapRolesForUser(userId: string): Promise<void> {
+    const [user, authConfig, systemAdminRoleId] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+        },
+      }),
+      this.prisma.systemAuthConfig.findFirst({
+        select: {
+          systemAdminUserId: true,
+        },
+      }),
+      this.getRoleIdByCode(ROLES.SYSTEM_ADMIN),
+    ])
+
+    if (!user) {
       return
     }
 
-    const users = await this.prisma.user.findMany({
+    await this.ensureDefaultUserRole(userId)
+
+    if (authConfig?.systemAdminUserId === userId) {
+      await this.attachUserRole(userId, systemAdminRoleId)
+      return
+    }
+
+    await this.prisma.$bypass.userRole.deleteMany({
       where: {
-        email: {
-          in: bootstrapConfig.systemAdminEmails,
-        },
+        userId,
+        roleId: systemAdminRoleId,
       },
+    })
+  }
+
+  async isSystemAdmin(userId: string): Promise<boolean> {
+    const authConfig = await this.prisma.systemAuthConfig.findFirst({
       select: {
-        id: true,
-        email: true,
+        systemAdminUserId: true,
       },
     })
 
-    for (const user of users) {
-      await this.ensureConfiguredSystemAdminRole(user.id, user.email)
-    }
+    return authConfig?.systemAdminUserId === userId
   }
 
   async getRoleIdByCode(code: string): Promise<string> {
@@ -193,5 +196,30 @@ export class RbacService implements OnModuleInit {
       where: { code },
       select: { id: true },
     }).then(result => result.id)
+  }
+
+  private async attachUserRole(userId: string, roleId: string) {
+    const existing = await this.prisma.$bypass.userRole.findUnique({
+      where: {
+        userId_roleId: {
+          userId,
+          roleId,
+        },
+      },
+      select: {
+        userId: true,
+      },
+    })
+
+    if (existing) {
+      return
+    }
+
+    await this.prisma.$bypass.userRole.create({
+      data: {
+        userId,
+        roleId,
+      },
+    })
   }
 }

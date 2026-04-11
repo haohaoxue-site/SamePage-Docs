@@ -1,6 +1,7 @@
 import type { SystemAdminAuditLogItemDto } from '@/apis/system-admin'
 import { shallowRef } from 'vue'
 import { getSystemAdminAuditLogs } from '@/apis/system-admin'
+import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 export function useAdminAuditLogs() {
   const logs = shallowRef<SystemAdminAuditLogItemDto[]>([])
@@ -15,7 +16,7 @@ export function useAdminAuditLogs() {
       logs.value = await getSystemAdminAuditLogs()
     }
     catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '加载审计日志失败'
+      errorMessage.value = getRequestErrorDisplayMessage(error, '加载审计日志失败')
     }
     finally {
       isLoading.value = false

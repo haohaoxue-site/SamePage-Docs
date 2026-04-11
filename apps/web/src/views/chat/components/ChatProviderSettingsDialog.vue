@@ -1,14 +1,97 @@
 <script setup lang="ts">
+import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
 import type {
   ChatProviderSettingsDialogEmits,
   ChatProviderSettingsDialogProps,
 } from '../typing'
 import type { ChatProviderConfig } from '@/apis/chat'
+import { useTemplateRef } from 'vue'
 
 defineProps<ChatProviderSettingsDialogProps>()
 const emits = defineEmits<ChatProviderSettingsDialogEmits>()
 const visible = defineModel<boolean>({ required: true })
 const form = defineModel<ChatProviderConfig>('form', { required: true })
+const providerFormRef = useTemplateRef<FormInstance>('providerFormRef')
+
+type RuleValidator = NonNullable<FormItemRule['validator']>
+
+function resolveTrimmedValue(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function createRequiredValidator(message: string): RuleValidator {
+  return (_rule, value, callback) => {
+    if (!resolveTrimmedValue(value)) {
+      callback(new Error(message))
+      return
+    }
+
+    callback()
+  }
+}
+
+const urlValidator: RuleValidator = (_rule, value, callback) => {
+  const normalizedValue = resolveTrimmedValue(value)
+
+  if (!normalizedValue) {
+    callback(new Error('请输入 API 地址'))
+    return
+  }
+
+  try {
+    const parsedUrl = new URL(normalizedValue)
+    void parsedUrl
+  }
+  catch {
+    callback(new Error('请输入合法的 API 地址'))
+    return
+  }
+
+  callback()
+}
+
+const formRules: FormRules<ChatProviderConfig> = {
+  baseUrl: [{
+    validator: urlValidator,
+  }],
+  apiKey: [{
+    validator: createRequiredValidator('请输入 API Key'),
+  }],
+  model: [{
+    validator: createRequiredValidator('请选择或输入模型'),
+  }],
+}
+
+async function handleRefreshModels() {
+  form.value.baseUrl = form.value.baseUrl.trim()
+  form.value.apiKey = form.value.apiKey.trim()
+
+  const isValid = providerFormRef.value
+    ? await providerFormRef.value.validateField(['baseUrl', 'apiKey']).catch(() => false)
+    : false
+
+  if (!isValid) {
+    return
+  }
+
+  emits('refreshModels')
+}
+
+async function handleSave() {
+  form.value.baseUrl = form.value.baseUrl.trim()
+  form.value.apiKey = form.value.apiKey.trim()
+  form.value.model = form.value.model.trim()
+
+  const isValid = providerFormRef.value
+    ? await providerFormRef.value.validate().catch(() => false)
+    : false
+
+  if (!isValid) {
+    return
+  }
+
+  emits('save')
+}
 </script>
 
 <template>
@@ -28,15 +111,15 @@ const form = defineModel<ChatProviderConfig>('form', { required: true })
         </div>
       </div>
 
-      <ElForm :model="form" label-position="top" class="chat-provider-settings__form">
-        <ElFormItem label="API 地址">
+      <ElForm ref="providerFormRef" :model="form" :rules="formRules" label-position="top" class="chat-provider-settings__form">
+        <ElFormItem label="API 地址" prop="baseUrl">
           <ElInput
             v-model="form.baseUrl"
             placeholder="https://api.openai.com/v1"
           />
         </ElFormItem>
 
-        <ElFormItem label="API Key">
+        <ElFormItem label="API Key" prop="apiKey">
           <ElInput
             v-model="form.apiKey"
             type="password"
@@ -45,7 +128,7 @@ const form = defineModel<ChatProviderConfig>('form', { required: true })
           />
         </ElFormItem>
 
-        <ElFormItem label="模型">
+        <ElFormItem label="模型" prop="model">
           <div class="chat-provider-settings__model-row">
             <ElSelect
               v-model="form.model"
@@ -66,7 +149,7 @@ const form = defineModel<ChatProviderConfig>('form', { required: true })
 
             <ElButton
               :loading="isLoadingModels"
-              @click="emits('refreshModels')"
+              @click="handleRefreshModels"
             >
               拉取模型
             </ElButton>
@@ -80,7 +163,7 @@ const form = defineModel<ChatProviderConfig>('form', { required: true })
         <ElButton @click="visible = false">
           取消
         </ElButton>
-        <ElButton type="primary" @click="emits('save')">
+        <ElButton type="primary" @click="handleSave">
           保存配置
         </ElButton>
       </div>

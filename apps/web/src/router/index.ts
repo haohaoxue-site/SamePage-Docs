@@ -44,6 +44,10 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
       }
     }
 
+    if (authStore.requiresPasswordChange && !to.meta.allowWhenPasswordChangeRequired) {
+      return { name: 'change-password' }
+    }
+
     if (to.path.startsWith('/admin') && !authStore.isSystemAdmin) {
       return { name: 'home' }
     }
@@ -57,7 +61,11 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
   })
 
   router.afterEach((to) => {
-    if (to.meta.public || to.path.startsWith('/admin')) {
+    if (
+      to.meta.public
+      || to.meta.allowWhenPasswordChangeRequired
+      || to.path.startsWith('/admin')
+    ) {
       return
     }
 

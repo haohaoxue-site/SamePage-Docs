@@ -1,3 +1,5 @@
+import type { AuthMethodName } from '@haohaoxue/samepage-domain'
+import { AUTH_METHOD_VALUES } from '@haohaoxue/samepage-contracts'
 import { ApiProperty } from '@nestjs/swagger'
 import { DocumentStatus, UserStatus } from '@prisma/client'
 import { Transform } from 'class-transformer'
@@ -61,6 +63,9 @@ export class SystemAdminUserItemDto {
   @ApiProperty()
   isSystemAdmin!: boolean
 
+  @ApiProperty({ enum: AUTH_METHOD_VALUES, isArray: true })
+  authMethods!: AuthMethodName[]
+
   @ApiProperty()
   ownedDocumentCount!: number
 
@@ -80,12 +85,6 @@ export class UpdateSystemAdminUserStatusDto {
   status!: UserStatus
 }
 
-export class UpdateSystemAdminUserSystemRoleDto {
-  @ApiProperty()
-  @IsBoolean()
-  enabled!: boolean
-}
-
 export class UpdateSystemAdminUserResponseDto {
   @ApiProperty()
   id!: string
@@ -95,6 +94,46 @@ export class UpdateSystemAdminUserResponseDto {
 
   @ApiProperty()
   isSystemAdmin!: boolean
+}
+
+export class SystemAuthGovernanceDto {
+  @ApiProperty()
+  allowPasswordRegistration!: boolean
+
+  @ApiProperty()
+  allowGithubRegistration!: boolean
+
+  @ApiProperty()
+  allowLinuxDoRegistration!: boolean
+
+  @ApiProperty()
+  systemAdminEmail!: string
+
+  @ApiProperty({ nullable: true })
+  systemAdminDisplayName!: string | null
+
+  @ApiProperty()
+  systemAdminMustChangePassword!: boolean
+
+  @ApiProperty({ nullable: true })
+  systemAdminLastLoginAt!: Date | null
+
+  @ApiProperty({ nullable: true })
+  systemAdminPasswordUpdatedAt!: Date | null
+}
+
+export class UpdateSystemAuthGovernanceDto {
+  @ApiProperty()
+  @IsBoolean()
+  allowPasswordRegistration!: boolean
+
+  @ApiProperty()
+  @IsBoolean()
+  allowGithubRegistration!: boolean
+
+  @ApiProperty()
+  @IsBoolean()
+  allowLinuxDoRegistration!: boolean
 }
 
 export class SystemAiConfigDto {

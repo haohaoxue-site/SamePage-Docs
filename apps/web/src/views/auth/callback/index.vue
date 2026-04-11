@@ -1,74 +1,50 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import AuthEntryShell from '../components/AuthEntryShell.vue'
 import { useAuthCallbackView } from './composables/useAuthCallbackView'
 
 const { statusLabel, errorMessage } = useAuthCallbackView()
+const pageDescription = computed(() => errorMessage.value ? '请返回登录页后重试。' : '正在处理第三方登录，请稍候。')
 </script>
 
 <template>
-  <div class="auth-callback">
-    <ElCard shadow="never" body-class="auth-callback__card-body" class="auth-callback__card">
-      <div class="auth-callback__content">
-        <div v-if="!errorMessage" class="auth-callback__spinner" />
-        <div v-else class="auth-callback__error-mark">
-          <SvgIcon category="ui" icon="error" size="1.5rem" />
-        </div>
-
-        <span class="auth-callback__eyebrow">Authentication</span>
-        <h1 class="auth-callback__title">
-          {{ statusLabel }}
-        </h1>
-
-        <ElAlert
-          v-if="errorMessage"
-          class="auth-callback__alert"
-          type="error"
-          :title="errorMessage"
-          :closable="false"
-        />
-
-        <div class="auth-callback__footer">
-          <RouterLink v-if="errorMessage" :to="{ name: 'login' }" class="auth-callback__back-link">
-            <ElButton type="primary" class="auth-callback__back-button">
-              返回登录页
-            </ElButton>
-          </RouterLink>
-          <div v-else class="auth-callback__hint">
-            正在为您安全跳转...
-          </div>
-        </div>
+  <AuthEntryShell
+    :title="statusLabel"
+    :description="pageDescription"
+  >
+    <div class="auth-callback__status">
+      <div v-if="!errorMessage" class="auth-callback__spinner" />
+      <div v-else class="auth-callback__error-mark">
+        <SvgIcon category="ui" icon="error" size="1.5rem" />
       </div>
-    </ElCard>
-  </div>
+    </div>
+
+    <ElAlert
+      v-if="errorMessage"
+      class="auth-callback__alert"
+      type="error"
+      :title="errorMessage"
+      :closable="false"
+    />
+
+    <template #footer>
+      <RouterLink v-if="errorMessage" :to="{ name: 'login' }" class="auth-callback__back-link">
+        返回登录
+      </RouterLink>
+      <span v-else class="auth-callback__hint">请不要关闭当前页面。</span>
+    </template>
+  </AuthEntryShell>
 </template>
 
 <style scoped lang="scss">
 .auth-callback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding-inline: 1rem;
-  background: var(--brand-bg-sidebar);
-
-  .auth-callback__card {
-    width: 100%;
-    max-width: 28rem;
-    text-align: center;
-    border: none;
-    box-shadow: 0 20px 25px -5px color-mix(in srgb, var(--brand-text-primary) 5%, transparent);
-  }
-
-  :deep(.auth-callback__card-body) {
-    padding: 2.5rem !important;
-  }
-
-  .auth-callback__content {
+  &__status {
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
   }
 
-  .auth-callback__spinner {
+  &__spinner {
     margin-bottom: 1.5rem;
     width: 3rem;
     height: 3rem;
@@ -78,7 +54,7 @@ const { statusLabel, errorMessage } = useAuthCallbackView()
     animation: auth-callback-spin 1s linear infinite;
   }
 
-  .auth-callback__error-mark {
+  &__error-mark {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -91,51 +67,20 @@ const { statusLabel, errorMessage } = useAuthCallbackView()
     background: color-mix(in srgb, var(--brand-error) 10%, transparent);
   }
 
-  .auth-callback__eyebrow {
-    margin-bottom: 0.5rem;
-    color: var(--brand-text-secondary);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-  }
-
-  .auth-callback__title {
-    margin-bottom: 1.5rem;
-    color: var(--brand-text-primary);
-    font-size: 1.5rem;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: -0.025em;
-  }
-
-  .auth-callback__alert {
+  &__alert {
     border-style: dashed;
     border-radius: 0.75rem !important;
   }
 
-  .auth-callback__footer {
-    display: flex;
-    justify-content: center;
-    width: 100%;
-    margin-top: 2rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--brand-border-base);
-  }
-
-  .auth-callback__back-link {
-    width: 100%;
+  &__back-link {
+    color: var(--brand-primary);
+    font-weight: 600;
     text-decoration: none;
   }
 
-  .auth-callback__back-button {
-    width: 100% !important;
-  }
-
-  .auth-callback__hint {
+  &__hint {
     color: var(--brand-text-secondary);
-    font-size: 0.75rem;
-    font-style: italic;
+    font-size: 0.875rem;
   }
 }
 

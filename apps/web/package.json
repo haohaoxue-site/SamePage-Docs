@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "vite build",
+    "lint:fix": "eslint . --fix",
     "type-check": "vue-tsc -b --pretty false",
     "preview": "vite preview",
     "test": "vitest run",
@@ -15,6 +16,7 @@
     "@element-plus/icons-vue": "^2.3.2",
     "@haohaoxue/samepage-contracts": "workspace:*",
     "@haohaoxue/samepage-domain": "workspace:*",
+    "@haohaoxue/samepage-shared": "workspace:*",
     "@tiptap/core": "^3.22.3",
     "@tiptap/extension-color": "^3.22.3",
     "@tiptap/extension-highlight": "^3.22.3",

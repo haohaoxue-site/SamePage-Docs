@@ -1,30 +1,50 @@
 import type {
   SystemAdminUserItemDto,
   SystemAdminUserStatus,
+  SystemAuthGovernanceDto,
 } from '@/apis/system-admin'
 import { ElMessage } from 'element-plus'
-import { shallowRef } from 'vue'
+import { reactive, shallowRef } from 'vue'
 import {
   getSystemAdminUsers,
-  updateSystemAdminUserRole,
+  getSystemAuthGovernance,
   updateSystemAdminUserStatus,
+  updateSystemAuthGovernance,
 } from '@/apis/system-admin'
+import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 export function useAdminUsers() {
   const users = shallowRef<SystemAdminUserItemDto[]>([])
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
+  const isSavingGovernance = shallowRef(false)
   const updatingUserId = shallowRef<string | null>(null)
+  const governance = reactive<SystemAuthGovernanceDto>({
+    allowPasswordRegistration: false,
+    allowGithubRegistration: false,
+    allowLinuxDoRegistration: false,
+    systemAdminEmail: '',
+    systemAdminDisplayName: null,
+    systemAdminMustChangePassword: false,
+    systemAdminLastLoginAt: null,
+    systemAdminPasswordUpdatedAt: null,
+  })
 
-  async function loadUsers() {
+  async function loadData() {
     isLoading.value = true
     errorMessage.value = ''
 
     try {
-      users.value = await getSystemAdminUsers()
+      const [nextUsers, nextGovernance] = await Promise.all([
+        getSystemAdminUsers(),
+        getSystemAuthGovernance(),
+      ])
+
+      users.value = nextUsers
+      applyGovernance(nextGovernance)
     }
     catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '加载用户列表失败'
+      errorMessage.value = getRequestErrorDisplayMessage(error, '加载用户管理数据失败')
     }
     finally {
       isLoading.value = false
@@ -53,44 +73,47 @@ export function useAdminUsers() {
       ElMessage.success(nextStatus === 'ACTIVE' ? '用户已恢复' : '用户已禁用')
     }
     catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '更新用户状态失败')
+      ElMessage.error(getRequestErrorDisplayMessage(error, '更新用户状态失败'))
     }
     finally {
       updatingUserId.value = null
     }
   }
 
-  async function toggleSystemAdmin(user: SystemAdminUserItemDto, enabled: boolean) {
-    updatingUserId.value = user.id
+  async function saveGovernance() {
+    isSavingGovernance.value = true
 
     try {
-      const updated = await updateSystemAdminUserRole(user.id, { enabled })
+      const nextGovernance = await updateSystemAuthGovernance({
+        allowPasswordRegistration: governance.allowPasswordRegistration,
+        allowGithubRegistration: governance.allowGithubRegistration,
+        allowLinuxDoRegistration: governance.allowLinuxDoRegistration,
+      })
 
-      users.value = users.value.map(item =>
-        item.id === user.id
-          ? {
-              ...item,
-              isSystemAdmin: updated.isSystemAdmin,
-            }
-          : item,
-      )
-      ElMessage.success(enabled ? '已授予系统后台权限' : '已撤销系统后台权限')
+      applyGovernance(nextGovernance)
+      ElMessage.success('认证治理配置已更新')
     }
     catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '更新系统管理员状态失败')
+      ElMessage.error(getRequestErrorDisplayMessage(error, '更新认证治理配置失败'))
     }
     finally {
-      updatingUserId.value = null
+      isSavingGovernance.value = false
     }
   }
 
   return {
-    users,
     errorMessage,
+    governance,
     isLoading,
-    updatingUserId,
-    loadUsers,
-    toggleSystemAdmin,
+    isSavingGovernance,
+    loadData,
+    saveGovernance,
     toggleUserStatus,
+    updatingUserId,
+    users,
+  }
+
+  function applyGovernance(nextGovernance: SystemAuthGovernanceDto) {
+    Object.assign(governance, nextGovernance)
   }
 }

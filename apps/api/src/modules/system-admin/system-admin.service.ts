@@ -1,14 +1,15 @@
-import type { CryptoConfig } from '../../config/crypto.config'
+import type { CryptoConfig } from '../../config/auth.config'
 import type {
   GovernanceSummaryDto,
   SystemAdminAuditLogItemDto,
   SystemAdminOverviewDto,
   SystemAdminUserItemDto,
   SystemAiConfigDto,
+  SystemAuthGovernanceDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAiConfigDto,
+  UpdateSystemAuthGovernanceDto,
 } from './system-admin.dto'
-import { ROLES } from '@haohaoxue/samepage-contracts'
 import {
   BadRequestException,
   Injectable,
@@ -22,8 +23,9 @@ import {
   UserStatus,
 } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
+import { resolveAuthMethods } from '../../utils/auth-methods'
 import { decryptAes256Gcm, encryptAes256Gcm, isEncryptedValue } from '../../utils/crypto'
-import { RbacService } from '../rbac/rbac.service'
+import { SystemAuthService } from '../auth/system-auth.service'
 
 const DEFAULT_SYSTEM_AI_BASE_URL = 'https://api.openai.com/v1'
 
@@ -33,7 +35,7 @@ export class SystemAdminService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly rbacService: RbacService,
+    private readonly systemAuthService: SystemAuthService,
     configService: ConfigService,
   ) {
     this.encryptionKey = configService.getOrThrow<CryptoConfig>('crypto').encryptionKey
@@ -43,38 +45,25 @@ export class SystemAdminService {
     const [
       totalUsers,
       activeUsers,
-      systemAdminRoleId,
-      totalDocuments,
-      lockedDocuments,
-      sharedDocumentGroups,
+      docStats,
       aiConfig,
+      authGovernance,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({ where: { status: UserStatus.ACTIVE } }),
-      this.rbacService.getRoleIdByCode(ROLES.SYSTEM_ADMIN),
-      this.prisma.document.count(),
-      this.prisma.document.count({ where: { status: DocumentStatus.LOCKED } }),
-      this.prisma.documentMember.groupBy({
-        by: ['documentId'],
-        where: { role: DocumentMemberRole.VIEWER },
-      }),
+      this.getDocumentStats(),
       this.prisma.systemAiConfig.findFirst({
         orderBy: { updatedAt: 'desc' },
       }),
+      this.systemAuthService.getGovernanceSnapshot(),
     ])
-
-    const systemAdminCount = await this.prisma.userRole.count({
-      where: { roleId: systemAdminRoleId },
-    })
 
     return {
       totalUsers,
       activeUsers,
       disabledUsers: totalUsers - activeUsers,
-      systemAdminCount,
-      totalDocuments,
-      sharedDocuments: sharedDocumentGroups.length,
-      lockedDocuments,
+      systemAdminCount: authGovernance.config.systemAdminUserId ? 1 : 0,
+      ...docStats,
       aiConfigEnabled: aiConfig?.enabled ?? false,
       systemAiBaseUrl: aiConfig?.baseUrl ?? null,
       systemAiDefaultModel: aiConfig?.defaultModel ?? null,
@@ -82,6 +71,7 @@ export class SystemAdminService {
   }
 
   async getUsers(): Promise<SystemAdminUserItemDto[]> {
+    const governance = await this.systemAuthService.getGovernanceSnapshot()
     const users = await this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
       take: 100,
@@ -93,13 +83,14 @@ export class SystemAdminService {
         status: true,
         createdAt: true,
         lastLoginAt: true,
-        userRoles: {
+        localCredential: {
           select: {
-            role: {
-              select: {
-                code: true,
-              },
-            },
+            userId: true,
+          },
+        },
+        oauthAccounts: {
+          select: {
+            provider: true,
           },
         },
         documentMemberships: {
@@ -124,7 +115,8 @@ export class SystemAdminService {
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
       status: user.status,
-      isSystemAdmin: hasSystemAdminRole(user.userRoles),
+      isSystemAdmin: user.id === governance.config.systemAdminUserId,
+      authMethods: resolveAuthMethods(Boolean(user.localCredential), user.oauthAccounts),
       ownedDocumentCount: user._count.ownedDocuments,
       sharedDocumentCount: user.documentMemberships.length,
       createdAt: user.createdAt,
@@ -137,6 +129,12 @@ export class SystemAdminService {
     userId: string,
     status: UserStatus,
   ): Promise<UpdateSystemAdminUserResponseDto> {
+    const isSystemAdmin = await this.systemAuthService.isSystemAdminUser(userId)
+
+    if (isSystemAdmin && status === UserStatus.DISABLED) {
+      throw new BadRequestException('不能禁用系统管理员')
+    }
+
     if (actorUserId === userId && status === UserStatus.DISABLED) {
       throw new BadRequestException('不能禁用当前系统管理员自己')
     }
@@ -147,15 +145,6 @@ export class SystemAdminService {
       select: {
         id: true,
         status: true,
-        userRoles: {
-          select: {
-            role: {
-              select: {
-                code: true,
-              },
-            },
-          },
-        },
       },
     }).catch((error) => {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -174,84 +163,43 @@ export class SystemAdminService {
     return {
       id: user.id,
       status: user.status,
-      isSystemAdmin: hasSystemAdminRole(user.userRoles),
+      isSystemAdmin,
     }
   }
 
-  async updateUserSystemRole(
+  async getAuthGovernance(): Promise<SystemAuthGovernanceDto> {
+    const snapshot = await this.systemAuthService.getGovernanceSnapshot()
+
+    return {
+      allowPasswordRegistration: snapshot.config.allowPasswordRegistration,
+      allowGithubRegistration: snapshot.config.allowGithubRegistration,
+      allowLinuxDoRegistration: snapshot.config.allowLinuxDoRegistration,
+      systemAdminEmail: snapshot.config.systemAdminEmail,
+      systemAdminDisplayName: snapshot.systemAdminUser?.displayName ?? null,
+      systemAdminMustChangePassword: snapshot.localCredential?.mustChangePassword ?? false,
+      systemAdminLastLoginAt: snapshot.systemAdminUser?.lastLoginAt ?? null,
+      systemAdminPasswordUpdatedAt: snapshot.localCredential?.passwordUpdatedAt ?? null,
+    }
+  }
+
+  async updateAuthGovernance(
     actorUserId: string,
-    userId: string,
-    enabled: boolean,
-  ): Promise<UpdateSystemAdminUserResponseDto> {
-    if (actorUserId === userId && !enabled) {
-      throw new BadRequestException('不能撤销当前系统管理员自己的权限')
-    }
-
-    const roleId = await this.rbacService.getRoleIdByCode(ROLES.SYSTEM_ADMIN)
-
-    await this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { id: true },
-    }).catch((error) => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException(`User "${userId}" not found`)
-      }
-      throw error
-    })
-
-    if (enabled) {
-      await this.prisma.userRole.upsert({
-        where: {
-          userId_roleId: {
-            userId,
-            roleId,
-          },
-        },
-        update: {},
-        create: {
-          userId,
-          roleId,
-        },
-      })
-    }
-    else {
-      await this.prisma.userRole.deleteMany({
-        where: {
-          userId,
-          roleId,
-        },
-      })
-    }
-
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: {
-        id: true,
-        status: true,
-        userRoles: {
-          select: {
-            role: {
-              select: {
-                code: true,
-              },
-            },
-          },
-        },
-      },
+    payload: UpdateSystemAuthGovernanceDto,
+  ): Promise<SystemAuthGovernanceDto> {
+    await this.systemAuthService.updateRegistrationOptions(actorUserId, {
+      allowPasswordRegistration: payload.allowPasswordRegistration,
+      allowGithubRegistration: payload.allowGithubRegistration,
+      allowLinuxDoRegistration: payload.allowLinuxDoRegistration,
     })
 
     await this.createAuditLog(actorUserId, {
-      action: 'user.system_admin.updated',
-      targetType: 'user',
-      targetId: userId,
-      metadata: { enabled },
+      action: 'system_auth_governance.updated',
+      targetType: 'system_auth_config',
+      targetId: 'default',
+      metadata: payload as Prisma.InputJsonValue,
     })
 
-    return {
-      id: user.id,
-      status: user.status,
-      isSystemAdmin: hasSystemAdminRole(user.userRoles),
-    }
+    return this.getAuthGovernance()
   }
 
   async getAiConfig(): Promise<SystemAiConfigDto> {
@@ -384,6 +332,16 @@ export class SystemAdminService {
   }
 
   async getGovernanceSummary(): Promise<GovernanceSummaryDto> {
+    const stats = await this.getDocumentStats()
+
+    return {
+      ...stats,
+      lockedStatus: DocumentStatus.LOCKED,
+      note: '系统管理员默认只看文档元数据与风险态势，不直接查看正文内容，也不直接处置用户资产。',
+    }
+  }
+
+  private async getDocumentStats() {
     const [totalDocuments, lockedDocuments, sharedDocumentGroups] = await Promise.all([
       this.prisma.document.count(),
       this.prisma.document.count({ where: { status: DocumentStatus.LOCKED } }),
@@ -397,8 +355,6 @@ export class SystemAdminService {
       totalDocuments,
       sharedDocuments: sharedDocumentGroups.length,
       lockedDocuments,
-      lockedStatus: DocumentStatus.LOCKED,
-      note: '系统管理员默认只看文档元数据与风险态势，不直接查看正文内容，也不直接处置用户资产。',
     }
   }
 
@@ -433,10 +389,6 @@ export class SystemAdminService {
       },
     })
   }
-}
-
-function hasSystemAdminRole(userRoles: Array<{ role: { code: string } }>): boolean {
-  return userRoles.some(item => item.role.code === ROLES.SYSTEM_ADMIN)
 }
 
 function maskApiKey(apiKey: string | null | undefined) {

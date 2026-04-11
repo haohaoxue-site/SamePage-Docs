@@ -1,7 +1,8 @@
 import { onMounted, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { loadAdminRoutes, resetAdminRoutes } from '@/router'
 import { useAuthStore } from '@/stores/auth'
+import { getRequestErrorDisplayMessage } from '@/utils/request-error'
+import { completeAuthNavigation } from '../../utils/navigation'
 
 export function useAuthCallbackView() {
   const route = useRoute()
@@ -14,29 +15,19 @@ export function useAuthCallbackView() {
     const code = typeof route.query.code === 'string' ? route.query.code.trim() : ''
 
     if (!code) {
-      statusLabel.value = '登录失败'
-      errorMessage.value = '缺少登录 code，无法完成身份交换。'
+      statusLabel.value = '登录信息无效'
+      errorMessage.value = '缺少登录凭证，请重新发起登录。'
       return
     }
 
     try {
       await authStore.login(code)
       statusLabel.value = '登录成功，正在跳转...'
-
-      if (authStore.isSystemAdmin) {
-        loadAdminRoutes(router)
-      }
-      else {
-        resetAdminRoutes(router)
-      }
-
-      const saved = authStore.consumeRedirect()
-      const target = saved || { name: authStore.defaultRouteName }
-      await router.replace(target)
+      await completeAuthNavigation(router, authStore)
     }
     catch (error) {
       statusLabel.value = '登录失败'
-      errorMessage.value = error instanceof Error ? error.message : '登录失败'
+      errorMessage.value = getRequestErrorDisplayMessage(error, '登录失败')
     }
   }
 

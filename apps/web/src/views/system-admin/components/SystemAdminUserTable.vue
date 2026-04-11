@@ -4,6 +4,8 @@ import type {
   SystemAdminUserTableProps,
 } from '../typing'
 import type { SystemAdminUserStatus } from '@/apis/system-admin'
+import { formatAuthMethod } from '@haohaoxue/samepage-shared'
+import { formatDateTime } from '@/utils/dayjs'
 
 defineProps<SystemAdminUserTableProps>()
 
@@ -18,9 +20,7 @@ function formatDate(value: string | null) {
     return '暂无'
   }
 
-  return new Date(value).toLocaleString('zh-CN', {
-    hour12: false,
-  })
+  return formatDateTime(value)
 }
 
 function getStatusStateClass(status: SystemAdminUserStatus) {
@@ -71,7 +71,7 @@ function getStatusStateClass(status: SystemAdminUserStatus) {
         </template>
       </ElTableColumn>
 
-      <ElTableColumn label="后台权限" width="120">
+      <ElTableColumn label="后台权限" width="180">
         <template #default="{ row }">
           <ElTag :type="row.isSystemAdmin ? 'primary' : 'info'" size="small" effect="plain" class="rounded-md">
             {{ row.isSystemAdmin ? '系统管理员' : '普通用户' }}
@@ -79,25 +79,32 @@ function getStatusStateClass(status: SystemAdminUserStatus) {
         </template>
       </ElTableColumn>
 
-      <ElTableColumn label="操作" width="200" fixed="right">
+      <ElTableColumn label="登录方式" min-width="120">
+        <template #default="{ row }">
+          <div class="admin-user-table__auth-methods">
+            <ElTag
+              v-for="method in row.authMethods"
+              :key="method"
+              size="small"
+              effect="plain"
+              class="rounded-md"
+            >
+              {{ formatAuthMethod(method) }}
+            </ElTag>
+          </div>
+        </template>
+      </ElTableColumn>
+
+      <ElTableColumn label="操作" width="140" fixed="right">
         <template #default="{ row }">
           <div class="admin-user-table__actions">
             <ElButton
               link
               :type="row.status === 'ACTIVE' ? 'danger' : 'success'"
-              :disabled="updatingUserId === row.id"
+              :disabled="updatingUserId === row.id || row.isSystemAdmin"
               @click="emits('toggleStatus', row, resolveNextStatus(row.status))"
             >
-              {{ row.status === 'ACTIVE' ? '禁用' : '激活' }}
-            </ElButton>
-            <div class="admin-user-table__divider" />
-            <ElButton
-              link
-              type="primary"
-              :disabled="updatingUserId === row.id"
-              @click="emits('toggleSystemAdmin', row, !row.isSystemAdmin)"
-            >
-              {{ row.isSystemAdmin ? '吊销权限' : '授权管理' }}
+              {{ row.isSystemAdmin ? '系统管理员' : row.status === 'ACTIVE' ? '禁用' : '激活' }}
             </ElButton>
           </div>
         </template>
@@ -123,13 +130,13 @@ function getStatusStateClass(status: SystemAdminUserStatus) {
 }
 
 .admin-user-table {
-  .admin-user-table__identity {
+  &__identity {
     display: flex;
     align-items: center;
     gap: 0.75rem;
   }
 
-  .admin-user-table__avatar {
+  &__avatar {
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -144,13 +151,13 @@ function getStatusStateClass(status: SystemAdminUserStatus) {
     background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
   }
 
-  .admin-user-table__status {
+  &__status {
     display: flex;
     align-items: center;
     gap: 0.375rem;
   }
 
-  .admin-user-table__status-dot {
+  &__status-dot {
     width: 0.375rem;
     height: 0.375rem;
     border-radius: 9999px;
@@ -164,7 +171,7 @@ function getStatusStateClass(status: SystemAdminUserStatus) {
     }
   }
 
-  .admin-user-table__status-label {
+  &__status-label {
     font-size: 0.75rem;
     font-weight: 500;
 
@@ -177,16 +184,16 @@ function getStatusStateClass(status: SystemAdminUserStatus) {
     }
   }
 
-  .admin-user-table__actions {
+  &__actions {
     display: flex;
     align-items: center;
     gap: 0.5rem;
   }
 
-  .admin-user-table__divider {
-    width: 1px;
-    height: 0.75rem;
-    background: var(--brand-border-base);
+  &__auth-methods {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
   }
 }
 </style>

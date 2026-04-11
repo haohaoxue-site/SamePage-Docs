@@ -1,5 +1,7 @@
+import type { CurrentUserDto } from './users.dto'
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../database/prisma.service'
+import { resolveAuthMethods } from '../../utils/auth-methods'
 import { RbacService } from '../rbac/rbac.service'
 
 @Injectable()
@@ -9,15 +11,7 @@ export class UsersService {
     private readonly rbacService: RbacService,
   ) {}
 
-  async getCurrentUser(userId: string): Promise<{
-    id: string
-    email: string | null
-    displayName: string
-    avatarUrl: string | null
-    status: 'ACTIVE' | 'DISABLED'
-    roles: string[]
-    permissions: string[]
-  }> {
+  async getCurrentUser(userId: string): Promise<CurrentUserDto> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -26,6 +20,18 @@ export class UsersService {
         displayName: true,
         avatarUrl: true,
         status: true,
+        localCredential: {
+          select: {
+            mustChangePassword: true,
+            emailVerifiedAt: true,
+          },
+        },
+        oauthAccounts: {
+          select: {
+            provider: true,
+            providerEmailVerified: true,
+          },
+        },
       },
     })
 
@@ -36,9 +42,16 @@ export class UsersService {
     const context = await this.rbacService.getUserRoleAndPermissions(userId)
 
     return {
-      ...user,
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      status: user.status,
       roles: context.roles,
       permissions: context.permissions,
+      authMethods: resolveAuthMethods(Boolean(user.localCredential), user.oauthAccounts),
+      mustChangePassword: user.localCredential?.mustChangePassword ?? false,
+      emailVerified: Boolean(user.localCredential?.emailVerifiedAt) || user.oauthAccounts.some(item => item.providerEmailVerified === true),
     }
   }
 

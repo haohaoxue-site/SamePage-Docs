@@ -8,6 +8,7 @@
     "dev:infra": "docker compose -f infrastructure/compose.dev.yml up -d",
     "dev:infra:down": "docker compose -f infrastructure/compose.dev.yml down",
     "dev:db:push": "pnpm --filter @haohaoxue/samepage-api exec prisma db push",
+    "dev:db:reset": "pnpm --filter @haohaoxue/samepage-api exec prisma db push --force-reset",
     "dev:web": "pnpm --filter @haohaoxue/samepage-web dev",
     "dev:api": "pnpm --filter @haohaoxue/samepage-api dev",
     "dev:agent": "pnpm --filter @haohaoxue/samepage-agent dev",
@@ -16,7 +17,7 @@
     "test": "pnpm -r test",
     "test:watch": "pnpm -r --parallel --if-present test:watch",
     "lint": "eslint apps packages",
-    "lint:fix": "eslint apps packages --fix",
+    "lint:fix": "pnpm -r lint:fix",
     "type-check": "pnpm -r type-check"
   },
   "devDependencies": {

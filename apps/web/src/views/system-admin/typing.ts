@@ -44,5 +44,4 @@ export interface SystemAdminUserTableProps {
  */
 export interface SystemAdminUserTableEmits {
   toggleStatus: [user: SystemAdminUserItemDto, nextStatus: SystemAdminUserStatus]
-  toggleSystemAdmin: [user: SystemAdminUserItemDto, enabled: boolean]
 }

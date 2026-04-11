@@ -11,8 +11,10 @@
     "dev:prod": "node dist/main.js",
     "prebuild": "prisma generate",
     "build": "tsdown",
+    "lint:fix": "eslint . --fix",
     "prisma:generate": "prisma generate",
     "prisma:db:push": "prisma db push",
+    "type-check": "tsc --noEmit -p tsconfig.json --pretty false",
     "test": "vitest run",
     "test:watch": "vitest"
   },

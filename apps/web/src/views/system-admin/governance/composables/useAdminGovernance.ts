@@ -1,6 +1,7 @@
 import type { GovernanceSummaryDto } from '@/apis/system-admin'
 import { shallowRef } from 'vue'
 import { getGovernanceSummary } from '@/apis/system-admin'
+import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 export function useAdminGovernance() {
   const summary = shallowRef<GovernanceSummaryDto | null>(null)
@@ -15,7 +16,7 @@ export function useAdminGovernance() {
       summary.value = await getGovernanceSummary()
     }
     catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '加载平台治理摘要失败'
+      errorMessage.value = getRequestErrorDisplayMessage(error, '加载平台治理摘要失败')
     }
     finally {
       isLoading.value = false

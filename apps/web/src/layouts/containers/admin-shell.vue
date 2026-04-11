@@ -71,7 +71,7 @@ const { navigationItems, pageHeader } = useAdminShell()
 
   .admin-shell__header-inner,
   .admin-shell__content {
-    max-width: 72rem;
+    max-width: 80rem;
     margin-inline: auto;
   }
 

@@ -9,6 +9,7 @@ import { useLocalStorage } from '@vueuse/core'
 import { computed, onMounted, ref } from 'vue'
 import { getRecentDocuments } from '@/apis/document'
 import { useAuthStore } from '@/stores/auth'
+import { formatMonthDayWeekday } from '@/utils/dayjs'
 
 const HOME_WIDGET_STORAGE_KEY = 'samepage_home_widgets'
 
@@ -63,11 +64,7 @@ export function useHomeView() {
     eyebrow: 'SamePage Workspace',
     title: authStore.user ? `你好，${authStore.user.displayName}` : '欢迎来到 SamePage',
     description: '从最近文档继续推进，或者先看一眼今天的节奏安排。',
-    dateLabel: new Intl.DateTimeFormat('zh-CN', {
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long',
-    }).format(new Date()),
+    dateLabel: formatMonthDayWeekday(),
   }))
 
   const visibleWidgetSet = computed(() => new Set(
