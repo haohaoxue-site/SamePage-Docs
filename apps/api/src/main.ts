@@ -3,6 +3,7 @@ import { promises } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
 import helmet from '@fastify/helmet'
+import multipart from '@fastify/multipart'
 import { Logger as AppLogger, RequestMethod, ValidationPipe } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { NestFactory } from '@nestjs/core'
@@ -30,6 +31,7 @@ async function bootstrap() {
   const swaggerTitle = configService.getOrThrow<string>('swagger.title')
 
   await app.register(helmet)
+  await app.register(multipart)
 
   app.enableCors({
     origin: true,

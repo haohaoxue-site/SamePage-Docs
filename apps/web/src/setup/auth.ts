@@ -1,14 +1,15 @@
 import type { Router } from 'vue-router'
 import { loadAdminRoutes, resetAdminRoutes } from '@/router'
 import { useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
 
 export default async function setupAuth(router: Router) {
   const authStore = useAuthStore()
+  const userStore = useUserStore()
 
   if (!authStore.accessToken) {
-    if (authStore.user) {
-      authStore.clearSession()
-    }
+    authStore.clearSession()
+    resetAdminRoutes(router)
     return
   }
 
@@ -16,8 +17,18 @@ export default async function setupAuth(router: Router) {
     await authStore.refreshToken()
   }
   catch {
+    authStore.clearSession()
+    resetAdminRoutes(router)
+    return
   }
-  if (authStore.isSystemAdmin) {
+
+  if (!userStore.currentUser) {
+    authStore.clearSession()
+    resetAdminRoutes(router)
+    return
+  }
+
+  if (userStore.isSystemAdmin) {
     loadAdminRoutes(router)
     return
   }

@@ -2,10 +2,15 @@
   "compilerOptions": {
     "target": "ESNext",
     "lib": ["ESNext"],
-    "rootDir": "./src",
+    "baseUrl": ".",
+    "rootDir": "..",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "paths": {
+      "@haohaoxue/samepage-domain": ["../domain/src/index.ts"]
+    },
     "resolveJsonModule": true,
+    "ignoreDeprecations": "6.0",
     "strict": true,
     "declaration": true,
     "declarationMap": true,

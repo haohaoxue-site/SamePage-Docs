@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { SvgIconCategory } from '@/components/svg-icon/typing'
 import ConsoleMetricCard from '../components/ConsoleMetricCard.vue'
 import { useAdminOverview } from './composables/useAdminOverview'
 
@@ -15,29 +16,29 @@ const metricCards = computed(() => {
       label: '总用户',
       value: overview.value.totalUsers,
       detail: `活跃 ${overview.value.activeUsers}，禁用 ${overview.value.disabledUsers}`,
+      iconCategory: SvgIconCategory.UI,
       icon: 'user-group',
-      iconCategory: 'ui' as const,
     },
     {
       label: '系统管理员',
       value: overview.value.systemAdminCount,
       detail: '拥有系统后台权限',
+      iconCategory: SvgIconCategory.UI,
       icon: 'user-admin',
-      iconCategory: 'ui' as const,
     },
     {
       label: '总文档',
       value: overview.value.totalDocuments,
       detail: `共享 ${overview.value.sharedDocuments}，锁定 ${overview.value.lockedDocuments}`,
+      iconCategory: SvgIconCategory.UI,
       icon: 'document-view',
-      iconCategory: 'ui' as const,
     },
     {
       label: '系统 AI',
       value: overview.value.aiConfigEnabled ? '已启用' : '未启用',
       detail: overview.value.systemAiDefaultModel || '尚未配置默认模型',
+      iconCategory: SvgIconCategory.AI,
       icon: 'ai-spark',
-      iconCategory: 'ai' as const,
     },
   ]
 })
@@ -57,8 +58,8 @@ onMounted(loadOverview)
           :detail="card.detail"
           :label="card.label"
           :value="card.value"
-          :icon="card.icon"
           :icon-category="card.iconCategory"
+          :icon="card.icon"
         />
       </section>
       <section class="admin-overview__section">

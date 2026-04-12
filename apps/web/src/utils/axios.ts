@@ -3,6 +3,7 @@ import type { TokenExchangeResponseDto } from '@/apis/auth/typing'
 import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import rawAxios, { AxiosHeaders } from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
 import { createRequestErrorFromResponseEnvelope, toRequestError } from '@/utils/request-error'
 
 const http = rawAxios.create({
@@ -115,7 +116,7 @@ async function refreshAccessTokenOnce() {
 
       const authStore = useAuthStore()
       authStore.accessToken = responseData.data.accessToken
-      authStore.user = responseData.data.user
+      useUserStore().setCurrentUser(responseData.data.user)
       return responseData.data
     })
     .catch(() => {

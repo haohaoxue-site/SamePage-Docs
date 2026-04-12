@@ -1,5 +1,5 @@
 import type { PrismaService } from '../../../database/prisma.service'
-import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
+import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
 import { describe, expect, it, vi } from 'vitest'
 import { DocumentsService } from '../documents.service'
 
@@ -68,10 +68,10 @@ describe('documentsService', () => {
     const service = new DocumentsService(prisma)
     const sections = await service.getDocumentTree('viewer-1')
 
-    expect(sections.find(section => section.id === DOCUMENT_SECTION_ID.PERSONAL)?.nodes).toHaveLength(0)
-    expect(sections.find(section => section.id === DOCUMENT_SECTION_ID.SHARED)?.nodes).toHaveLength(1)
-    expect(sections.find(section => section.id === DOCUMENT_SECTION_ID.SHARED)?.nodes[0]?.id).toBe('child')
-    expect(sections.find(section => section.id === DOCUMENT_SECTION_ID.SHARED)?.nodes[0]?.sharedByDisplayName).toBe('张三')
+    expect(sections.find(section => section.id === DOCUMENT_COLLECTION.PERSONAL)?.nodes).toHaveLength(0)
+    expect(sections.find(section => section.id === DOCUMENT_COLLECTION.SHARED)?.nodes).toHaveLength(1)
+    expect(sections.find(section => section.id === DOCUMENT_COLLECTION.SHARED)?.nodes[0]?.id).toBe('child')
+    expect(sections.find(section => section.id === DOCUMENT_COLLECTION.SHARED)?.nodes[0]?.sharedByDisplayName).toBe('张三')
   })
 
   it('updates an owned document draft', async () => {
@@ -182,7 +182,7 @@ describe('documentsService', () => {
       {
         id: 'shared-child',
         title: '共享纪要',
-        section: DOCUMENT_SECTION_ID.SHARED,
+        collection: DOCUMENT_COLLECTION.SHARED,
         ancestorTitles: ['共享目录'],
         createdAt: baseDocuments[1].createdAt.toISOString(),
         updatedAt: '2026-03-30T13:00:00.000Z',
@@ -190,7 +190,7 @@ describe('documentsService', () => {
       {
         id: 'owned-leaf',
         title: '接口设计',
-        section: DOCUMENT_SECTION_ID.PERSONAL,
+        collection: DOCUMENT_COLLECTION.PERSONAL,
         ancestorTitles: ['我的空间', '项目方案'],
         createdAt: baseDocuments[1].createdAt.toISOString(),
         updatedAt: '2026-03-30T12:00:00.000Z',
@@ -198,7 +198,7 @@ describe('documentsService', () => {
       {
         id: 'shared-root',
         title: '共享目录',
-        section: DOCUMENT_SECTION_ID.SHARED,
+        collection: DOCUMENT_COLLECTION.SHARED,
         ancestorTitles: [],
         createdAt: baseDocuments[1].createdAt.toISOString(),
         updatedAt: '2026-03-30T11:00:00.000Z',
@@ -206,7 +206,7 @@ describe('documentsService', () => {
       {
         id: 'owned-child',
         title: '项目方案',
-        section: DOCUMENT_SECTION_ID.PERSONAL,
+        collection: DOCUMENT_COLLECTION.PERSONAL,
         ancestorTitles: ['我的空间'],
         createdAt: baseDocuments[1].createdAt.toISOString(),
         updatedAt: '2026-03-30T09:00:00.000Z',
@@ -214,7 +214,7 @@ describe('documentsService', () => {
       {
         id: 'owned-root',
         title: '我的空间',
-        section: DOCUMENT_SECTION_ID.PERSONAL,
+        collection: DOCUMENT_COLLECTION.PERSONAL,
         ancestorTitles: [],
         createdAt: baseDocuments[0].createdAt.toISOString(),
         updatedAt: '2026-03-30T08:00:00.000Z',
@@ -257,7 +257,7 @@ describe('documentsService', () => {
 
     expect(document.id).toBe('new-child')
     expect(document.parentId).toBe('root')
-    expect(document.section).toBe(DOCUMENT_SECTION_ID.PERSONAL)
+    expect(document.collection).toBe(DOCUMENT_COLLECTION.PERSONAL)
   })
 
   it('removes an owned subtree', async () => {

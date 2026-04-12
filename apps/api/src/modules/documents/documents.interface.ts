@@ -3,5 +3,5 @@ export type {
   DocumentDetail,
   DocumentItem,
   DocumentRecent,
-  DocumentSection,
+  DocumentTreeGroup,
 } from '@haohaoxue/samepage-domain'

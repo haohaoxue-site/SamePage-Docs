@@ -9,7 +9,6 @@ const {
   errorMessage,
   form,
   formRules,
-  isChecking,
   isReady,
   isSubmitting,
   statusLabel,
@@ -18,14 +17,10 @@ const {
 
 const pageDescription = computed(() => {
   if (errorMessage.value) {
-    return '验证链接不可用，请重新申请注册邮件。'
+    return '注册信息无效，请重新填写邮箱后获取验证码。'
   }
 
-  if (isChecking.value) {
-    return '正在校验验证链接，请稍候。'
-  }
-
-  return '设置显示名称和密码后即可完成注册。'
+  return '输入验证码并设置密码后即可完成注册。'
 })
 
 async function handleSubmitRegistration() {
@@ -47,7 +42,7 @@ async function handleSubmitRegistration() {
       class="password-register-verify-view__alert"
     />
 
-    <div v-else v-loading="isChecking" class="password-register-verify-view__body">
+    <div v-else class="password-register-verify-view__body">
       <ElForm
         ref="registerFormRef"
         :model="form"
@@ -58,6 +53,14 @@ async function handleSubmitRegistration() {
       >
         <ElFormItem label="注册邮箱" prop="email">
           <ElInput v-model="form.email" disabled />
+        </ElFormItem>
+        <ElFormItem label="验证码" prop="code">
+          <ElInput
+            v-model="form.code"
+            maxlength="6"
+            placeholder="输入 6 位验证码"
+            :disabled="!isReady || isSubmitting"
+          />
         </ElFormItem>
         <ElFormItem label="显示名称" prop="displayName">
           <ElInput

@@ -1,3 +1,4 @@
+import type { WorkspaceNavigationMeta } from '@/router/typing'
 import 'axios'
 import 'vue-router'
 
@@ -18,5 +19,7 @@ declare module 'vue-router' {
     public?: boolean
     /** 密码强制修改期间仍允许访问 */
     allowWhenPasswordChangeRequired?: boolean
+    /** 工作区侧栏导航元数据 */
+    workspaceNav?: WorkspaceNavigationMeta
   }
 }

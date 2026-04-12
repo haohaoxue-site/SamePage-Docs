@@ -1,4 +1,4 @@
-import type { CreateDocumentRequest, DocumentDetail, DocumentRecent, DocumentSection, UpdateDocumentRequest } from '@haohaoxue/samepage-domain'
+import type { CreateDocumentRequest, DocumentDetail, DocumentRecent, DocumentTreeGroup, UpdateDocumentRequest } from '@haohaoxue/samepage-domain'
 import type { AuthUserContext } from '../auth/auth.interface'
 import { CreateDocumentSchema, UpdateDocumentSchema } from '@haohaoxue/samepage-contracts'
 import { zodToApiSchema } from '@haohaoxue/samepage-shared'
@@ -28,7 +28,7 @@ export class DocumentsController {
   @ApiOperation({ summary: '获取当前用户可见的文档树' })
   @ApiRequestResponse([{ type: 'object' }])
   @Get()
-  async getDocumentTree(@CurrentUser() authUser: AuthUserContext): Promise<DocumentSection[]> {
+  async getDocumentTree(@CurrentUser() authUser: AuthUserContext): Promise<DocumentTreeGroup[]> {
     return this.documentsService.getDocumentTree(authUser.id)
   }
 

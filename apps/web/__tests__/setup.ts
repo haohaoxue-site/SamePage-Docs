@@ -1,5 +1,5 @@
-import type { DocumentSectionId } from '@haohaoxue/samepage-domain'
-import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
+import type { DocumentCollectionId } from '@haohaoxue/samepage-domain'
+import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
 import { config } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
@@ -18,7 +18,7 @@ interface MockDocument {
   updatedAt: string
   hasChildren: boolean
   hasContent: boolean
-  section: DocumentSectionId
+  collection: DocumentCollectionId
 }
 
 /**
@@ -52,7 +52,7 @@ const initialMockDocuments: MockDocument[] = [
     updatedAt: '2026-03-30T08:00:00.000Z',
     hasChildren: true,
     hasContent: true,
-    section: DOCUMENT_SECTION_ID.PERSONAL,
+    collection: DOCUMENT_COLLECTION.PERSONAL,
   },
   {
     id: 'product-brief',
@@ -67,7 +67,7 @@ const initialMockDocuments: MockDocument[] = [
     updatedAt: '2026-03-30T09:00:00.000Z',
     hasChildren: false,
     hasContent: true,
-    section: DOCUMENT_SECTION_ID.PERSONAL,
+    collection: DOCUMENT_COLLECTION.PERSONAL,
   },
   {
     id: 'meeting-notes',
@@ -82,15 +82,15 @@ const initialMockDocuments: MockDocument[] = [
     updatedAt: '2026-03-30T10:00:00.000Z',
     hasChildren: false,
     hasContent: true,
-    section: DOCUMENT_SECTION_ID.PERSONAL,
+    collection: DOCUMENT_COLLECTION.PERSONAL,
   },
 ]
 
 let mockDocuments = initialMockDocuments.map(document => ({ ...document }))
 
-function buildTree(section: DocumentSectionId) {
-  const sectionDocuments = mockDocuments.filter(document => document.section === section)
-  const documentMap = new Map(sectionDocuments.map(document => [document.id, {
+function buildTree(collection: DocumentCollectionId) {
+  const collectionDocuments = mockDocuments.filter(document => document.collection === collection)
+  const documentMap = new Map(collectionDocuments.map(document => [document.id, {
     ...document,
     sharedByDisplayName: null,
     children: [] as MockDocumentItem[],
@@ -102,7 +102,7 @@ function buildTree(section: DocumentSectionId) {
     }
   }
 
-  return sectionDocuments
+  return collectionDocuments
     .filter(document => !document.parentId || !documentMap.has(document.parentId))
     .map(document => documentMap.get(document.id)!)
 }
@@ -121,7 +121,7 @@ function buildRecentAncestorTitles(document: MockDocument) {
     ? findDocumentById(document.parentId)
     : null
 
-  while (currentDocument && currentDocument.section === document.section) {
+  while (currentDocument && currentDocument.collection === document.collection) {
     ancestorTitles.unshift(currentDocument.title)
     currentDocument = currentDocument.parentId
       ? findDocumentById(currentDocument.parentId)
@@ -134,19 +134,16 @@ function buildRecentAncestorTitles(document: MockDocument) {
 vi.mock('@/apis/document', () => ({
   getDocuments: vi.fn(async () => ([
     {
-      id: DOCUMENT_SECTION_ID.PERSONAL,
-      label: '当前用户',
-      nodes: buildTree(DOCUMENT_SECTION_ID.PERSONAL),
+      id: DOCUMENT_COLLECTION.PERSONAL,
+      nodes: buildTree(DOCUMENT_COLLECTION.PERSONAL),
     },
     {
-      id: DOCUMENT_SECTION_ID.SHARED,
-      label: '分享',
-      nodes: buildTree(DOCUMENT_SECTION_ID.SHARED),
+      id: DOCUMENT_COLLECTION.SHARED,
+      nodes: buildTree(DOCUMENT_COLLECTION.SHARED),
     },
     {
-      id: DOCUMENT_SECTION_ID.TEAM,
-      label: '团队',
-      nodes: buildTree(DOCUMENT_SECTION_ID.TEAM),
+      id: DOCUMENT_COLLECTION.TEAM,
+      nodes: buildTree(DOCUMENT_COLLECTION.TEAM),
     },
   ])),
   getRecentDocuments: vi.fn(async () =>
@@ -155,7 +152,7 @@ vi.mock('@/apis/document', () => ({
       .map(document => ({
         id: document.id,
         title: document.title,
-        section: document.section,
+        collection: document.collection,
         createdAt: document.createdAt,
         updatedAt: document.updatedAt,
         ancestorTitles: buildRecentAncestorTitles(document),
@@ -185,7 +182,7 @@ vi.mock('@/apis/document', () => ({
       updatedAt: '2026-03-30T11:00:00.000Z',
       hasChildren: false,
       hasContent: Boolean((payload.content ?? '').replace(/<[^>]+>/g, '').trim()),
-      section: DOCUMENT_SECTION_ID.PERSONAL,
+      collection: DOCUMENT_COLLECTION.PERSONAL,
     }
 
     mockDocuments.push(createdDocument)

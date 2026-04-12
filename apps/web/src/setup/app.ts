@@ -4,7 +4,7 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import { createApp } from 'vue'
-import { useAppearanceStore } from '@/stores/appearance'
+import { useUserStore } from '@/stores/user'
 
 export default function setupCreateApp(component: Component) {
   const app = createApp(component)
@@ -14,7 +14,7 @@ export default function setupCreateApp(component: Component) {
   app.use(pinia)
   app.use(ElementPlus, { locale: zhCn })
   app.runWithContext(() => {
-    useAppearanceStore()
+    useUserStore()
   })
 
   return app

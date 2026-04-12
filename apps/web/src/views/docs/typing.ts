@@ -1,8 +1,8 @@
 import type {
+  DocumentCollectionId,
   DocumentDetail,
   DocumentItem,
-  DocumentSection,
-  DocumentSectionId,
+  DocumentTreeGroup,
 } from '@haohaoxue/samepage-domain'
 
 export type DocumentPaneState = 'ready' | 'loading' | 'empty' | 'unselected' | 'not-found' | 'forbidden' | 'error'
@@ -46,7 +46,7 @@ export interface DocumentToolbarEmits {
  * 文档分组面板属性。
  */
 export interface DocumentSectionPanelProps {
-  section: DocumentSection
+  group: DocumentTreeGroup
   activeDocumentId: string | null
   expandedDocumentIds: Set<string>
   isCollapsed: boolean
@@ -59,7 +59,7 @@ export interface DocumentSectionPanelProps {
 export interface DocumentSectionPanelEmits {
   open: [documentId: string]
   toggle: [documentId: string]
-  toggleCollapse: [sectionId: DocumentSectionId]
+  toggleCollapse: [collectionId: DocumentCollectionId]
   createRoot: []
   createChild: [documentId: string]
   deleteDocument: [documentId: string]
@@ -70,7 +70,7 @@ export interface DocumentSectionPanelEmits {
  */
 export interface DocumentItemProps {
   item: DocumentItem
-  sectionId: DocumentSectionId
+  collectionId: DocumentCollectionId
   depth: number
   activeDocumentId: string | null
   expandedDocumentIds: Set<string>

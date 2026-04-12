@@ -1,5 +1,12 @@
-import type { DocumentDetail, DocumentItem, DocumentSection, DocumentSectionId } from '@haohaoxue/samepage-domain'
-import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
+import type {
+  DocumentCollectionId,
+  DocumentDetail,
+  DocumentItem,
+  DocumentSaveState,
+  DocumentTreeGroup,
+} from '@haohaoxue/samepage-domain'
+import { DOCUMENT_COLLECTION, DOCUMENT_SAVE_STATE } from '@haohaoxue/samepage-contracts'
+import { formatDocumentCollectionLabel, getDocumentSaveStateLabel } from '@haohaoxue/samepage-shared'
 import { useLocalStorage } from '@vueuse/core'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, ref, shallowRef, watch } from 'vue'
@@ -17,20 +24,6 @@ const EXPANDED_DOCUMENT_STORAGE_KEY = 'samepage_docs_expanded_documents'
 const LAST_OPENED_DOCUMENT_STORAGE_KEY = 'samepage_docs_last_opened_document'
 const AUTO_SAVE_DELAY = 1200
 
-const DOCUMENT_TREE_SECTION_LABELS: Record<DocumentSectionId, string> = {
-  [DOCUMENT_SECTION_ID.PERSONAL]: '私有',
-  [DOCUMENT_SECTION_ID.SHARED]: '共享',
-  [DOCUMENT_SECTION_ID.TEAM]: '团队',
-}
-
-const DOCUMENT_SAVE_STATE = {
-  Idle: 'idle',
-  Dirty: 'dirty',
-  Saving: 'saving',
-  Saved: 'saved',
-  Error: 'error',
-} as const
-
 const DOCUMENT_PANE_STATE = {
   Ready: 'ready',
   Loading: 'loading',
@@ -41,21 +34,20 @@ const DOCUMENT_PANE_STATE = {
   Error: 'error',
 } as const
 
-type DocumentSaveState = (typeof DOCUMENT_SAVE_STATE)[keyof typeof DOCUMENT_SAVE_STATE]
 type DocumentPaneState = (typeof DOCUMENT_PANE_STATE)[keyof typeof DOCUMENT_PANE_STATE]
 type RequestError = Error & { status?: number }
 
 export function useDocumentWorkspace() {
   const route = useRoute()
   const router = useRouter()
-  const treeSections = ref<DocumentSection[]>([])
+  const treeGroups = ref<DocumentTreeGroup[]>([])
   const currentDocument = ref<DocumentDetail | null>(null)
   const isDocumentLoading = shallowRef(false)
   const isDocumentItemLoading = shallowRef(false)
   const isCreating = shallowRef(false)
   const isDeleting = shallowRef(false)
   const isSaving = shallowRef(false)
-  const saveState = shallowRef<DocumentSaveState>(DOCUMENT_SAVE_STATE.Idle)
+  const saveState = shallowRef<DocumentSaveState>(DOCUMENT_SAVE_STATE.IDLE)
   const savedSignature = shallowRef('')
   const lastPersistedAt = shallowRef<string | null>(null)
   const autoSaveTimer = shallowRef<ReturnType<typeof setTimeout> | null>(null)
@@ -67,10 +59,10 @@ export function useDocumentWorkspace() {
 
   const activeDocumentId = computed(() => typeof route.params.id === 'string' ? route.params.id : null)
   const expandedDocumentIdSet = computed(() => new Set(expandedDocumentIds.value))
-  const activePath = computed(() => activeDocumentId.value ? findDocumentPath(treeSections.value, activeDocumentId.value) : null)
+  const activePath = computed(() => activeDocumentId.value ? findDocumentPath(treeGroups.value, activeDocumentId.value) : null)
   const isMutatingTree = computed(() => isCreating.value || isDeleting.value)
   const defaultDocumentId = computed(() => resolvePreferredDocumentId(
-    treeSections.value,
+    treeGroups.value,
     lastOpenedDocumentId.value,
   ))
   const hasFallbackDocument = computed(() => Boolean(defaultDocumentId.value))
@@ -80,7 +72,7 @@ export function useDocumentWorkspace() {
     }
 
     return [
-      resolveDocumentSectionLabel(activePath.value.sectionId),
+      formatDocumentCollectionLabel(activePath.value.collectionId),
       ...activePath.value.nodes.map(document => document.title),
     ]
   })
@@ -111,33 +103,14 @@ export function useDocumentWorkspace() {
 
     return DOCUMENT_PANE_STATE.Empty
   })
-  const saveStateLabel = computed(() => {
-    if (!currentDocument.value) {
-      return '未选择文档'
-    }
-
-    if (saveState.value === DOCUMENT_SAVE_STATE.Dirty) {
-      return '未保存'
-    }
-
-    if (saveState.value === DOCUMENT_SAVE_STATE.Saving) {
-      return '保存中'
-    }
-
-    if (saveState.value === DOCUMENT_SAVE_STATE.Saved) {
-      return '已保存到云端'
-    }
-
-    if (saveState.value === DOCUMENT_SAVE_STATE.Error) {
-      return '保存失败，内容未保存'
-    }
-
-    if (!lastPersistedAt.value) {
-      return '暂无更新记录'
-    }
-
-    return `上次更新于 ${dayjs(lastPersistedAt.value).fromNow()}`
-  })
+  const lastUpdatedFromNow = computed(() =>
+    lastPersistedAt.value ? dayjs(lastPersistedAt.value).fromNow() : null,
+  )
+  const saveStateLabel = computed(() => getDocumentSaveStateLabel({
+    hasDocument: Boolean(currentDocument.value),
+    saveState: saveState.value,
+    lastUpdatedFromNow: lastUpdatedFromNow.value,
+  }))
 
   function createDraftSignature(document: Pick<DocumentDetail, 'title' | 'content'>) {
     return JSON.stringify({
@@ -171,7 +144,7 @@ export function useDocumentWorkspace() {
     isDocumentLoading.value = true
 
     try {
-      treeSections.value = await getDocuments()
+      treeGroups.value = await getDocuments()
       ensureExpandedPath(activeDocumentId.value)
 
       if (activeDocumentId.value || !defaultDocumentId.value) {
@@ -197,7 +170,7 @@ export function useDocumentWorkspace() {
       currentDocument.value = null
       savedSignature.value = ''
       lastPersistedAt.value = null
-      saveState.value = DOCUMENT_SAVE_STATE.Idle
+      saveState.value = DOCUMENT_SAVE_STATE.IDLE
       documentErrorState.value = null
       return
     }
@@ -206,14 +179,14 @@ export function useDocumentWorkspace() {
     currentDocument.value = null
     savedSignature.value = ''
     lastPersistedAt.value = null
-    saveState.value = DOCUMENT_SAVE_STATE.Idle
+    saveState.value = DOCUMENT_SAVE_STATE.IDLE
     documentErrorState.value = null
 
     try {
       currentDocument.value = await getDocumentByIdRequest(id)
       savedSignature.value = createDraftSignature(currentDocument.value)
       lastPersistedAt.value = currentDocument.value.updatedAt
-      saveState.value = DOCUMENT_SAVE_STATE.Idle
+      saveState.value = DOCUMENT_SAVE_STATE.IDLE
       lastOpenedDocumentId.value = id
       ensureExpandedPath(id)
     }
@@ -221,7 +194,7 @@ export function useDocumentWorkspace() {
       currentDocument.value = null
       savedSignature.value = ''
       lastPersistedAt.value = null
-      saveState.value = DOCUMENT_SAVE_STATE.Idle
+      saveState.value = DOCUMENT_SAVE_STATE.IDLE
       documentErrorState.value = resolveDocumentErrorState(error)
     }
     finally {
@@ -279,7 +252,7 @@ export function useDocumentWorkspace() {
       clearAutoSaveTimer()
 
       const requestSignature = createDraftSignature(draftDocument)
-      saveState.value = DOCUMENT_SAVE_STATE.Saving
+      saveState.value = DOCUMENT_SAVE_STATE.SAVING
       isSaving.value = true
 
       try {
@@ -299,19 +272,19 @@ export function useDocumentWorkspace() {
           currentDocument.value = savedDocument
           savedSignature.value = createDraftSignature(savedDocument)
           lastPersistedAt.value = savedDocument.updatedAt
-          saveState.value = DOCUMENT_SAVE_STATE.Saved
+          saveState.value = DOCUMENT_SAVE_STATE.SAVED
           patchDocumentItem(savedDocument.id, savedDocument)
           return true
         }
 
         savedSignature.value = requestSignature
         lastPersistedAt.value = savedDocument.updatedAt
-        saveState.value = DOCUMENT_SAVE_STATE.Saving
+        saveState.value = DOCUMENT_SAVE_STATE.SAVING
         return true
       }
       catch {
         if (currentDocument.value?.id === draftDocument.id) {
-          saveState.value = DOCUMENT_SAVE_STATE.Error
+          saveState.value = DOCUMENT_SAVE_STATE.ERROR
         }
 
         if (options.showErrorMessage) {
@@ -345,9 +318,9 @@ export function useDocumentWorkspace() {
       return
     }
 
-    const parentPath = findDocumentPath(treeSections.value, parentDocumentId)
+    const parentPath = findDocumentPath(treeGroups.value, parentDocumentId)
 
-    if (!parentPath || parentPath.sectionId !== 'personal') {
+    if (!parentPath || parentPath.collectionId !== DOCUMENT_COLLECTION.PERSONAL) {
       return
     }
 
@@ -355,10 +328,10 @@ export function useDocumentWorkspace() {
   }
 
   async function deleteDocument(documentId: string) {
-    const targetPath = findDocumentPath(treeSections.value, documentId)
+    const targetPath = findDocumentPath(treeGroups.value, documentId)
     const targetDocument = targetPath?.nodes.at(-1)
 
-    if (!targetPath || !targetDocument || targetPath.sectionId !== 'personal') {
+    if (!targetPath || !targetDocument || targetPath.collectionId !== DOCUMENT_COLLECTION.PERSONAL) {
       return
     }
 
@@ -378,7 +351,7 @@ export function useDocumentWorkspace() {
 
     const deletedDocumentIds = collectDocumentItemIds([targetDocument])
     const nextDocumentId = resolveNextDocumentIdAfterDelete(
-      treeSections.value,
+      treeGroups.value,
       documentId,
       activeDocumentId.value,
     )
@@ -413,11 +386,11 @@ export function useDocumentWorkspace() {
 
   function syncSaveState() {
     if (!currentDocument.value) {
-      saveState.value = DOCUMENT_SAVE_STATE.Idle
+      saveState.value = DOCUMENT_SAVE_STATE.IDLE
       return
     }
 
-    saveState.value = isDirty.value ? DOCUMENT_SAVE_STATE.Dirty : DOCUMENT_SAVE_STATE.Idle
+    saveState.value = isDirty.value ? DOCUMENT_SAVE_STATE.DIRTY : DOCUMENT_SAVE_STATE.IDLE
   }
 
   async function confirmNavigation() {
@@ -502,7 +475,7 @@ export function useDocumentWorkspace() {
       return
     }
 
-    const path = findDocumentPath(treeSections.value, documentId)
+    const path = findDocumentPath(treeGroups.value, documentId)
 
     if (!path) {
       return
@@ -518,9 +491,9 @@ export function useDocumentWorkspace() {
   }
 
   function patchDocumentItem(documentId: string, input: Partial<DocumentItem>) {
-    treeSections.value = treeSections.value.map(section => ({
-      ...section,
-      nodes: updateDocumentBranch(section.nodes, documentId, input),
+    treeGroups.value = treeGroups.value.map(group => ({
+      ...group,
+      nodes: updateDocumentBranch(group.nodes, documentId, input),
     }))
   }
 
@@ -535,7 +508,7 @@ export function useDocumentWorkspace() {
   void loadTree()
 
   return {
-    treeSections,
+    treeGroups,
     currentDocument,
     activeDocumentId,
     breadcrumbLabels,
@@ -597,20 +570,18 @@ function updateDocumentBranch(
 }
 
 function findDocumentPath(
-  sections: DocumentSection[],
+  groups: DocumentTreeGroup[],
   targetDocumentId: string,
 ): {
-  sectionId: DocumentSectionId
-  sectionLabel: string
+  collectionId: DocumentCollectionId
   nodes: DocumentItem[]
 } | null {
-  for (const section of sections) {
-    const items = findDocumentItems(section.nodes, targetDocumentId)
+  for (const group of groups) {
+    const items = findDocumentItems(group.nodes, targetDocumentId)
 
     if (items) {
       return {
-        sectionId: section.id,
-        sectionLabel: section.label,
+        collectionId: group.id,
         nodes: items,
       }
     }
@@ -639,11 +610,11 @@ function findFirstAvailableDocumentId(
 }
 
 function resolveNextDocumentIdAfterDelete(
-  sections: DocumentSection[],
+  groups: DocumentTreeGroup[],
   deletedDocumentId: string,
   currentActiveDocumentId: string | null,
 ): string | null {
-  const targetPath = findDocumentPath(sections, deletedDocumentId)
+  const targetPath = findDocumentPath(groups, deletedDocumentId)
   const targetDocument = targetPath?.nodes.at(-1)
 
   if (!targetDocument) {
@@ -661,13 +632,9 @@ function resolveNextDocumentIdAfterDelete(
   }
 
   return findFirstAvailableDocumentId(
-    sections.flatMap(section => section.nodes),
+    groups.flatMap(group => group.nodes),
     deletedDocumentIds,
   )
-}
-
-function resolveDocumentSectionLabel(sectionId: DocumentSectionId) {
-  return DOCUMENT_TREE_SECTION_LABELS[sectionId]
 }
 
 function resolveDocumentErrorState(error: unknown): DocumentPaneState {
@@ -685,15 +652,15 @@ function resolveDocumentErrorState(error: unknown): DocumentPaneState {
 }
 
 function resolvePreferredDocumentId(
-  sections: DocumentSection[],
+  groups: DocumentTreeGroup[],
   preferredDocumentId: string | null,
 ): string | null {
-  if (preferredDocumentId && findDocumentPath(sections, preferredDocumentId)) {
+  if (preferredDocumentId && findDocumentPath(groups, preferredDocumentId)) {
     return preferredDocumentId
   }
 
   return findFirstAvailableDocumentId(
-    sections.flatMap(section => section.nodes),
+    groups.flatMap(group => group.nodes),
     new Set<string>(),
   )
 }

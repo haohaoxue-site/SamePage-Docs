@@ -1,31 +1,15 @@
 import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type { FormRules } from 'element-plus'
-import type { AuthRegistrationOptionsDto } from '@/apis/auth'
-import { AUTH_PROVIDER, AUTH_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
+import { AUTH_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
 import { computed, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { buildOAuthStartUrl } from '@/apis/auth'
 import { useFormSubmit } from '@/composables/useFormSubmit'
 import { useAuthStore } from '@/stores/auth'
-import { useAuthRegistrationOptions } from '../../composables/useAuthRegistrationOptions'
+import { useAuthCapabilities } from '../../composables/useAuthCapabilities'
 import { completeAuthNavigation, syncPendingRedirect } from '../../utils/navigation'
+import { AUTH_PROVIDER_UI_META } from '../../utils/provider-ui'
 import { createEmailRules, createPasswordRules, isValidEmail, isValidPassword } from '../../utils/rules'
-
-interface LoginProviderMeta {
-  title: string
-  icon: string
-}
-
-const providerLabels: Record<AuthProviderName, LoginProviderMeta> = {
-  [AUTH_PROVIDER.GITHUB]: {
-    title: 'GitHub',
-    icon: 'brand-github',
-  },
-  [AUTH_PROVIDER.LINUX_DO]: {
-    title: 'LinuxDo',
-    icon: 'brand-linux-do',
-  },
-}
 
 export function useLoginView() {
   const route = useRoute()
@@ -40,18 +24,27 @@ export function useLoginView() {
     password: createPasswordRules(),
   }
   const {
-    allowPasswordRegistration,
-    isLoadingOptions,
+    authCapabilities,
+    isLoadingCapabilities,
     loadErrorMessage,
-    loadRegistrationOptions,
-    registrationOptions,
-  } = useAuthRegistrationOptions()
+    loadCapabilities,
+    passwordRegistrationEnabled,
+  } = useAuthCapabilities()
 
-  const providers = computed(() => AUTH_PROVIDER_VALUES.map(provider => ({
-    provider,
-    acceptingNewUsers: isProviderRegistrationEnabled(provider, registrationOptions.value),
-    ...providerLabels[provider],
-  })))
+  const providers = computed(() => AUTH_PROVIDER_VALUES
+    .filter(provider => authCapabilities.value?.providers[provider].enabled ?? false)
+    .map((provider) => {
+      const providerMeta = AUTH_PROVIDER_UI_META[provider]
+      const acceptingNewUsers = authCapabilities.value?.providers[provider].allowRegistration ?? false
+
+      return {
+        provider,
+        acceptingNewUsers,
+        description: acceptingNewUsers ? '支持首次登录' : `仅限已绑定 ${providerMeta.title} 的账号`,
+        ...providerMeta,
+      }
+    }))
+  const hasOauthProviders = computed(() => providers.value.length > 0)
 
   const { isSubmitting: isPasswordSubmitting, submit: submitPasswordLogin } = useFormSubmit({
     validate: () => isValidEmail(passwordForm.email) && isValidPassword(passwordForm.password),
@@ -71,33 +64,19 @@ export function useLoginView() {
 
   onMounted(() => {
     syncPendingRedirect(route.query.redirect, authStore)
-    void loadRegistrationOptions()
+    void loadCapabilities()
   })
 
   return {
-    allowPasswordRegistration,
-    isLoadingOptions,
+    hasOauthProviders,
+    isLoadingCapabilities,
     isPasswordSubmitting,
     loadErrorMessage,
+    passwordRegistrationEnabled,
     passwordForm,
     passwordFormRules,
     providers,
     startLogin,
     submitPasswordLogin,
   }
-}
-
-function isProviderRegistrationEnabled(
-  provider: AuthProviderName,
-  options: AuthRegistrationOptionsDto | null,
-) {
-  if (!options) {
-    return true
-  }
-
-  if (provider === AUTH_PROVIDER.GITHUB) {
-    return options.allowGithubRegistration
-  }
-
-  return options.allowLinuxDoRegistration
 }

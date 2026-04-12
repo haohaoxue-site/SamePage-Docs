@@ -1,4 +1,10 @@
-export type SvgIconCategory = 'ai' | 'nav' | 'ui'
+export enum SvgIconCategory {
+  AI = 'ai',
+  NAV = 'nav',
+  UI = 'ui',
+}
+
+export type SvgIconCategoryValue = `${SvgIconCategory}`
 
 export interface SvgIconProps {
   /**
@@ -6,7 +12,7 @@ export interface SvgIconProps {
    * @description 对应 public 下的 icon-<category>.svg
    * @default 'ui'
    */
-  category?: SvgIconCategory
+  category?: SvgIconCategory | SvgIconCategoryValue
   /**
    * 图标
    * @description sprite 内的 symbol 名称

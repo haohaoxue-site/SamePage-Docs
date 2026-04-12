@@ -13,6 +13,7 @@ import { Buffer } from 'node:buffer'
 import { createHash, createSecretKey, randomBytes, randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { AUTH_METHOD, AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
+import { formatAuthMethod } from '@haohaoxue/samepage-shared'
 import {
   BadRequestException,
   Injectable,
@@ -39,6 +40,21 @@ const LOGIN_CODE_TTL_SECONDS = 2 * 60
 const OAUTH_FETCH_RETRY_DELAYS_MS = [300, 900]
 const RETRYABLE_OAUTH_FETCH_ERROR_RE = /fetch failed|timeout/i
 const OAUTH_STATE_VERSION = 1
+const OAUTH_LOGIN_REDIRECT_PATH = '/auth/callback'
+
+interface OAuthStatePayload {
+  v: number
+  nonce: string
+  webOrigin: string
+  purpose: 'login' | 'bind'
+  redirectPath: string
+}
+
+interface BuildOAuthAuthorizationUrlOptions {
+  purpose?: 'login' | 'bind'
+  initiatorUserId?: string
+  redirectPath?: string
+}
 
 @Injectable()
 export class AuthService {
@@ -58,21 +74,13 @@ export class AuthService {
     this.isProduction = this.configService.getOrThrow<boolean>('server.isProduction')
   }
 
-  async getRegistrationOptions() {
-    return this.systemAuthService.getRegistrationOptions()
-  }
-
-  async requestEmailVerification(email: string, request: FastifyRequest): Promise<void> {
-    const webOrigin = this.resolveCurrentUrl(request).origin
-    await this.systemAuthService.issueRegistrationVerification(email, webOrigin)
-  }
-
-  async confirmEmailVerification(rawToken: string): Promise<{ email: string }> {
-    return this.systemAuthService.validateRegistrationVerificationToken(rawToken)
+  async requestEmailVerification(email: string): Promise<void> {
+    await this.systemAuthService.issueRegistrationVerification(email)
   }
 
   async registerWithPassword(
-    rawToken: string,
+    email: string,
+    code: string,
     displayName: string,
     password: string,
     request: FastifyRequest,
@@ -87,9 +95,13 @@ export class AuthService {
     const passwordHash = await hashPassword(password)
 
     const user = await this.prisma.$transaction(async (tx) => {
-      const { email } = await this.systemAuthService.consumeRegistrationVerificationToken(rawToken, tx)
+      const { email: verifiedEmail } = await this.systemAuthService.consumeRegistrationVerificationCode(
+        email,
+        code,
+        tx,
+      )
       const existingUser = await tx.user.findUnique({
-        where: { email },
+        where: { email: verifiedEmail },
         select: { id: true },
       })
 
@@ -99,7 +111,7 @@ export class AuthService {
 
       const createdUser = await tx.user.create({
         data: {
-          email,
+          email: verifiedEmail,
           displayName: normalizedDisplayName,
         },
       })
@@ -218,18 +230,30 @@ export class AuthService {
     return this.issueAuthSession(userId, request)
   }
 
-  async buildOAuthAuthorizationUrl(provider: AuthProviderName, request: FastifyRequest): Promise<string> {
+  async buildOAuthAuthorizationUrl(
+    provider: AuthProviderName,
+    request: FastifyRequest,
+    options: BuildOAuthAuthorizationUrlOptions = {},
+  ): Promise<string> {
     const runtimeProvider = await this.oauthProviderService.getProvider(provider)
     const webOrigin = this.resolveCurrentUrl(request).origin
     const callbackUrl = this.oauthProviderService.resolveApiCallbackUrl(provider, webOrigin)
+    const purpose = options.purpose ?? 'login'
+    const redirectPath = options.redirectPath ?? OAUTH_LOGIN_REDIRECT_PATH
 
-    const state = this.createOAuthState(webOrigin)
+    const state = this.createOAuthState({
+      webOrigin,
+      purpose,
+      redirectPath,
+    })
     const codeVerifier = client.randomPKCECodeVerifier()
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier)
 
     await this.prisma.authOauthState.create({
       data: {
         provider: runtimeProvider.dbProvider,
+        purpose: purpose === 'bind' ? 'BIND' : 'LOGIN',
+        initiatorUserId: purpose === 'bind' ? options.initiatorUserId ?? null : null,
         state,
         codeVerifier,
         redirectUri: callbackUrl,
@@ -288,19 +312,33 @@ export class AuthService {
       throw new UnauthorizedException('OAuth token exchange failed')
     }
 
+    const statePayload = this.extractOAuthStatePayload(oauthState.state)
     const profile = await this.fetchOAuthProfile(provider, accessToken, runtimeProvider.userinfoEndpoint)
-    const user = await this.upsertUserByOAuth(
-      runtimeProvider.dbProvider,
-      profile,
-    )
 
     await this.prisma.authOauthState.update({
       where: { id: oauthState.id },
       data: { consumedAt: new Date() },
     })
 
-    const webOrigin = this.extractWebOriginFromState(oauthState.state)
-    const webCallbackUrl = this.oauthProviderService.resolveWebCallbackUrl(webOrigin)
+    if (oauthState.purpose === 'BIND') {
+      if (!oauthState.initiatorUserId) {
+        throw new UnauthorizedException('OAuth bind state is invalid')
+      }
+
+      await this.bindOAuthToUser(runtimeProvider.dbProvider, profile, oauthState.initiatorUserId)
+
+      const redirectUrl = new URL(statePayload.redirectPath, statePayload.webOrigin)
+      redirectUrl.searchParams.set('bind_status', 'success')
+      redirectUrl.searchParams.set('provider', provider)
+      return redirectUrl.toString()
+    }
+
+    const user = await this.upsertUserByOAuth(
+      runtimeProvider.dbProvider,
+      profile,
+    )
+
+    const webCallbackUrl = new URL(statePayload.redirectPath, statePayload.webOrigin).toString()
     const loginCode = await this.createLoginCode(user.id, webCallbackUrl)
     const redirectUrl = new URL(webCallbackUrl)
     redirectUrl.searchParams.set('code', loginCode)
@@ -418,26 +456,60 @@ export class AuthService {
     return loginCode
   }
 
-  private createOAuthState(webOrigin: string): string {
+  buildOAuthFailureRedirect(provider: AuthProviderName, request: FastifyRequest, errorMessage: string): string {
+    const state = this.resolveCurrentUrl(request).searchParams.get('state')
+
+    if (!state) {
+      return `${OAUTH_LOGIN_REDIRECT_PATH}?error=${encodeURIComponent(errorMessage)}`
+    }
+
+    try {
+      const payload = this.extractOAuthStatePayload(state)
+      const redirectUrl = new URL(payload.redirectPath, payload.webOrigin)
+
+      if (payload.purpose === 'bind') {
+        redirectUrl.searchParams.set('bind_status', 'error')
+        redirectUrl.searchParams.set('provider', provider)
+        redirectUrl.searchParams.set('bind_message', errorMessage)
+        return redirectUrl.toString()
+      }
+
+      redirectUrl.searchParams.set('error', errorMessage)
+      return redirectUrl.toString()
+    }
+    catch {
+      return `${OAUTH_LOGIN_REDIRECT_PATH}?error=${encodeURIComponent(errorMessage)}`
+    }
+  }
+
+  private createOAuthState(input: {
+    webOrigin: string
+    purpose: 'login' | 'bind'
+    redirectPath: string
+  }): string {
     return Buffer.from(JSON.stringify({
       v: OAUTH_STATE_VERSION,
       nonce: client.randomState(),
-      webOrigin,
+      webOrigin: input.webOrigin,
+      purpose: input.purpose,
+      redirectPath: input.redirectPath,
     }), 'utf8').toString('base64url')
   }
 
-  private extractWebOriginFromState(state: string): string {
+  private extractOAuthStatePayload(state: string): OAuthStatePayload {
     try {
-      const payload = JSON.parse(Buffer.from(state, 'base64url').toString('utf8')) as {
-        v?: unknown
-        webOrigin?: unknown
-      }
+      const payload = JSON.parse(Buffer.from(state, 'base64url').toString('utf8')) as Partial<OAuthStatePayload>
 
-      if (payload.v !== OAUTH_STATE_VERSION || typeof payload.webOrigin !== 'string') {
+      if (
+        payload.v !== OAUTH_STATE_VERSION
+        || typeof payload.webOrigin !== 'string'
+        || (payload.purpose !== 'login' && payload.purpose !== 'bind')
+        || typeof payload.redirectPath !== 'string'
+      ) {
         throw new Error('Invalid OAuth state payload')
       }
 
-      return payload.webOrigin
+      return payload as OAuthStatePayload
     }
     catch {
       throw new UnauthorizedException('OAuth state is invalid')
@@ -445,7 +517,6 @@ export class AuthService {
   }
 
   private async upsertUserByOAuth(provider: AuthProvider, profile: OAuthProfile): Promise<User> {
-    const normalizedEmail = profile.email?.trim().toLowerCase()
     const existingAccount = await this.prisma.oauthAccount.findUnique({
       where: {
         provider_providerUserId: {
@@ -457,53 +528,37 @@ export class AuthService {
     })
 
     if (existingAccount) {
-      const existingUser = existingAccount.user.email || !normalizedEmail || !profile.emailVerified
-        ? existingAccount.user
-        : await this.prisma.user.update({
-            where: { id: existingAccount.user.id },
-            data: { email: normalizedEmail },
-          })
-
       await this.prisma.oauthAccount.update({
         where: { id: existingAccount.id },
         data: {
           providerUsername: profile.username,
-          providerEmail: normalizedEmail,
-          providerEmailVerified: profile.emailVerified,
+          providerEmail: null,
+          providerEmailVerified: false,
           rawProfile: profile.rawProfile as Prisma.InputJsonValue,
         },
       })
 
-      return existingUser
-    }
-
-    const existingUserByEmail = normalizedEmail && profile.emailVerified
-      ? await this.prisma.user.findUnique({
-          where: { email: normalizedEmail },
+      if (!existingAccount.user.avatarUrl && profile.avatarUrl) {
+        return this.prisma.user.update({
+          where: { id: existingAccount.user.id },
+          data: {
+            avatarUrl: profile.avatarUrl,
+          },
         })
-      : null
+      }
 
-    if (!existingUserByEmail) {
-      await this.systemAuthService.assertRegistrationAllowed(resolveAuthMethod(provider))
+      return existingAccount.user
     }
+
+    await this.systemAuthService.assertRegistrationAllowed(resolveAuthMethod(provider))
 
     return this.prisma.$transaction(async (tx) => {
-      const targetUser = existingUserByEmail
-        ? await tx.user.update({
-            where: { id: existingUserByEmail.id },
-            data: {
-              email: existingUserByEmail.email ?? normalizedEmail ?? null,
-              displayName: existingUserByEmail.displayName || profile.displayName || profile.username || `user-${randomUUID().slice(0, 8)}`,
-              avatarUrl: existingUserByEmail.avatarUrl ?? profile.avatarUrl,
-            },
-          })
-        : await tx.user.create({
-            data: {
-              email: normalizedEmail,
-              displayName: profile.displayName ?? profile.username ?? `user-${randomUUID().slice(0, 8)}`,
-              avatarUrl: profile.avatarUrl,
-            },
-          })
+      const targetUser = await tx.user.create({
+        data: {
+          displayName: profile.displayName ?? profile.username ?? `user-${randomUUID().slice(0, 8)}`,
+          avatarUrl: profile.avatarUrl,
+        },
+      })
 
       await tx.oauthAccount.create({
         data: {
@@ -511,13 +566,104 @@ export class AuthService {
           provider,
           providerUserId: profile.providerUserId,
           providerUsername: profile.username,
-          providerEmail: normalizedEmail,
-          providerEmailVerified: profile.emailVerified,
+          providerEmail: null,
+          providerEmailVerified: false,
           rawProfile: profile.rawProfile as Prisma.InputJsonValue,
         },
       })
 
       return targetUser
+    })
+  }
+
+  private async bindOAuthToUser(
+    provider: AuthProvider,
+    profile: OAuthProfile,
+    userId: string,
+  ): Promise<void> {
+    const [targetUser, existingProviderBinding, existingCurrentProviderAccount] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          avatarUrl: true,
+        },
+      }),
+      this.prisma.oauthAccount.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider,
+            providerUserId: profile.providerUserId,
+          },
+        },
+      }),
+      this.prisma.oauthAccount.findFirst({
+        where: {
+          userId,
+          provider,
+        },
+      }),
+    ])
+
+    if (!targetUser) {
+      throw new BadRequestException('当前账号不存在或已失效')
+    }
+
+    if (existingProviderBinding && existingProviderBinding.userId !== userId) {
+      throw new BadRequestException(`该${formatAuthMethod(resolveAuthMethod(provider))}账号已绑定到其他账号`)
+    }
+
+    if (
+      existingCurrentProviderAccount
+      && existingCurrentProviderAccount.providerUserId !== profile.providerUserId
+    ) {
+      throw new BadRequestException(`当前账号已绑定其他${formatAuthMethod(resolveAuthMethod(provider))}账号`)
+    }
+
+    if (existingProviderBinding && existingProviderBinding.userId === userId) {
+      await this.prisma.oauthAccount.update({
+        where: { id: existingProviderBinding.id },
+        data: {
+          providerUsername: profile.username,
+          providerEmail: null,
+          providerEmailVerified: false,
+          rawProfile: profile.rawProfile as Prisma.InputJsonValue,
+        },
+      })
+
+      if (!targetUser.avatarUrl && profile.avatarUrl) {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: {
+            avatarUrl: profile.avatarUrl,
+          },
+        })
+      }
+
+      return
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.oauthAccount.create({
+        data: {
+          userId,
+          provider,
+          providerUserId: profile.providerUserId,
+          providerUsername: profile.username,
+          providerEmail: null,
+          providerEmailVerified: false,
+          rawProfile: profile.rawProfile as Prisma.InputJsonValue,
+        },
+      })
+
+      if (!targetUser.avatarUrl && profile.avatarUrl) {
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            avatarUrl: profile.avatarUrl,
+          },
+        })
+      }
     })
   }
 
@@ -552,52 +698,12 @@ export class AuthService {
       throw new UnauthorizedException('GitHub user id is missing')
     }
 
-    const emailsEndpoint = new URL('/user/emails', userinfoEndpoint).toString()
-    let verifiedPrimaryEmail: string | undefined
-    let anyEmail: string | undefined
-
-    try {
-      const emailsResponse = await this.fetchOAuthResource(emailsEndpoint, {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/vnd.github+json',
-        'User-Agent': 'samepage-api',
-        'X-GitHub-Api-Version': '2022-11-28',
-      })
-
-      if (emailsResponse.ok) {
-        const emails = await emailsResponse.json() as Array<{
-          email?: string
-          verified?: boolean
-          primary?: boolean
-        }>
-
-        for (const emailRow of emails) {
-          if (emailRow.email && !anyEmail) {
-            anyEmail = emailRow.email
-          }
-
-          if (emailRow.email && emailRow.verified && emailRow.primary) {
-            verifiedPrimaryEmail = emailRow.email
-            break
-          }
-        }
-
-        if (!verifiedPrimaryEmail) {
-          verifiedPrimaryEmail = emails.find(item => item.email && item.verified)?.email
-        }
-      }
-    }
-    catch {
-    }
-
-    const profileEmail = verifiedPrimaryEmail ?? anyEmail ?? (typeof profile.email === 'string' ? profile.email : undefined)
-
     return {
       providerUserId: String(id),
       username: typeof profile.login === 'string' ? profile.login : undefined,
       displayName: typeof profile.name === 'string' ? profile.name : undefined,
-      email: profileEmail,
-      emailVerified: Boolean(verifiedPrimaryEmail),
+      email: undefined,
+      emailVerified: false,
       avatarUrl: typeof profile.avatar_url === 'string' ? profile.avatar_url : undefined,
       rawProfile: profile,
     }
@@ -623,8 +729,6 @@ export class AuthService {
       throw new UnauthorizedException('Linux.do user id is missing')
     }
 
-    const email = typeof profile.email === 'string' ? profile.email : undefined
-
     return {
       providerUserId,
       username:
@@ -636,8 +740,8 @@ export class AuthService {
         (typeof profile.name === 'string' && profile.name)
         || (typeof profile.nickname === 'string' && profile.nickname)
         || undefined,
-      email,
-      emailVerified: profile.email_verified === true,
+      email: undefined,
+      emailVerified: false,
       avatarUrl:
         (typeof profile.picture === 'string' && profile.picture)
         || (typeof profile.avatar_url === 'string' && profile.avatar_url)

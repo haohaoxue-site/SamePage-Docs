@@ -1,0 +1,73 @@
+enum SystemEmailProvider {
+  TENCENT_EXMAIL
+  GOOGLE_WORKSPACE
+}
+
+model SystemAuthConfig {
+  id                        String    @id @default("default")
+  allowPasswordRegistration Boolean   @default(true)
+  allowGithubRegistration   Boolean   @default(true)
+  allowLinuxDoRegistration  Boolean   @default(true)
+  systemAdminUserId         String?   @unique
+  systemAdminEmail          String    @unique
+  updatedByUserId           String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  deletedAt                 DateTime?
+  systemAdminUser           User?     @relation("SystemAuthConfigSystemAdmin", fields: [systemAdminUserId], references: [id], onDelete: SetNull)
+  updatedByUser             User?     @relation("SystemAuthConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+}
+
+model SystemEmailConfig {
+  id                    String              @id @default("default")
+  provider              SystemEmailProvider @default(TENCENT_EXMAIL)
+  enabled               Boolean             @default(false)
+  smtpHost              String
+  smtpPort              Int
+  smtpSecure            Boolean             @default(true)
+  smtpUsername          String
+  smtpPasswordEncrypted String?
+  fromName              String
+  fromEmail             String
+  updatedByUserId       String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  deletedAt             DateTime?
+  updatedByUser         User?               @relation("SystemEmailConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+}
+
+model SystemAiConfig {
+  id              String    @id @default(uuid())
+  enabled         Boolean   @default(false)
+  provider        String    @default("openai-compatible")
+  baseUrl         String
+  apiKey          String?
+  defaultModel    String?
+  updatedByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  updatedByUser   User?     @relation("SystemAiConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+}
+
+model AdminAuditLog {
+  id          String    @id @default(uuid())
+  actorUserId String
+  action      String
+  targetType  String
+  targetId    String?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  actorUser   User      @relation("AdminAuditLogActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId])
+}

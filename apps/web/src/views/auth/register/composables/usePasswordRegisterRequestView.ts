@@ -1,48 +1,52 @@
 import type { FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { onMounted, reactive, shallowRef } from 'vue'
+import { onMounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { requestEmailVerification } from '@/apis/auth'
 import { useFormSubmit } from '@/composables/useFormSubmit'
-import { useAuthRegistrationOptions } from '../../composables/useAuthRegistrationOptions'
+import { useAuthCapabilities } from '../../composables/useAuthCapabilities'
 import { createEmailRules, isValidEmail } from '../../utils/rules'
 
 export function usePasswordRegisterRequestView() {
+  const router = useRouter()
   const form = reactive({ email: '' })
   const formRules: FormRules<typeof form> = {
     email: createEmailRules(),
   }
-  const submittedEmail = shallowRef('')
   const {
-    allowPasswordRegistration,
-    isLoadingOptions,
+    isLoadingCapabilities,
     loadErrorMessage,
-    loadRegistrationOptions,
-  } = useAuthRegistrationOptions()
+    loadCapabilities,
+    passwordRegistrationEnabled,
+  } = useAuthCapabilities()
 
   const { isSubmitting, submit: submitEmailVerificationRequest } = useFormSubmit({
-    validate: () => allowPasswordRegistration.value && isValidEmail(form.email.trim()),
+    validate: () => passwordRegistrationEnabled.value && isValidEmail(form.email.trim()),
     action: async () => {
       form.email = form.email.trim()
       await requestEmailVerification({ email: form.email })
-      submittedEmail.value = form.email
-      form.email = ''
-      ElMessage.success('验证链接已发送，请查收邮箱')
+      ElMessage.success('验证码已发送，请查收邮箱')
+      await router.push({
+        name: 'register-verify',
+        query: {
+          email: form.email,
+        },
+      })
     },
-    fallbackError: '发送验证链接失败',
+    fallbackError: '发送验证码失败',
   })
 
   onMounted(() => {
-    void loadRegistrationOptions()
+    void loadCapabilities()
   })
 
   return {
-    allowPasswordRegistration,
     form,
     formRules,
-    isLoadingOptions,
+    isLoadingCapabilities,
     isSubmitting,
     loadErrorMessage,
-    submittedEmail,
+    passwordRegistrationEnabled,
     submitEmailVerificationRequest,
   }
 }

@@ -5,6 +5,7 @@ import { createMemoryHistory } from 'vue-router'
 import App from '@/App.vue'
 import { createAppRouter } from '@/router'
 import { AUTH_REDIRECT_KEY, useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
 import { createMockUser } from '../utils/test-helpers'
 
 vi.mock('@/apis/auth', () => ({
@@ -79,6 +80,44 @@ vi.mock('@/apis/system-admin', () => ({
   })),
 }))
 
+vi.mock('@/apis/user', () => ({
+  getCurrentUser: vi.fn(async () => ({
+    id: 'user-1',
+    email: null,
+    displayName: 'Alice',
+    avatarUrl: null,
+    status: 'ACTIVE',
+    roles: ['system_admin'],
+    permissions: ['system_admin:overview:read'],
+    authMethods: [AUTH_METHOD.GITHUB],
+    mustChangePassword: false,
+    emailVerified: false,
+  })),
+  getCurrentUserSettings: vi.fn(async () => ({
+    profile: {
+      displayName: 'Alice',
+      avatarUrl: null,
+    },
+    account: {
+      email: null,
+      hasPasswordAuth: false,
+      emailVerified: false,
+      github: {
+        connected: true,
+        username: 'alice',
+      },
+      linuxDo: {
+        connected: false,
+        username: null,
+      },
+    },
+    preferences: {
+      language: 'auto',
+      appearance: 'auto',
+    },
+  })),
+}))
+
 describe('auth flow', () => {
   it('redirects callback to pending admin route and stores auth session', async () => {
     window.sessionStorage.setItem(AUTH_REDIRECT_KEY, '/admin/users')
@@ -97,8 +136,9 @@ describe('auth flow', () => {
     await flushPromises()
 
     const authStore = useAuthStore()
+    const userStore = useUserStore()
     expect(authStore.accessToken).toBe('new-access-token')
-    expect(authStore.user?.displayName).toBe('Alice')
+    expect(userStore.currentUser?.displayName).toBe('Alice')
     expect(router.currentRoute.value.fullPath).toBe('/admin/users')
   })
 })

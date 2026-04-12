@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { DocumentEditorPaneEmits, DocumentEditorPaneProps } from '../typing'
-import type { SvgIconCategory } from '@/components/svg-icon/typing'
 import { computed } from 'vue'
+import { SvgIconCategory } from '@/components/svg-icon/typing'
 import { TiptapEditor } from '@/components/tiptap-editor'
 
 type EmptyActionEvent = 'createDocument' | 'openFallbackDocument' | 'retryLoad'
@@ -15,8 +15,8 @@ interface EmptyAction {
 interface EmptyState {
   title: string
   description: string
-  icon: string
   iconCategory: SvgIconCategory
+  icon: string
   spin?: boolean
   actions: EmptyAction[]
 }
@@ -30,8 +30,8 @@ const emptyState = computed<EmptyState>(() => {
     return {
       title: '正在准备文档',
       description: props.isLoading ? '正在加载当前文档，请稍候。' : '正在恢复最近打开的内容，请稍候。',
+      iconCategory: SvgIconCategory.UI,
       icon: 'spinner-orbit',
-      iconCategory: 'ui',
       spin: true,
       actions: [] as EmptyAction[],
     }
@@ -41,8 +41,8 @@ const emptyState = computed<EmptyState>(() => {
     return {
       title: '还没有文档',
       description: '先创建第一篇文档，之后进入工作区会自动回到最近内容。',
+      iconCategory: SvgIconCategory.UI,
       icon: 'document-add',
-      iconCategory: 'ui',
       actions: [
         {
           event: 'createDocument',
@@ -57,8 +57,8 @@ const emptyState = computed<EmptyState>(() => {
     return {
       title: '文档不存在',
       description: '这个链接可能已经失效，或者文档已被删除。',
+      iconCategory: SvgIconCategory.UI,
       icon: 'document-unknown',
-      iconCategory: 'ui',
       actions: props.hasFallbackDocument
         ? [
             {
@@ -81,8 +81,8 @@ const emptyState = computed<EmptyState>(() => {
     return {
       title: '无权访问这篇文档',
       description: '你可以先回到其他可访问的文档继续工作。',
+      iconCategory: SvgIconCategory.UI,
       icon: 'lock',
-      iconCategory: 'ui',
       actions: props.hasFallbackDocument
         ? [
             {
@@ -99,8 +99,8 @@ const emptyState = computed<EmptyState>(() => {
     return {
       title: '文档加载失败',
       description: '当前内容暂时无法打开，你可以重试或先回到其他文档。',
+      iconCategory: SvgIconCategory.UI,
       icon: 'warning',
-      iconCategory: 'ui',
       actions: [
         {
           event: 'retryLoad',
@@ -122,8 +122,8 @@ const emptyState = computed<EmptyState>(() => {
   return {
     title: '选择一篇文档',
     description: '已进入文档工作区，先打开一篇文档再开始编辑。',
+    iconCategory: SvgIconCategory.UI,
     icon: 'document-view',
-    iconCategory: 'ui',
     actions: props.hasFallbackDocument
       ? [
           {

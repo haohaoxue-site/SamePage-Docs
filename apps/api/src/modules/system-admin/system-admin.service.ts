@@ -6,9 +6,12 @@ import type {
   SystemAdminUserItemDto,
   SystemAiConfigDto,
   SystemAuthGovernanceDto,
+  SystemEmailConfigDto,
+  TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAiConfigDto,
   UpdateSystemAuthGovernanceDto,
+  UpdateSystemEmailConfigDto,
 } from './system-admin.dto'
 import {
   BadRequestException,
@@ -26,6 +29,7 @@ import { PrismaService } from '../../database/prisma.service'
 import { resolveAuthMethods } from '../../utils/auth-methods'
 import { decryptAes256Gcm, encryptAes256Gcm, isEncryptedValue } from '../../utils/crypto'
 import { SystemAuthService } from '../auth/system-auth.service'
+import { SystemEmailService } from '../system-email/system-email.service'
 
 const DEFAULT_SYSTEM_AI_BASE_URL = 'https://api.openai.com/v1'
 
@@ -36,6 +40,7 @@ export class SystemAdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly systemAuthService: SystemAuthService,
+    private readonly systemEmailService: SystemEmailService,
     configService: ConfigService,
   ) {
     this.encryptionKey = configService.getOrThrow<CryptoConfig>('crypto').encryptionKey
@@ -196,10 +201,67 @@ export class SystemAdminService {
       action: 'system_auth_governance.updated',
       targetType: 'system_auth_config',
       targetId: 'default',
-      metadata: payload as Prisma.InputJsonValue,
+      metadata: payload as unknown as Prisma.InputJsonValue,
     })
 
     return this.getAuthGovernance()
+  }
+
+  async getEmailConfig(): Promise<SystemEmailConfigDto> {
+    return this.systemEmailService.getEmailConfig()
+  }
+
+  async updateEmailConfig(
+    actorUserId: string,
+    payload: UpdateSystemEmailConfigDto,
+  ): Promise<SystemEmailConfigDto> {
+    const result = await this.systemEmailService.updateEmailConfig(actorUserId, payload)
+
+    await this.createAuditLog(actorUserId, {
+      action: 'system_email_config.updated',
+      targetType: 'system_email_config',
+      targetId: 'default',
+      metadata: {
+        provider: payload.provider,
+        enabled: payload.enabled,
+        smtpHost: payload.smtpHost,
+        smtpPort: payload.smtpPort,
+        smtpSecure: payload.smtpSecure,
+        smtpUsername: payload.smtpUsername,
+        fromName: payload.fromName,
+        fromEmail: payload.fromEmail,
+        hasPassword: result.hasPassword,
+        clearPassword: payload.clearPassword ?? false,
+      },
+    })
+
+    return result
+  }
+
+  async testEmailConfig(actorUserId: string): Promise<TestSystemEmailConfigResponseDto> {
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: {
+        email: true,
+      },
+    })
+
+    if (!actor?.email) {
+      throw new BadRequestException('当前管理员未绑定邮箱，无法接收测试邮件')
+    }
+
+    const result = await this.systemEmailService.sendTestEmail(actor.email)
+
+    await this.createAuditLog(actorUserId, {
+      action: 'system_email_config.tested',
+      targetType: 'system_email_config',
+      targetId: 'default',
+      metadata: {
+        recipientEmail: actor.email,
+      },
+    })
+
+    return result
   }
 
   async getAiConfig(): Promise<SystemAiConfigDto> {

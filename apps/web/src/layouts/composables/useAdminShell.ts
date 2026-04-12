@@ -1,4 +1,4 @@
-import type { AdminNavigationItem, AdminPageHeader } from '@/layouts/typing'
+import type { AdminNavigationItem } from '@/router/typing'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { adminNavigationItems, DEFAULT_ADMIN_NAVIGATION_ITEM } from '@/router/navigation'
@@ -9,7 +9,7 @@ export function useAdminShell() {
     adminNavigationItems.find(item => item.routeName === route.name) ?? DEFAULT_ADMIN_NAVIGATION_ITEM,
   )
 
-  const pageHeader = computed<AdminPageHeader>(() => ({
+  const pageHeader = computed(() => ({
     title: currentNavigationItem.value.title,
     description: currentNavigationItem.value.description,
   }))

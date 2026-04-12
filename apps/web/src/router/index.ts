@@ -2,6 +2,7 @@ import type { Router, RouterHistory } from 'vue-router'
 import { createRouter, createWebHistory } from 'vue-router'
 import { rememberWorkspaceEntryPath } from '@/layouts/utils/workspace-entry'
 import { useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
 
 import { adminRoute, protectedRoutes, publicRoutes } from './routes'
 
@@ -23,16 +24,17 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
     routes: [...publicRoutes, ...protectedRoutes],
   })
 
-  if (useAuthStore().isSystemAdmin) {
+  if (useUserStore().isSystemAdmin) {
     loadAdminRoutes(router)
   }
 
   router.beforeEach((to) => {
     const authStore = useAuthStore()
+    const userStore = useUserStore()
 
     if (to.meta.public) {
       if (authStore.isAuthenticated) {
-        return { name: authStore.defaultRouteName }
+        return { name: userStore.defaultRouteName }
       }
       return true
     }
@@ -44,15 +46,15 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
       }
     }
 
-    if (authStore.requiresPasswordChange && !to.meta.allowWhenPasswordChangeRequired) {
+    if (userStore.requiresPasswordChange && !to.meta.allowWhenPasswordChangeRequired) {
       return { name: 'change-password' }
     }
 
-    if (to.path.startsWith('/admin') && !authStore.isSystemAdmin) {
+    if (to.path.startsWith('/admin') && !userStore.isSystemAdmin) {
       return { name: 'home' }
     }
 
-    if (authStore.isSystemAdmin && !router.hasRoute('admin')) {
+    if (userStore.isSystemAdmin && !router.hasRoute('admin')) {
       loadAdminRoutes(router)
       return to.fullPath
     }

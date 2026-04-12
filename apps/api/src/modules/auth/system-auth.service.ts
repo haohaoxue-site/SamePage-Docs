@@ -1,7 +1,7 @@
 import type { AuthMethodName } from '@haohaoxue/samepage-domain'
 import type { AuthProvider, LocalCredential, Prisma, SystemAuthConfig, User } from '@prisma/client'
 import type { BootstrapConfig } from '../../config/auth.config'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomInt } from 'node:crypto'
 import { AUTH_METHOD } from '@haohaoxue/samepage-contracts'
 import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
@@ -9,11 +9,12 @@ import { PrismaService } from '../../database/prisma.service'
 import { resolveAuthMethod } from '../../utils/auth-methods'
 import { generateTemporaryPassword, hashPassword } from '../../utils/password'
 import { RbacService } from '../rbac/rbac.service'
+import { SystemEmailService } from '../system-email/system-email.service'
 import { AuthMailerService } from './auth-mailer.service'
 
 const SYSTEM_AUTH_CONFIG_ID = 'default'
-const EMAIL_VERIFICATION_TTL_SECONDS = 30 * 60
-const DEV_VERIFICATION_ROUTE_PATH = '/register/verify'
+const EMAIL_VERIFICATION_TTL_SECONDS = 10 * 60
+const EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000
 
 export interface RegistrationOptions {
   allowPasswordRegistration: boolean
@@ -30,6 +31,7 @@ export class SystemAuthService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly rbacService: RbacService,
     private readonly authMailerService: AuthMailerService,
+    private readonly systemEmailService: SystemEmailService,
     configService: ConfigService,
   ) {
     this.bootstrapConfig = configService.getOrThrow<BootstrapConfig>('bootstrap')
@@ -130,8 +132,12 @@ export class SystemAuthService implements OnModuleInit {
   async assertRegistrationAllowed(method: AuthMethodName): Promise<void> {
     const options = await this.getRegistrationOptions()
 
-    if (method === AUTH_METHOD.PASSWORD && !options.allowPasswordRegistration) {
-      throw new BadRequestException('当前未开放邮箱密码注册')
+    if (method === AUTH_METHOD.PASSWORD) {
+      if (!options.allowPasswordRegistration || !(await this.systemEmailService.isEnabled())) {
+        throw new BadRequestException('当前未开放邮箱密码注册')
+      }
+
+      return
     }
 
     if (method === AUTH_METHOD.GITHUB && !options.allowGithubRegistration) {
@@ -143,7 +149,7 @@ export class SystemAuthService implements OnModuleInit {
     }
   }
 
-  async issueRegistrationVerification(email: string, webOrigin: string): Promise<void> {
+  async issueRegistrationVerification(email: string): Promise<void> {
     await this.assertRegistrationAllowed(AUTH_METHOD.PASSWORD)
 
     const normalizedEmail = email.trim().toLowerCase()
@@ -156,37 +162,74 @@ export class SystemAuthService implements OnModuleInit {
       throw new BadRequestException('该邮箱已存在账号，请直接登录')
     }
 
-    const rawToken = randomBytes(32).toString('base64url')
-    const tokenHash = this.hash(rawToken)
+    const latestVerification = await this.prisma.authEmailVerificationToken.findFirst({
+      where: {
+        email: normalizedEmail,
+        purpose: 'REGISTER_VERIFY',
+        consumedAt: null,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
+
+    if (latestVerification && Date.now() - latestVerification.createdAt.getTime() < EMAIL_VERIFICATION_RESEND_INTERVAL_MS) {
+      throw new BadRequestException('验证码发送过于频繁，请稍后再试')
+    }
+
+    await this.prisma.authEmailVerificationToken.updateMany({
+      where: {
+        email: normalizedEmail,
+        purpose: 'REGISTER_VERIFY',
+        consumedAt: null,
+      },
+      data: {
+        consumedAt: new Date(),
+      },
+    })
+
+    const code = String(randomInt(100000, 1000000))
 
     await this.prisma.authEmailVerificationToken.create({
       data: {
         email: normalizedEmail,
-        tokenHash,
+        tokenHash: this.hash(code),
         purpose: 'REGISTER_VERIFY',
         expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_SECONDS * 1000),
       },
     })
 
-    const verificationUrl = new URL(DEV_VERIFICATION_ROUTE_PATH, normalizeOrigin(webOrigin))
-    verificationUrl.searchParams.set('token', rawToken)
-
-    await this.authMailerService.sendRegistrationVerificationEmail({
+    await this.authMailerService.sendRegistrationCodeEmail({
       email: normalizedEmail,
-      verificationUrl: verificationUrl.toString(),
+      code,
     })
   }
 
-  async validateRegistrationVerificationToken(rawToken: string): Promise<{ email: string }> {
-    const token = await this.getAvailableVerificationToken(rawToken)
-    return { email: token.email }
-  }
-
-  async consumeRegistrationVerificationToken(
-    rawToken: string,
+  async consumeRegistrationVerificationCode(
+    email: string,
+    code: string,
     tx: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<{ email: string }> {
-    const token = await this.getAvailableVerificationToken(rawToken, tx)
+    const normalizedEmail = email.trim().toLowerCase()
+    const normalizedCode = code.trim()
+    const token = await tx.authEmailVerificationToken.findFirst({
+      where: {
+        email: normalizedEmail,
+        purpose: 'REGISTER_VERIFY',
+        consumedAt: null,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
+
+    if (!token || token.expiresAt.getTime() <= Date.now()) {
+      throw new BadRequestException('验证码已失效，请重新获取')
+    }
+
+    if (token.tokenHash !== this.hash(normalizedCode)) {
+      throw new BadRequestException('验证码错误')
+    }
 
     const consumed = await tx.authEmailVerificationToken.updateMany({
       where: {
@@ -199,7 +242,7 @@ export class SystemAuthService implements OnModuleInit {
     })
 
     if (consumed.count !== 1) {
-      throw new BadRequestException('邮箱验证令牌已失效')
+      throw new BadRequestException('验证码已失效，请重新获取')
     }
 
     return {
@@ -323,37 +366,7 @@ export class SystemAuthService implements OnModuleInit {
     }
   }
 
-  private async getAvailableVerificationToken(
-    rawToken: string,
-    tx: Prisma.TransactionClient | PrismaService = this.prisma,
-  ) {
-    const token = await tx.authEmailVerificationToken.findUnique({
-      where: { tokenHash: this.hash(rawToken) },
-    })
-
-    if (!token || token.purpose !== 'REGISTER_VERIFY') {
-      throw new BadRequestException('邮箱验证令牌无效')
-    }
-
-    if (token.consumedAt || token.expiresAt.getTime() <= Date.now()) {
-      throw new BadRequestException('邮箱验证令牌已过期')
-    }
-
-    return token
-  }
-
   private hash(value: string): string {
     return createHash('sha256').update(value).digest('hex')
   }
-}
-
-function normalizeOrigin(rawWebOrigin: string): string {
-  const normalizedValue = rawWebOrigin.trim().replace(/\/+$/g, '')
-  const url = new URL(normalizedValue)
-
-  if (url.origin !== normalizedValue || url.pathname !== '/' || url.search.length || url.hash.length) {
-    throw new BadRequestException('Invalid web origin')
-  }
-
-  return url.origin
 }

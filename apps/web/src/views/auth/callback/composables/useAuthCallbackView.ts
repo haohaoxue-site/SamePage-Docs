@@ -12,7 +12,14 @@ export function useAuthCallbackView() {
   const errorMessage = shallowRef('')
 
   async function handleCallback() {
+    const redirectError = typeof route.query.error === 'string' ? route.query.error.trim() : ''
     const code = typeof route.query.code === 'string' ? route.query.code.trim() : ''
+
+    if (redirectError) {
+      statusLabel.value = '登录失败'
+      errorMessage.value = redirectError
+      return
+    }
 
     if (!code) {
       statusLabel.value = '登录信息无效'

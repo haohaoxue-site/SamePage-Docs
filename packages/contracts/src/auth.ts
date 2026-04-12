@@ -26,6 +26,11 @@ export const AUTH_METHOD_LABELS = {
   [AUTH_METHOD.LINUX_DO]: 'LinuxDo',
 } as const satisfies Record<(typeof AUTH_METHOD_VALUES)[number], string>
 
+export const AUTH_PROVIDER_ALIAS_MAP = {
+  github: AUTH_PROVIDER.GITHUB,
+  linuxdo: AUTH_PROVIDER.LINUX_DO,
+} as const satisfies Record<string, (typeof AUTH_PROVIDER_VALUES)[number]>
+
 export const AUTH_CALLBACK_PATH = '/auth/callback'
 
 export const AuthProviderSchema = z.enum(AUTH_PROVIDER_VALUES)

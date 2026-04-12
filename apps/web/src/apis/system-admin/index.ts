@@ -5,10 +5,13 @@ import type {
   SystemAdminUserItemDto,
   SystemAiConfigDto,
   SystemAuthGovernanceDto,
+  SystemEmailConfigDto,
+  TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAdminUserStatusDto,
   UpdateSystemAiConfigDto,
   UpdateSystemAuthGovernanceDto,
+  UpdateSystemEmailConfigDto,
 } from './typing'
 import { axios } from '@/utils/axios'
 
@@ -53,6 +56,30 @@ export function updateSystemAuthGovernance(
     method: 'put',
     url: '/system-admin/auth-governance',
     data,
+  })
+}
+
+export function getSystemEmailConfig(): Promise<SystemEmailConfigDto> {
+  return axios.request({
+    method: 'get',
+    url: '/system-admin/email-config',
+  })
+}
+
+export function updateSystemEmailConfig(
+  data: UpdateSystemEmailConfigDto,
+): Promise<SystemEmailConfigDto> {
+  return axios.request({
+    method: 'put',
+    url: '/system-admin/email-config',
+    data,
+  })
+}
+
+export function testSystemEmailConfig(): Promise<TestSystemEmailConfigResponseDto> {
+  return axios.request({
+    method: 'post',
+    url: '/system-admin/email-config/test',
   })
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminNavigationItem } from '@/layouts/typing'
+import type { AdminNavigationItem } from '@/router/typing'
 import { useRoute } from 'vue-router'
 
 const props = defineProps<{

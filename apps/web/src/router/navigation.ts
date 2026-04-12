@@ -1,4 +1,4 @@
-import type { AdminNavigationItem } from '@/layouts/typing'
+import type { AdminNavigationItem } from './typing'
 
 export const adminNavigationItems: AdminNavigationItem[] = [
   {
@@ -14,6 +14,13 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     routeName: 'admin-users',
     path: '/admin/users',
     description: '管理用户账号状态与系统权限。',
+  },
+  {
+    label: '邮件',
+    title: '发件配置',
+    routeName: 'admin-email',
+    path: '/admin/email',
+    description: '配置平台发件账号，并测试验证邮件是否可正常送达。',
   },
   {
     label: '平台治理',

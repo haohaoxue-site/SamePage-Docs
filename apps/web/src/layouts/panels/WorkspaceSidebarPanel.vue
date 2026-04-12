@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { WorkspaceNavigationItem } from '@/layouts/typing'
+import type { WorkspaceNavigationItem } from '@/router/typing'
 import { useRoute } from 'vue-router'
 
 const props = defineProps<{
@@ -86,9 +86,6 @@ function getToggleGlyphClass() {
             <div v-if="!props.isCollapsed" class="min-w-0">
               <div class="truncate text-sm font-semibold">
                 {{ item.label }}
-              </div>
-              <div v-if="item.description" class="truncate text-xs text-secondary">
-                {{ item.description }}
               </div>
             </div>
           </RouterLink>

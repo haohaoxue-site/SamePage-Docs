@@ -6,6 +6,7 @@ import { createMemoryHistory } from 'vue-router'
 import App from '@/App.vue'
 import { createAppRouter } from '@/router'
 import { useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
 
 export function createMockUser(overrides: Partial<AuthUserDto> = {}): AuthUserDto {
   return {
@@ -32,8 +33,9 @@ export function createMockTokenExchangeResponse(overrides: Partial<AuthUserDto> 
 
 export function seedAuthState(overrides: Partial<AuthUserDto> = {}) {
   const authStore = useAuthStore()
+  const userStore = useUserStore()
   authStore.accessToken = 'test-access-token'
-  authStore.user = createMockUser(overrides)
+  userStore.setCurrentUser(createMockUser(overrides))
 }
 
 export async function mountAt(path: string): Promise<{ wrapper: ReturnType<typeof mount>, router: Router }> {

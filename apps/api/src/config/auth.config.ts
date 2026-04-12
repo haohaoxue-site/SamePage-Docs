@@ -14,7 +14,7 @@ const GITHUB_OAUTH_DEFAULTS = {
   authorizationEndpoint: 'https://github.com/login/oauth/authorize',
   tokenEndpoint: 'https://github.com/login/oauth/access_token',
   userinfoEndpoint: 'https://api.github.com/user',
-  scopes: 'read:user user:email',
+  scopes: 'read:user',
 } satisfies Omit<OAuthProviderConfig, 'clientId' | 'clientSecret'>
 
 const LINUX_DO_OAUTH_DEFAULTS = {
@@ -22,7 +22,7 @@ const LINUX_DO_OAUTH_DEFAULTS = {
   authorizationEndpoint: 'https://connect.linux.do/oauth2/authorize',
   tokenEndpoint: 'https://connect.linux.do/oauth2/token',
   userinfoEndpoint: 'https://connect.linux.do/api/user',
-  scopes: 'openid profile email',
+  scopes: 'openid profile',
 } satisfies Omit<OAuthProviderConfig, 'clientId' | 'clientSecret'>
 
 /**

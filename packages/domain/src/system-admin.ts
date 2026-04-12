@@ -1,7 +1,9 @@
+import type { SYSTEM_EMAIL_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
 import type { AuthMethodName } from './auth'
 import type { UserStatus } from './user'
 
 export type SystemAdminUserStatus = UserStatus
+export type SystemEmailProvider = (typeof SYSTEM_EMAIL_PROVIDER_VALUES)[number]
 
 export interface SystemAdminOverviewDto {
   totalUsers: number
@@ -55,6 +57,37 @@ export interface UpdateSystemAuthGovernanceDto {
   allowPasswordRegistration: boolean
   allowGithubRegistration: boolean
   allowLinuxDoRegistration: boolean
+}
+
+export interface SystemEmailConfigDto {
+  provider: SystemEmailProvider
+  enabled: boolean
+  smtpHost: string
+  smtpPort: number
+  smtpSecure: boolean
+  smtpUsername: string
+  fromName: string
+  fromEmail: string
+  hasPassword: boolean
+  updatedAt: string | null
+  updatedByDisplayName: string | null
+}
+
+export interface UpdateSystemEmailConfigDto {
+  provider: SystemEmailProvider
+  enabled: boolean
+  smtpHost: string
+  smtpPort: number
+  smtpSecure: boolean
+  smtpUsername: string
+  smtpPassword?: string
+  clearPassword?: boolean
+  fromName: string
+  fromEmail: string
+}
+
+export interface TestSystemEmailConfigResponseDto {
+  sent: boolean
 }
 
 export interface SystemAiConfigDto {

@@ -1,23 +1,12 @@
 <script setup lang="ts">
-import type { DocumentSectionId } from '@haohaoxue/samepage-domain'
 import type { RecentDocumentListProps } from '../typing'
-import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
+import { formatDocumentLocation } from '@haohaoxue/samepage-shared'
 import { formatMonthDayTime } from '@/utils/dayjs'
 
 defineProps<RecentDocumentListProps>()
 
-const SECTION_LABEL_MAP: Record<DocumentSectionId, string> = {
-  [DOCUMENT_SECTION_ID.PERSONAL]: '私有',
-  [DOCUMENT_SECTION_ID.SHARED]: '共享',
-  [DOCUMENT_SECTION_ID.TEAM]: '团队',
-}
-
 function formatDocumentUpdatedAt(value: string) {
   return formatMonthDayTime(value)
-}
-
-function formatDocumentSource(section: DocumentSectionId, ancestorTitles: string[]) {
-  return [SECTION_LABEL_MAP[section], ...ancestorTitles].join('/')
 }
 </script>
 
@@ -57,7 +46,7 @@ function formatDocumentSource(section: DocumentSectionId, ancestorTitles: string
           <div class="recent-document-list__source">
             <SvgIcon category="ui" icon="folder-chip" size="0.875rem" class="recent-document-list__source-icon" />
             <p class="recent-document-list__source-text">
-              {{ formatDocumentSource(document.section, document.ancestorTitles) }}
+              {{ formatDocumentLocation(document.collection, document.ancestorTitles) }}
             </p>
           </div>
         </div>

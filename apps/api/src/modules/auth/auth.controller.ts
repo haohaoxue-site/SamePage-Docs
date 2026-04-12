@@ -22,10 +22,7 @@ import { CurrentUser } from '../../decorators/current-user.decorator'
 import { Public } from '../../decorators/public.decorator'
 import { ApiRequestResponse } from '../../utils/swagger'
 import {
-  AuthRegistrationOptionsDto,
   ChangePasswordDto,
-  ConfirmEmailVerificationDto,
-  ConfirmEmailVerificationResponseDto,
   ExchangeCodeDto,
   LogoutResponseDto,
   PasswordLoginDto,
@@ -65,7 +62,17 @@ export class AuthController {
     @Res() response: FastifyReply,
   ): Promise<FastifyReply> {
     const normalizedProvider = this.parseProvider(provider)
-    const redirectUrl = await this.authService.handleOAuthCallback(normalizedProvider, request)
+    let redirectUrl: string
+
+    try {
+      redirectUrl = await this.authService.handleOAuthCallback(normalizedProvider, request)
+    }
+    catch (error) {
+      const message = error instanceof Error && error.message.trim()
+        ? error.message
+        : '第三方登录失败，请稍后重试'
+      redirectUrl = this.authService.buildOAuthFailureRedirect(normalizedProvider, request, message)
+    }
 
     return response.redirect(redirectUrl, 302)
   }
@@ -83,14 +90,6 @@ export class AuthController {
     return this.applyTokenExchange(response, result)
   }
 
-  @ApiOperation({ summary: '获取公开注册配置' })
-  @ApiRequestResponse(AuthRegistrationOptionsDto)
-  @Public()
-  @Get('registration-options')
-  async getRegistrationOptions(): Promise<AuthRegistrationOptionsDto> {
-    return this.authService.getRegistrationOptions()
-  }
-
   @ApiOperation({ summary: '邮箱密码登录' })
   @ApiRequestResponse(TokenExchangeResponseDto)
   @Public()
@@ -104,29 +103,18 @@ export class AuthController {
     return this.applyTokenExchange(response, result)
   }
 
-  @ApiOperation({ summary: '请求邮箱注册验证' })
+  @ApiOperation({ summary: '请求邮箱注册验证码' })
   @ApiRequestResponse(RequestEmailVerificationResponseDto)
   @Public()
   @Post('verify-email/request')
   async requestEmailVerification(
     @Body() payload: RequestEmailVerificationDto,
-    @Req() request: FastifyRequest,
   ): Promise<RequestEmailVerificationResponseDto> {
-    await this.authService.requestEmailVerification(payload.email, request)
+    await this.authService.requestEmailVerification(payload.email)
 
     return {
       requested: true,
     }
-  }
-
-  @ApiOperation({ summary: '确认邮箱注册验证令牌' })
-  @ApiRequestResponse(ConfirmEmailVerificationResponseDto)
-  @Public()
-  @Post('verify-email/confirm')
-  async confirmEmailVerification(
-    @Body() payload: ConfirmEmailVerificationDto,
-  ): Promise<ConfirmEmailVerificationResponseDto> {
-    return this.authService.confirmEmailVerification(payload.token)
   }
 
   @ApiOperation({ summary: '完成邮箱密码注册' })
@@ -139,7 +127,8 @@ export class AuthController {
     @Res({ passthrough: true }) response: FastifyReply,
   ): Promise<TokenExchangeResponseDto> {
     const result = await this.authService.registerWithPassword(
-      payload.token,
+      payload.email,
+      payload.code,
       payload.displayName,
       payload.password,
       request,

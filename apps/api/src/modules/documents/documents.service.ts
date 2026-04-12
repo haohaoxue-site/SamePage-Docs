@@ -1,16 +1,16 @@
 import type {
   CreateDocumentRequest,
   DocumentBase,
+  DocumentCollectionId,
   DocumentDetail,
   DocumentItem,
   DocumentRecent,
-  DocumentSection,
-  DocumentSectionId,
   DocumentSpaceScope,
+  DocumentTreeGroup,
   UpdateDocumentRequest,
 } from '@haohaoxue/samepage-domain'
-import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
-import { resolveOwnedDocumentSectionId } from '@haohaoxue/samepage-shared'
+import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
+import { resolveOwnedDocumentCollectionId } from '@haohaoxue/samepage-shared'
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import {
   DocumentMemberRole,
@@ -104,29 +104,26 @@ export class DocumentsService {
 
     return toDocumentDetail(
       document,
-      resolveOwnedDocumentSectionId(scope),
+      resolveOwnedDocumentCollectionId(scope),
       false,
     )
   }
 
-  async getDocumentTree(userId: string): Promise<DocumentSection[]> {
+  async getDocumentTree(userId: string): Promise<DocumentTreeGroup[]> {
     const context = await this.loadDocumentContext(userId)
 
     return [
       {
-        id: DOCUMENT_SECTION_ID.PERSONAL,
-        label: '当前用户',
-        nodes: this.buildOwnedSection(context, userId, 'PERSONAL'),
+        id: DOCUMENT_COLLECTION.PERSONAL,
+        nodes: this.buildOwnedGroup(context, userId, 'PERSONAL'),
       },
       {
-        id: DOCUMENT_SECTION_ID.SHARED,
-        label: '分享',
-        nodes: this.buildSharedSection(context),
+        id: DOCUMENT_COLLECTION.SHARED,
+        nodes: this.buildSharedGroup(context),
       },
       {
-        id: DOCUMENT_SECTION_ID.TEAM,
-        label: '团队',
-        nodes: this.buildOwnedSection(context, userId, 'TEAM'),
+        id: DOCUMENT_COLLECTION.TEAM,
+        nodes: this.buildOwnedGroup(context, userId, 'TEAM'),
       },
     ]
   }
@@ -160,7 +157,7 @@ export class DocumentsService {
 
     return toDocumentDetail(
       resolvedDocument.document,
-      resolvedDocument.section,
+      resolvedDocument.collection,
       this.hasChildren(id, context),
     )
   }
@@ -194,7 +191,7 @@ export class DocumentsService {
 
     return toDocumentDetail(
       document,
-      resolvedDocument.section,
+      resolvedDocument.collection,
       this.hasChildren(id, context),
     )
   }
@@ -278,46 +275,46 @@ export class DocumentsService {
     }
   }
 
-  private buildOwnedSection(
+  private buildOwnedGroup(
     context: TreeContext,
     userId: string,
     scope: DocumentSpaceScope,
   ): DocumentItem[] {
-    const sectionDocuments = context.documents.filter(document => document.ownerId === userId && document.spaceScope === scope)
-    const sectionDocumentIds = new Set(sectionDocuments.map(document => document.id))
-    const roots = sectionDocuments.filter(document => !document.parentId || !sectionDocumentIds.has(document.parentId))
+    const ownedDocuments = context.documents.filter(document => document.ownerId === userId && document.spaceScope === scope)
+    const visibleDocumentIds = new Set(ownedDocuments.map(document => document.id))
+    const roots = ownedDocuments.filter(document => !document.parentId || !visibleDocumentIds.has(document.parentId))
 
     return roots.map(document =>
-      this.buildSectionBranch(document, context, {
-        sectionDocumentIds,
+      this.buildGroupBranch(document, context, {
+        visibleDocumentIds,
         sharedByDisplayName: null,
       }),
     )
   }
 
-  private buildSharedSection(context: TreeContext): DocumentItem[] {
+  private buildSharedGroup(context: TreeContext): DocumentItem[] {
     return Array.from(context.sharedRootIds)
       .map(rootId => context.documentsById.get(rootId))
       .filter((document): document is PersistedDocument => Boolean(document))
       .map(document =>
-        this.buildSectionBranch(document, context, {
+        this.buildGroupBranch(document, context, {
           sharedByDisplayName: document.owner.displayName,
         }),
       )
   }
 
-  private buildSectionBranch(
+  private buildGroupBranch(
     document: PersistedDocument,
     context: TreeContext,
     options: {
-      sectionDocumentIds?: Set<string>
+      visibleDocumentIds?: Set<string>
       sharedByDisplayName: string | null
     },
   ): DocumentItem {
     const nextChildren = (context.childrenByParent.get(document.id) ?? [])
-      .filter(child => !options.sectionDocumentIds || options.sectionDocumentIds.has(child.id))
-      .map(child => this.buildSectionBranch(child, context, {
-        sectionDocumentIds: options.sectionDocumentIds,
+      .filter(child => !options.visibleDocumentIds || options.visibleDocumentIds.has(child.id))
+      .map(child => this.buildGroupBranch(child, context, {
+        visibleDocumentIds: options.visibleDocumentIds,
         sharedByDisplayName: null,
       }))
 
@@ -337,7 +334,7 @@ export class DocumentsService {
     id: string,
   ): {
     document: PersistedDocument
-    section: DocumentSectionId
+    collection: DocumentCollectionId
   } {
     const document = context.documentsById.get(id)
 
@@ -348,7 +345,7 @@ export class DocumentsService {
     if (document.ownerId === userId) {
       return {
         document,
-        section: resolveOwnedDocumentSectionId(document.spaceScope),
+        collection: resolveOwnedDocumentCollectionId(document.spaceScope),
       }
     }
 
@@ -358,7 +355,7 @@ export class DocumentsService {
       if (context.sharedRootIds.has(currentDocument.id)) {
         return {
           document,
-          section: DOCUMENT_SECTION_ID.SHARED,
+          collection: DOCUMENT_COLLECTION.SHARED,
         }
       }
 
@@ -409,22 +406,22 @@ function toDocumentRecent(
   return {
     id: document.id,
     title: document.title,
-    section: resolveRecentDocumentSection(document, userId),
+    collection: resolveRecentDocumentCollection(document, userId),
     ancestorTitles: collectRecentAncestorTitles(document, context, userId),
     createdAt: document.createdAt.toISOString(),
     updatedAt: document.updatedAt.toISOString(),
   }
 }
 
-function resolveRecentDocumentSection(
+function resolveRecentDocumentCollection(
   document: PersistedDocument,
   userId: string,
-): DocumentSectionId {
+): DocumentCollectionId {
   if (document.ownerId !== userId) {
-    return DOCUMENT_SECTION_ID.SHARED
+    return DOCUMENT_COLLECTION.SHARED
   }
 
-  return resolveOwnedDocumentSectionId(document.spaceScope)
+  return resolveOwnedDocumentCollectionId(document.spaceScope)
 }
 
 function collectRecentAncestorTitles(
@@ -500,7 +497,7 @@ function findSharedRootId(document: PersistedDocument, context: TreeContext) {
 
 function toDocumentDetail(
   document: PersistedDocument,
-  section: DocumentSectionId,
+  collection: DocumentCollectionId,
   hasChildren: boolean,
 ): DocumentDetail {
   return {
@@ -510,7 +507,7 @@ function toDocumentDetail(
     hasChildren,
     hasContent: hasDocumentContent(document.content),
     scope: document.spaceScope,
-    section,
+    collection,
   }
 }
 

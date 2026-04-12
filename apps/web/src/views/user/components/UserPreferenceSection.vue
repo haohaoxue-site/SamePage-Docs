@@ -1,0 +1,113 @@
+<script setup lang="ts">
+import type { AppearancePreference, LanguagePreference } from '@haohaoxue/samepage-domain'
+import type { UserPreferenceSectionProps } from '../typing'
+import { APPEARANCE_PREFERENCE_VALUES, LANGUAGE_PREFERENCE_VALUES } from '@haohaoxue/samepage-contracts'
+import { formatAppearancePreference, formatLanguagePreference } from '@haohaoxue/samepage-shared'
+
+const props = defineProps<UserPreferenceSectionProps>()
+const language = defineModel<LanguagePreference>('language', { required: true })
+const appearance = defineModel<AppearancePreference>('appearance', { required: true })
+</script>
+
+<template>
+  <ElCard shadow="never" class="user-preference-section">
+    <div class="user-preference-section__header">
+      <div>
+        <h2 class="user-preference-section__title">
+          偏好设置
+        </h2>
+        <p class="user-preference-section__description">
+          设置常用语言和页面外观。
+        </p>
+      </div>
+    </div>
+
+    <div class="user-preference-section__group">
+      <div class="user-preference-section__label">
+        语言偏好
+      </div>
+      <ElRadioGroup
+        v-model="language"
+        :disabled="props.isSavingLanguage"
+        class="user-preference-section__options"
+      >
+        <ElRadioButton
+          v-for="item in LANGUAGE_PREFERENCE_VALUES"
+          :key="item"
+          :label="item"
+          :value="item"
+        >
+          {{ formatLanguagePreference(item) }}
+        </ElRadioButton>
+      </ElRadioGroup>
+    </div>
+
+    <div class="user-preference-section__group">
+      <div class="user-preference-section__label">
+        外观偏好
+      </div>
+      <ElRadioGroup
+        v-model="appearance"
+        :disabled="props.isSavingAppearance"
+        class="user-preference-section__options"
+      >
+        <ElRadioButton
+          v-for="item in APPEARANCE_PREFERENCE_VALUES"
+          :key="item"
+          :label="item"
+          :value="item"
+        >
+          {{ formatAppearancePreference(item) }}
+        </ElRadioButton>
+      </ElRadioGroup>
+    </div>
+  </ElCard>
+</template>
+
+<style scoped lang="scss">
+.user-preference-section {
+  border-color: color-mix(in srgb, var(--brand-border-base) 85%, transparent);
+
+  &__header {
+    margin-bottom: 1.25rem;
+  }
+
+  &__title {
+    margin: 0;
+    color: var(--brand-text-primary);
+    font-size: 1.125rem;
+    font-weight: 700;
+  }
+
+  &__description {
+    margin: 0.375rem 0 0;
+    color: var(--brand-text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+
+  &__group {
+    margin-bottom: 1.25rem;
+  }
+
+  &__label {
+    margin-bottom: 0.75rem;
+    color: var(--brand-text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  &__options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  &__hint {
+    margin: 0.625rem 0 0;
+    color: var(--brand-text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+}
+</style>

@@ -1,10 +1,9 @@
 import type { ArgumentMetadata, PipeTransform } from '@nestjs/common'
-import type { ZodSchema } from 'zod'
 import { BadRequestException } from '@nestjs/common'
 import { ZodError } from 'zod'
 
 export class ZodValidationPipe implements PipeTransform {
-  constructor(private schema: ZodSchema) {}
+  constructor(private readonly schema: { parse: (value: unknown) => unknown }) {}
 
   transform(value: unknown, _metadata: ArgumentMetadata) {
     try {
@@ -13,7 +12,7 @@ export class ZodValidationPipe implements PipeTransform {
     catch (error) {
       if (error instanceof ZodError) {
         throw new BadRequestException(
-          error.errors.map(e => `${e.path.join('.')}: ${e.message}`),
+          error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`),
         )
       }
       throw error

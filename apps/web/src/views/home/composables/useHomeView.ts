@@ -8,7 +8,7 @@ import type {
 import { useLocalStorage } from '@vueuse/core'
 import { computed, onMounted, ref } from 'vue'
 import { getRecentDocuments } from '@/apis/document'
-import { useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
 import { formatMonthDayWeekday } from '@/utils/dayjs'
 
 const HOME_WIDGET_STORAGE_KEY = 'samepage_home_widgets'
@@ -56,13 +56,14 @@ const schedules: HomeScheduleItem[] = [
 ]
 
 export function useHomeView() {
-  const authStore = useAuthStore()
+  const userStore = useUserStore()
   const recentDocuments = ref<HomeRecentDocument[]>([])
   const visibleWidgetIds = useLocalStorage<HomeWidgetId[]>(HOME_WIDGET_STORAGE_KEY, [...defaultWidgetIds])
+  const currentUser = computed(() => userStore.currentUser!)
 
   const overview = computed<HomeOverviewModel>(() => ({
     eyebrow: 'SamePage Workspace',
-    title: authStore.user ? `你好，${authStore.user.displayName}` : '欢迎来到 SamePage',
+    title: `你好，${currentUser.value.displayName}`,
     description: '从最近文档继续推进，或者先看一眼今天的节奏安排。',
     dateLabel: formatMonthDayWeekday(),
   }))

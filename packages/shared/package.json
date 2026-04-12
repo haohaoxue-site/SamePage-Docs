@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@haohaoxue/samepage-contracts": "workspace:*",
-    "zod": "catalog:",
+    "@haohaoxue/samepage-domain": "workspace:*",
     "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {

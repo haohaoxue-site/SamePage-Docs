@@ -1,0 +1,55 @@
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum UserLanguagePreference {
+  AUTO
+  ZH_CN
+  EN_US
+}
+
+enum UserAppearancePreference {
+  AUTO
+  LIGHT
+  DARK
+}
+
+model User {
+  id                     String                      @id @default(uuid())
+  email                  String?                     @unique
+  displayName            String
+  avatarUrl              String?
+  avatarStorageKey       String?
+  status                 UserStatus                  @default(ACTIVE)
+  lastLoginAt            DateTime?
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  deletedAt              DateTime?
+  oauthAccounts          OauthAccount[]
+  refreshTokens          AuthRefreshToken[]
+  loginCodes             AuthLoginCode[]
+  userRoles              UserRole[]
+  localCredential        LocalCredential?
+  ownedDocuments         Document[]                  @relation("DocumentOwner")
+  documentMemberships    DocumentMember[]
+  chatSessions           ChatSession[]
+  adminAuditLogs         AdminAuditLog[]             @relation("AdminAuditLogActor")
+  updatedAiConfigs       SystemAiConfig[]            @relation("SystemAiConfigUpdater")
+  systemAdminConfig      SystemAuthConfig?           @relation("SystemAuthConfigSystemAdmin")
+  updatedAuthConfigs     SystemAuthConfig[]          @relation("SystemAuthConfigUpdater")
+  preference             UserPreference?
+  emailVerificationCodes UserEmailVerificationCode[]
+  initiatedOauthStates   AuthOauthState[]            @relation("AuthOauthStateInitiator")
+  updatedEmailConfigs    SystemEmailConfig[]         @relation("SystemEmailConfigUpdater")
+}
+
+model UserPreference {
+  userId               String                   @id
+  languagePreference   UserLanguagePreference   @default(AUTO)
+  appearancePreference UserAppearancePreference @default(AUTO)
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  deletedAt            DateTime?
+  user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

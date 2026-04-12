@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { DocumentSectionId } from '@haohaoxue/samepage-domain'
-import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
+import type { DocumentCollectionId } from '@haohaoxue/samepage-domain'
+import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
 import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import WorkspacePage from '@/layouts/components/WorkspacePage.vue'
@@ -9,7 +9,7 @@ import DocumentSectionPanel from './components/DocumentSectionPanel.vue'
 import { useDocumentWorkspace } from './composables/useDocumentWorkspace'
 
 const {
-  treeSections,
+  treeGroups,
   currentDocument,
   activeDocumentId,
   breadcrumbLabels,
@@ -32,11 +32,11 @@ const {
   updateDocumentContent,
 } = useDocumentWorkspace()
 
-const collapsedSectionIds = ref<DocumentSectionId[]>([
-  DOCUMENT_SECTION_ID.SHARED,
-  DOCUMENT_SECTION_ID.TEAM,
+const collapsedGroupIds = ref<DocumentCollectionId[]>([
+  DOCUMENT_COLLECTION.SHARED,
+  DOCUMENT_COLLECTION.TEAM,
 ])
-const collapsedSectionIdSet = computed(() => new Set(collapsedSectionIds.value))
+const collapsedGroupIdSet = computed(() => new Set(collapsedGroupIds.value))
 const visibleBreadcrumbLabels = computed(() => breadcrumbLabels.value.length > 1 ? breadcrumbLabels.value : [])
 const contextSaveStateLabel = computed(() => {
   if (isDocumentItemLoading.value && activeDocumentId.value) {
@@ -46,20 +46,20 @@ const contextSaveStateLabel = computed(() => {
   return saveStateLabel.value
 })
 
-function toggleSectionCollapse(sectionId: DocumentSectionId) {
-  collapsedSectionIds.value = collapsedSectionIdSet.value.has(sectionId)
-    ? collapsedSectionIds.value.filter(id => id !== sectionId)
-    : [...collapsedSectionIds.value, sectionId]
+function toggleGroupCollapse(collectionId: DocumentCollectionId) {
+  collapsedGroupIds.value = collapsedGroupIdSet.value.has(collectionId)
+    ? collapsedGroupIds.value.filter(id => id !== collectionId)
+    : [...collapsedGroupIds.value, collectionId]
 }
 
 watch(
-  () => currentDocument.value?.section,
-  (nextSectionId) => {
-    if (!nextSectionId) {
+  () => currentDocument.value?.collection,
+  (nextCollectionId) => {
+    if (!nextCollectionId) {
       return
     }
 
-    collapsedSectionIds.value = collapsedSectionIds.value.filter(id => id !== nextSectionId)
+    collapsedGroupIds.value = collapsedGroupIds.value.filter(id => id !== nextCollectionId)
   },
 )
 
@@ -104,16 +104,16 @@ onBeforeRouteLeave(confirmNavigation)
 
           <div v-else class="docs-view__tree-sections">
             <DocumentSectionPanel
-              v-for="section in treeSections"
-              :key="section.id"
-              :section="section"
+              v-for="group in treeGroups"
+              :key="group.id"
+              :group="group"
               :active-document-id="activeDocumentId"
               :expanded-document-ids="expandedDocumentIdSet"
-              :is-collapsed="collapsedSectionIdSet.has(section.id)"
+              :is-collapsed="collapsedGroupIdSet.has(group.id)"
               :is-action-pending="isMutatingTree"
               @open="openDocument"
               @toggle="toggleDocument"
-              @toggle-collapse="toggleSectionCollapse"
+              @toggle-collapse="toggleGroupCollapse"
               @create-root="createRootDocument"
               @create-child="createChildDocument"
               @delete-document="deleteDocument"

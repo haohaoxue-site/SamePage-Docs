@@ -1,13 +1,14 @@
 <script lang="ts" setup>
 import type { SvgIconProps } from './typing'
 import { computed } from 'vue'
+import { SvgIconCategory } from './typing'
 
 defineOptions({
   inheritAttrs: false,
 })
 
 const props = withDefaults(defineProps<SvgIconProps>(), {
-  category: 'ui',
+  category: SvgIconCategory.UI,
   color: 'currentColor',
   size: '1em',
 })

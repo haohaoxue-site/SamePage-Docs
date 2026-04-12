@@ -1,10 +1,7 @@
-import type { AuthMethodSchema, AuthProviderSchema } from '@haohaoxue/samepage-contracts'
-import type { z } from 'zod'
+import type { AUTH_METHOD_VALUES, AUTH_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
 
-export { AuthMethodSchema, AuthProviderSchema } from '@haohaoxue/samepage-contracts'
-
-export type AuthProviderName = z.infer<typeof AuthProviderSchema>
-export type AuthMethodName = z.infer<typeof AuthMethodSchema>
+export type AuthProviderName = (typeof AUTH_PROVIDER_VALUES)[number]
+export type AuthMethodName = (typeof AUTH_METHOD_VALUES)[number]
 
 /**
  * 当前登录用户信息。
@@ -57,16 +54,9 @@ export interface RequestEmailVerificationResponseDto {
   requested: boolean
 }
 
-export interface ConfirmEmailVerificationDto {
-  token: string
-}
-
-export interface ConfirmEmailVerificationResponseDto {
-  email: string
-}
-
 export interface PasswordRegisterDto {
-  token: string
+  email: string
+  code: string
   displayName: string
   password: string
 }
@@ -76,8 +66,19 @@ export interface ChangePasswordDto {
   newPassword: string
 }
 
-export interface AuthRegistrationOptionsDto {
-  allowPasswordRegistration: boolean
-  allowGithubRegistration: boolean
-  allowLinuxDoRegistration: boolean
+/**
+ * 第三方认证能力。
+ */
+export interface AuthProviderCapabilityDto {
+  enabled: boolean
+  allowRegistration: boolean
+}
+
+/**
+ * 认证能力配置。
+ */
+export interface AuthCapabilitiesDto {
+  emailBindingEnabled: boolean
+  passwordRegistrationEnabled: boolean
+  providers: Record<AuthProviderName, AuthProviderCapabilityDto>
 }

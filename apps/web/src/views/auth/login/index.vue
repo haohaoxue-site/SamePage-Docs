@@ -6,10 +6,11 @@ import { useLoginView } from './composables/useLoginView'
 
 const passwordFormRef = useTemplateRef<FormInstance>('passwordFormRef')
 const {
-  allowPasswordRegistration,
-  isLoadingOptions,
+  hasOauthProviders,
+  isLoadingCapabilities,
   isPasswordSubmitting,
   loadErrorMessage,
+  passwordRegistrationEnabled,
   passwordForm,
   passwordFormRules,
   providers,
@@ -71,32 +72,41 @@ async function handleSubmitPasswordLogin() {
       </ElButton>
     </ElForm>
 
-    <div class="login-view__divider">
-      <span class="login-view__divider-text">其他登录方式</span>
-    </div>
+    <template v-if="hasOauthProviders">
+      <div class="login-view__divider">
+        <span class="login-view__divider-text">其他登录方式</span>
+      </div>
 
-    <div class="login-view__providers">
-      <ElButton
-        v-for="item in providers"
-        :key="item.provider"
-        class="login-provider-btn justify-between"
-        @click="startLogin(item.provider)"
-      >
-        <span class="login-provider-btn__leading">
-          <span class="login-provider-btn__icon-wrap">
-            <SvgIcon category="ui" :icon="item.icon" size="1.125rem" class="login-provider-btn__icon" />
+      <div class="login-view__providers">
+        <ElButton
+          v-for="item in providers"
+          :key="item.provider"
+          class="login-provider-btn justify-between"
+          @click="startLogin(item.provider)"
+        >
+          <span class="login-provider-btn__leading">
+            <span class="login-provider-btn__icon-wrap">
+              <SvgIcon category="ui" :icon="item.icon" size="1.125rem" class="login-provider-btn__icon" />
+            </span>
+            <span class="login-provider-btn__content">
+              <span class="login-provider-btn__label">使用 {{ item.title }}</span>
+              <span
+                class="login-provider-btn__description"
+                :class="{ 'login-provider-btn__description--warning': !item.acceptingNewUsers }"
+              >
+                {{ item.description }}
+              </span>
+            </span>
           </span>
-          <span class="login-provider-btn__label">使用 {{ item.title }}</span>
-        </span>
-        <span class="login-provider-btn__meta">
-          <span v-if="!item.acceptingNewUsers" class="login-provider-btn__badge">仅限已有账号</span>
-          <SvgIcon category="ui" icon="arrow-right" size="1rem" class="login-provider-btn__arrow" />
-        </span>
-      </ElButton>
-    </div>
+          <span class="login-provider-btn__meta">
+            <SvgIcon category="ui" icon="arrow-right" size="1rem" class="login-provider-btn__arrow" />
+          </span>
+        </ElButton>
+      </div>
+    </template>
 
     <template #footer>
-      <template v-if="allowPasswordRegistration && !isLoadingOptions">
+      <template v-if="passwordRegistrationEnabled && !isLoadingCapabilities">
         <span class="login-view__footer-copy">还没有账号？</span>
         <RouterLink :to="{ name: 'register' }" class="login-view__footer-link">
           创建邮箱账号
@@ -199,6 +209,14 @@ async function handleSubmitPasswordLogin() {
     min-width: 0;
   }
 
+  &__content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+
   &__icon-wrap {
     display: flex;
     flex-shrink: 0;
@@ -224,22 +242,24 @@ async function handleSubmitPasswordLogin() {
     line-height: 1.3;
   }
 
+  &__description {
+    min-width: 0;
+    color: var(--brand-text-secondary);
+    font-size: 0.6875rem;
+    text-align: left;
+    line-height: 1.4;
+  }
+
+  &__description--warning {
+    color: var(--brand-warning);
+  }
+
   &__meta {
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 0.375rem;
     margin-left: auto;
     min-width: auto;
-  }
-
-  &__badge {
-    border-radius: 9999px;
-    padding: 0.22rem 0.45rem;
-    color: var(--brand-warning);
-    font-size: 0.625rem;
-    font-weight: 700;
-    background: color-mix(in srgb, var(--brand-warning) 10%, transparent);
   }
 
   &__arrow {

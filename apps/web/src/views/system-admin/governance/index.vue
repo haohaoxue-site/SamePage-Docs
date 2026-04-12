@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { SvgIconCategory } from '@/components/svg-icon/typing'
 import ConsoleMetricCard from '../components/ConsoleMetricCard.vue'
 import { useAdminGovernance } from './composables/useAdminGovernance'
 
@@ -15,22 +16,22 @@ const governanceCards = computed(() => {
       label: '文档总量',
       value: summary.value.totalDocuments,
       detail: '平台文档总量',
+      iconCategory: SvgIconCategory.UI,
       icon: 'flow',
-      iconCategory: 'ui' as const,
     },
     {
       label: '共享文档',
       value: summary.value.sharedDocuments,
       detail: '已共享文档数',
+      iconCategory: SvgIconCategory.UI,
       icon: 'share',
-      iconCategory: 'ui' as const,
     },
     {
       label: '风控锁定',
       value: summary.value.lockedDocuments,
       detail: `当前处于 ${summary.value.lockedStatus} 状态`,
+      iconCategory: SvgIconCategory.UI,
       icon: 'lock',
-      iconCategory: 'ui' as const,
     },
   ]
 })
@@ -50,8 +51,8 @@ onMounted(loadGovernanceSummary)
           :detail="card.detail"
           :label="card.label"
           :value="card.value"
-          :icon="card.icon"
           :icon-category="card.iconCategory"
+          :icon="card.icon"
         />
       </section>
 

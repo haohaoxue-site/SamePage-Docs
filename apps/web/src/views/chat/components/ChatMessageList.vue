@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChatMessageListProps } from '../typing'
 import { computed, nextTick, onUpdated, useTemplateRef } from 'vue'
+import { SvgIconCategory } from '@/components/svg-icon/typing'
 
 const props = defineProps<ChatMessageListProps>()
 
@@ -22,11 +23,11 @@ function getEmptyIconStateClass() {
 
 const emptyIcon = computed(() => props.isConfigured
   ? {
-      category: 'nav' as const,
+      category: SvgIconCategory.NAV,
       icon: 'chat-active',
     }
   : {
-      category: 'ui' as const,
+      category: SvgIconCategory.UI,
       icon: 'settings',
     })
 

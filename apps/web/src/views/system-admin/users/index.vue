@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { SvgIconCategory } from '@/components/svg-icon/typing'
 import { formatDateTime } from '@/utils/dayjs'
 import ConsoleMetricCard from '../components/ConsoleMetricCard.vue'
 import SystemAdminUserTable from '../components/SystemAdminUserTable.vue'
@@ -27,22 +28,22 @@ const summaryCards = computed(() => {
       label: '用户总数',
       value: users.value.length,
       detail: `正常 ${activeUsers}，禁用 ${disabledUsers}`,
+      iconCategory: SvgIconCategory.UI,
       icon: 'user-group',
-      iconCategory: 'ui' as const,
     },
     {
       label: '管理员',
       value: systemAdmins,
       detail: '具备系统后台访问权限',
+      iconCategory: SvgIconCategory.UI,
       icon: 'user-admin',
-      iconCategory: 'ui' as const,
     },
     {
       label: '文档交互',
       value: users.value.reduce((sum, user) => sum + user.sharedDocumentCount, 0),
       detail: '全平台共享文档总数',
+      iconCategory: SvgIconCategory.UI,
       icon: 'share',
-      iconCategory: 'ui' as const,
     },
   ]
 })
@@ -69,8 +70,8 @@ function formatDate(value: string | null) {
         :detail="card.detail"
         :label="card.label"
         :value="card.value"
-        :icon="card.icon"
         :icon-category="card.iconCategory"
+        :icon="card.icon"
       />
     </section>
 

@@ -8,11 +8,10 @@ const registerRequestFormRef = useTemplateRef<FormInstance>('registerRequestForm
 const {
   form,
   formRules,
-  isLoadingOptions,
+  isLoadingCapabilities,
   isSubmitting,
-  allowPasswordRegistration,
   loadErrorMessage,
-  submittedEmail,
+  passwordRegistrationEnabled,
   submitEmailVerificationRequest,
 } = usePasswordRegisterRequestView()
 
@@ -23,8 +22,8 @@ async function handleSubmitEmailVerificationRequest() {
 
 <template>
   <AuthEntryShell
-    :title="!isLoadingOptions && !allowPasswordRegistration ? '邮箱注册暂未开放' : '创建账号'"
-    :description="!isLoadingOptions && !allowPasswordRegistration ? '当前仅支持已有账号登录。' : '输入邮箱，我们会发送验证链接。'"
+    :title="!isLoadingCapabilities && !passwordRegistrationEnabled ? '邮箱注册暂未开放' : '创建账号'"
+    :description="!isLoadingCapabilities && !passwordRegistrationEnabled ? '当前仅支持已有账号登录。' : '输入邮箱，我们会发送验证码。'"
   >
     <ElAlert
       v-if="loadErrorMessage"
@@ -36,7 +35,7 @@ async function handleSubmitEmailVerificationRequest() {
     />
 
     <template v-else>
-      <div v-if="!isLoadingOptions && !allowPasswordRegistration" class="password-register-view__closed-state">
+      <div v-if="!isLoadingCapabilities && !passwordRegistrationEnabled" class="password-register-view__closed-state">
         <div class="password-register-view__closed-icon">
           <SvgIcon category="ui" icon="lock" size="1.25rem" />
         </div>
@@ -54,19 +53,9 @@ async function handleSubmitEmailVerificationRequest() {
       </div>
 
       <template v-else>
-        <ElAlert
-          v-if="submittedEmail"
-          type="success"
-          show-icon
-          :closable="false"
-          class="password-register-view__alert"
-        >
-          验证链接已发送至 {{ submittedEmail }}，请前往邮箱继续完成注册。
-        </ElAlert>
-
         <ElForm
           ref="registerRequestFormRef"
-          v-loading="isLoadingOptions"
+          v-loading="isLoadingCapabilities"
           :model="form"
           :rules="formRules"
           label-position="top"
@@ -88,14 +77,14 @@ async function handleSubmitEmailVerificationRequest() {
             class="password-register-view__submit"
             :loading="isSubmitting"
           >
-            发送验证链接
+            发送验证码
           </ElButton>
         </ElForm>
       </template>
     </template>
 
     <template #footer>
-      <template v-if="loadErrorMessage || isLoadingOptions || allowPasswordRegistration">
+      <template v-if="loadErrorMessage || isLoadingCapabilities || passwordRegistrationEnabled">
         <span class="password-register-view__footer-copy">已有账号？</span>
         <RouterLink :to="{ name: 'login' }" class="password-register-view__footer-link">
           返回登录

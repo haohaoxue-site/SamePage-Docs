@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DocumentItemEmits, DocumentItemProps } from '../typing'
+import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
 import { computed } from 'vue'
 
 const props = defineProps<DocumentItemProps>()
@@ -8,7 +9,7 @@ const emits = defineEmits<DocumentItemEmits>()
 
 const isActive = computed(() => props.activeDocumentId === props.item.id)
 const isExpanded = computed(() => props.expandedDocumentIds.has(props.item.id))
-const canManageDocument = computed(() => props.sectionId === 'personal')
+const canManageDocument = computed(() => props.collectionId === DOCUMENT_COLLECTION.PERSONAL)
 
 function openDocument() {
   emits('open', props.item.id)
@@ -107,7 +108,7 @@ function getExpandIconName() {
         v-for="child in props.item.children"
         :key="child.id"
         :item="child"
-        :section-id="props.sectionId"
+        :collection-id="props.collectionId"
         :depth="depth + 1"
         :active-document-id="props.activeDocumentId"
         :expanded-document-ids="props.expandedDocumentIds"

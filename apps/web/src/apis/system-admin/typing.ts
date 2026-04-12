@@ -6,8 +6,12 @@ export type {
   SystemAdminUserStatus,
   SystemAiConfigDto,
   SystemAuthGovernanceDto,
+  SystemEmailConfigDto,
+  SystemEmailProvider,
+  TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAdminUserStatusDto,
   UpdateSystemAiConfigDto,
   UpdateSystemAuthGovernanceDto,
+  UpdateSystemEmailConfigDto,
 } from '@haohaoxue/samepage-domain'

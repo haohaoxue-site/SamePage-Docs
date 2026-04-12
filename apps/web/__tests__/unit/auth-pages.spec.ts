@@ -5,15 +5,13 @@ import { createMockTokenExchangeResponse, mountAt, seedAuthState } from '../util
 
 const {
   changePasswordMock,
-  confirmEmailVerificationMock,
-  getAuthRegistrationOptionsMock,
+  getAuthCapabilitiesMock,
   loginWithPasswordMock,
   registerWithPasswordMock,
   requestEmailVerificationMock,
 } = vi.hoisted(() => ({
   changePasswordMock: vi.fn(),
-  confirmEmailVerificationMock: vi.fn(),
-  getAuthRegistrationOptionsMock: vi.fn(),
+  getAuthCapabilitiesMock: vi.fn(),
   loginWithPasswordMock: vi.fn(),
   registerWithPasswordMock: vi.fn(),
   requestEmailVerificationMock: vi.fn(),
@@ -24,10 +22,8 @@ const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
 vi.mock('@/apis/auth', () => ({
   buildOAuthStartUrl: vi.fn(() => '/api/auth/oauth/github/start'),
-  getAuthRegistrationOptions: getAuthRegistrationOptionsMock,
   loginWithPassword: loginWithPasswordMock,
   requestEmailVerification: requestEmailVerificationMock,
-  confirmEmailVerification: confirmEmailVerificationMock,
   registerWithPassword: registerWithPasswordMock,
   changePassword: changePasswordMock,
   exchangeAuthCode: vi.fn(),
@@ -37,15 +33,27 @@ vi.mock('@/apis/auth', () => ({
   refreshAccessToken: vi.fn(),
 }))
 
+vi.mock('@/apis/capabilities', () => ({
+  getAuthCapabilities: getAuthCapabilitiesMock,
+}))
+
 beforeEach(() => {
-  getAuthRegistrationOptionsMock.mockResolvedValue({
-    allowPasswordRegistration: true,
-    allowGithubRegistration: true,
-    allowLinuxDoRegistration: true,
+  getAuthCapabilitiesMock.mockResolvedValue({
+    emailBindingEnabled: true,
+    passwordRegistrationEnabled: true,
+    providers: {
+      'github': {
+        enabled: true,
+        allowRegistration: true,
+      },
+      'linux-do': {
+        enabled: true,
+        allowRegistration: true,
+      },
+    },
   })
   loginWithPasswordMock.mockResolvedValue(createMockTokenExchangeResponse())
   requestEmailVerificationMock.mockResolvedValue({ requested: true })
-  confirmEmailVerificationMock.mockResolvedValue({ email: 'alice@example.com' })
   registerWithPasswordMock.mockResolvedValue(createMockTokenExchangeResponse())
   changePasswordMock.mockResolvedValue(createMockTokenExchangeResponse())
 })
@@ -80,10 +88,19 @@ describe('auth pages', () => {
   })
 
   it('renders register page as closed state when password registration is disabled', async () => {
-    getAuthRegistrationOptionsMock.mockResolvedValueOnce({
-      allowPasswordRegistration: false,
-      allowGithubRegistration: true,
-      allowLinuxDoRegistration: true,
+    getAuthCapabilitiesMock.mockResolvedValueOnce({
+      emailBindingEnabled: false,
+      passwordRegistrationEnabled: false,
+      providers: {
+        'github': {
+          enabled: true,
+          allowRegistration: true,
+        },
+        'linux-do': {
+          enabled: true,
+          allowRegistration: true,
+        },
+      },
     })
 
     const { wrapper } = await mountAt('/register')
@@ -91,7 +108,7 @@ describe('auth pages', () => {
     expect(wrapper.text()).toContain('当前未开放邮箱注册')
     expect(wrapper.text()).toContain('返回登录')
     expect(wrapper.text()).toContain('邮箱注册暂未开放')
-    expect(wrapper.text()).not.toContain('发送验证链接')
+    expect(wrapper.text()).not.toContain('发送验证码')
     expect(wrapper.find('form').exists()).toBe(false)
   })
 
@@ -99,7 +116,7 @@ describe('auth pages', () => {
     const { wrapper } = await mountAt('/register')
 
     expect(wrapper.text()).toContain('创建账号')
-    expect(wrapper.text()).toContain('发送验证链接')
+    expect(wrapper.text()).toContain('发送验证码')
     expect(wrapper.text()).not.toContain('Onboarding')
     expect(wrapper.text()).not.toContain('统一身份')
     expect(wrapper.text()).not.toContain('工作区入口')
@@ -116,23 +133,23 @@ describe('auth pages', () => {
   })
 
   it('prevents mismatched register confirmation submission on verify page', async () => {
-    const { wrapper } = await mountAt('/register/verify?token=register-token')
+    const { wrapper } = await mountAt('/register/verify?email=alice@example.com')
 
+    await wrapper.find('input[placeholder="输入 6 位验证码"]').setValue('123456')
     await wrapper.find('input[autocomplete="nickname"]').setValue('Alice')
     await wrapper.find('input[placeholder="设置密码"]').setValue('password-123')
     await wrapper.find('input[placeholder="再次输入密码"]').setValue('password-456')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(confirmEmailVerificationMock).toHaveBeenCalledWith({ token: 'register-token' })
     expect(registerWithPasswordMock).not.toHaveBeenCalled()
   })
 
   it('renders register verify page without developer-facing onboarding copy', async () => {
-    const { wrapper } = await mountAt('/register/verify?token=register-token')
+    const { wrapper } = await mountAt('/register/verify?email=alice@example.com')
 
-    expect(wrapper.text()).toContain('邮箱验证通过')
-    expect(wrapper.text()).toContain('设置显示名称和密码后即可完成注册。')
+    expect(wrapper.text()).toContain('完成邮箱注册')
+    expect(wrapper.text()).toContain('输入验证码并设置密码后即可完成注册。')
     expect(wrapper.text()).not.toContain('工作区')
     expect(wrapper.text()).not.toContain('会话')
     expect(wrapper.text()).not.toContain('AI 能力体系')

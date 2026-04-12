@@ -1,9 +1,6 @@
 import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type {
-  AuthRegistrationOptionsDto,
   ChangePasswordDto,
-  ConfirmEmailVerificationDto,
-  ConfirmEmailVerificationResponseDto,
   ExchangeCodeDto,
   LogoutResponseDto,
   PasswordLoginDto,
@@ -30,13 +27,6 @@ export function exchangeAuthCode(data: ExchangeCodeDto): Promise<TokenExchangeRe
   })
 }
 
-export function getAuthRegistrationOptions(): Promise<AuthRegistrationOptionsDto> {
-  return axios.request({
-    method: 'get',
-    url: '/auth/registration-options',
-  })
-}
-
 export function loginWithPassword(data: PasswordLoginDto): Promise<TokenExchangeResponseDto> {
   return axios.request({
     method: 'post',
@@ -52,16 +42,6 @@ export function requestEmailVerification(
   return axios.request({
     method: 'post',
     url: '/auth/verify-email/request',
-    data,
-  })
-}
-
-export function confirmEmailVerification(
-  data: ConfirmEmailVerificationDto,
-): Promise<ConfirmEmailVerificationResponseDto> {
-  return axios.request({
-    method: 'post',
-    url: '/auth/verify-email/confirm',
     data,
   })
 }

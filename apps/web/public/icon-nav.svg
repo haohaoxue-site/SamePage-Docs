@@ -152,4 +152,42 @@
       <path d="M29 31.5H35.5" fill="none" stroke="#57A9E6" stroke-width="3" stroke-linecap="round" />
       <path d="M33 34.5L34.3 37.1L36.9 38.4L34.3 39.7L33 42.3L31.7 39.7L29.1 38.4L31.7 37.1L33 34.5Z" fill="#4FD4B0" />
   </symbol>
+  <symbol id="user-settings-active" viewBox="0 0 64 64">
+    <defs>
+        <linearGradient id="nav-user-settings-active-bg" x1="12" y1="10" x2="53" y2="54" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#8FD8FF" />
+          <stop offset="0.58" stop-color="#8090FF" />
+          <stop offset="1" stop-color="#FF8CB9" />
+        </linearGradient>
+      </defs>
+
+      <rect x="8" y="8" width="48" height="48" rx="16" fill="url(#nav-user-settings-active-bg)" />
+      <circle cx="46" cy="19" r="4.5" fill="#FFE07A" fill-opacity="0.28" />
+      <path d="M46 16.9V21.1" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-opacity="0.82" />
+      <path d="M43.9 19H48.1" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-opacity="0.82" />
+      <circle cx="32" cy="25.5" r="5.75" fill="none" stroke="white" stroke-width="3.25" />
+      <path d="M22.5 42C24.2781 37.6298 27.4448 35.4447 32 35.4447C36.5552 35.4447 39.7219 37.6298 41.5 42" fill="none" stroke="white" stroke-width="3.25" stroke-linecap="round" />
+      <path d="M42 31.5L43.3 34.1L45.9 35.4L43.3 36.7L42 39.3L40.7 36.7L38.1 35.4L40.7 34.1L42 31.5Z" fill="white" />
+  </symbol>
+  <symbol id="user-settings" viewBox="0 0 64 64">
+    <defs>
+        <linearGradient id="nav-user-settings-line" x1="20" y1="18" x2="45" y2="45" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#65C8FF" />
+          <stop offset="0.52" stop-color="#8C83FF" />
+          <stop offset="1" stop-color="#FF89B5" />
+        </linearGradient>
+        <linearGradient id="nav-user-settings-spark" x1="39" y1="31" x2="46" y2="39" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#FFC16E" />
+          <stop offset="1" stop-color="#FF82A3" />
+        </linearGradient>
+      </defs>
+
+      <rect x="8" y="8" width="48" height="48" rx="16" fill="#F3F7FF" />
+      <circle cx="45.5" cy="19.5" r="4.5" fill="#FFE07A" />
+      <path d="M45.5 16.7V22.3" stroke="white" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M42.7 19.5H48.3" stroke="white" stroke-width="1.8" stroke-linecap="round" />
+      <circle cx="32" cy="25.5" r="5.75" fill="none" stroke="url(#nav-user-settings-line)" stroke-width="3.25" />
+      <path d="M22.5 42C24.2781 37.6298 27.4448 35.4447 32 35.4447C36.5552 35.4447 39.7219 37.6298 41.5 42" fill="none" stroke="url(#nav-user-settings-line)" stroke-width="3.25" stroke-linecap="round" />
+      <path d="M42 31.5L43.3 34.1L45.9 35.4L43.3 36.7L42 39.3L40.7 36.7L38.1 35.4L40.7 34.1L42 31.5Z" fill="url(#nav-user-settings-spark)" />
+  </symbol>
 </svg>

@@ -3,6 +3,8 @@ import type {
   DocumentSectionPanelEmits,
   DocumentSectionPanelProps,
 } from '../typing'
+import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
+import { formatDocumentCollectionLabel } from '@haohaoxue/samepage-shared'
 import { computed } from 'vue'
 import DocumentItem from './DocumentItem.vue'
 import DocumentToolbar from './DocumentToolbar.vue'
@@ -11,24 +13,14 @@ const props = defineProps<DocumentSectionPanelProps>()
 
 const emit = defineEmits<DocumentSectionPanelEmits>()
 
-const displayLabel = computed(() => {
-  if (props.section.id === 'personal') {
-    return '私有'
-  }
-
-  if (props.section.id === 'shared') {
-    return '共享'
-  }
-
-  return '团队'
-})
+const displayLabel = computed(() => formatDocumentCollectionLabel(props.group.id))
 
 const chevronIconName = computed(() => {
   return props.isCollapsed ? 'chevron-right' : 'chevron-down'
 })
 
 function toggleSection() {
-  return emit('toggleCollapse', props.section.id)
+  return emit('toggleCollapse', props.group.id)
 }
 </script>
 
@@ -46,7 +38,7 @@ function toggleSection() {
       </div>
 
       <div
-        v-if="section.id === 'personal'"
+        v-if="group.id === DOCUMENT_COLLECTION.PERSONAL"
         class="document-tree-section__toolbar"
         @click.stop
       >
@@ -57,12 +49,12 @@ function toggleSection() {
       </div>
     </div>
 
-    <div v-if="!isCollapsed && section.nodes.length" class="space-y-0.5">
+    <div v-if="!isCollapsed && group.nodes.length" class="space-y-0.5">
       <DocumentItem
-        v-for="document in section.nodes"
+        v-for="document in group.nodes"
         :key="document.id"
         :item="document"
-        :section-id="section.id"
+        :collection-id="group.id"
         :depth="0"
         :active-document-id="activeDocumentId"
         :expanded-document-ids="expandedDocumentIds"

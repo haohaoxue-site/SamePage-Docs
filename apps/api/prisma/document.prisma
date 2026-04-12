@@ -1,0 +1,61 @@
+enum DocumentStatus {
+  ACTIVE
+  LOCKED
+}
+
+enum DocumentMemberRole {
+  VIEWER
+}
+
+enum DocumentSpaceScope {
+  PERSONAL
+  TEAM
+}
+
+model Document {
+  id         String             @id @default(uuid())
+  ownerId    String
+  parentId   String?
+  spaceScope DocumentSpaceScope @default(PERSONAL)
+  title      String
+  content    String             @default("")
+  summary    String             @default("")
+  status     DocumentStatus     @default(ACTIVE)
+  order      Int                @default(0)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  deletedAt  DateTime?
+  owner      User               @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  parent     Document?          @relation("DocumentTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Document[]         @relation("DocumentTree")
+  members    DocumentMember[]
+  ydoc       DocumentYdoc?
+
+  @@index([ownerId])
+  @@index([parentId, order])
+  @@index([spaceScope, status])
+}
+
+model DocumentMember {
+  documentId String
+  userId     String
+  role       DocumentMemberRole
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  deletedAt  DateTime?
+  document   Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, userId])
+  @@index([userId])
+  @@index([role])
+}
+
+model DocumentYdoc {
+  documentId String    @id
+  data       Bytes
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+  document   Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}

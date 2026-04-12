@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { FormInstance } from 'element-plus'
 import { useTemplateRef } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
 import AuthEntryShell from '../components/AuthEntryShell.vue'
 import { useChangePasswordView } from './composables/useChangePasswordView'
 
-const authStore = useAuthStore()
+const userStore = useUserStore()
 const changePasswordFormRef = useTemplateRef<FormInstance>('changePasswordFormRef')
 const { form, formRules, isSubmitting, submitChangePassword } = useChangePasswordView()
 
@@ -17,10 +17,10 @@ async function handleSubmitChangePassword() {
 <template>
   <AuthEntryShell
     title="修改密码"
-    :description="authStore.requiresPasswordChange ? '首次登录需要先设置新密码。' : '输入当前密码并设置新密码。'"
+    :description="userStore.requiresPasswordChange ? '首次登录需要先设置新密码。' : '输入当前密码并设置新密码。'"
   >
     <ElAlert
-      v-if="authStore.requiresPasswordChange"
+      v-if="userStore.requiresPasswordChange"
       type="warning"
       show-icon
       :closable="false"

@@ -1,14 +1,22 @@
 <script setup lang="ts">
-import type { WorkspaceContextUser } from '@/layouts/typing'
-import type { AppearanceMode } from '@/stores/appearance'
+import type { AppearancePreference, AuthUserDto } from '@haohaoxue/samepage-domain'
+import {
+  APPEARANCE_PREFERENCE_LABELS,
+  APPEARANCE_PREFERENCE_VALUES,
+} from '@haohaoxue/samepage-contracts'
 import { ElMessage } from 'element-plus'
 import { computed, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { SvgIconCategory } from '@/components/svg-icon/typing'
 import { useAuthSession } from '@/layouts/composables/useAuthSession'
 import { getWorkspaceEntryPath } from '@/layouts/utils/workspace-entry'
 import { DEFAULT_ADMIN_NAVIGATION_ITEM } from '@/router/navigation'
-import { useAppearanceStore } from '@/stores/appearance'
-import { useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
+import { getRequestErrorDisplayMessage } from '@/utils/request-error'
+
+type SessionMenuUser = Pick<AuthUserDto, 'displayName' | 'email' | 'avatarUrl'> & {
+  initial: string
+}
 
 const props = withDefaults(defineProps<{
   showContextSwitch?: boolean
@@ -18,36 +26,27 @@ const props = withDefaults(defineProps<{
 
 const route = useRoute()
 const router = useRouter()
-const authStore = useAuthStore()
-const appearanceStore = useAppearanceStore()
+const userStore = useUserStore()
 const menuVisible = shallowRef(false)
 const appearanceMenuVisible = shallowRef(false)
 const avatarImageLoadFailed = shallowRef(false)
 const { currentUser: sessionUser, isLoggingOut, logout } = useAuthSession()
+const sessionUserSnapshot = shallowRef(sessionUser.value)
 
-const appearanceOptions = [
-  { label: '跟随系统', value: 'auto' },
-  { label: '浅色', value: 'light' },
-  { label: '深色', value: 'dark' },
-] as const
+const appearanceOptions = APPEARANCE_PREFERENCE_VALUES.map(value => ({
+  label: APPEARANCE_PREFERENCE_LABELS[value],
+  value,
+}))
 
-const currentUser = computed<WorkspaceContextUser>(() => {
-  const user = sessionUser.value
-
-  if (!user) {
-    return {
-      displayName: '未登录用户',
-      email: 'samepage.local',
-      avatarUrl: null,
-      initial: 'U',
-    }
-  }
+const resolvedSessionUser = computed(() => sessionUser.value ?? sessionUserSnapshot.value!)
+const currentUser = computed<SessionMenuUser>(() => {
+  const user = resolvedSessionUser.value
 
   const initial = user.displayName.trim().slice(0, 1).toUpperCase()
 
   return {
     displayName: user.displayName,
-    email: user.email || '未绑定邮箱',
+    email: user.email ?? '',
     avatarUrl: user.avatarUrl,
     initial: initial || 'U',
   }
@@ -63,25 +62,24 @@ const contextSwitchAction = computed(() => {
   if (isAdminRoute.value) {
     return {
       label: '进入工作区',
+      iconCategory: SvgIconCategory.UI,
       icon: 'arrow-left',
-      iconCategory: 'ui' as const,
     }
   }
 
-  if (authStore.isSystemAdmin) {
+  if (userStore.isSystemAdmin) {
     return {
       label: '进入管理区',
+      iconCategory: SvgIconCategory.UI,
       icon: 'user-admin',
-      iconCategory: 'ui' as const,
     }
   }
 
   return null
 })
 
-const currentAppearanceLabel = computed(() =>
-  appearanceOptions.find(option => option.value === appearanceStore.preference)?.label ?? '跟随系统',
-)
+const currentAppearanceLabel = computed(() => APPEARANCE_PREFERENCE_LABELS[userStore.preferences.appearance])
+const isSavingAppearance = computed(() => userStore.isSavingAppearance)
 
 const currentAvatarUrl = computed(() => {
   const avatarUrl = currentUser.value.avatarUrl?.trim()
@@ -95,6 +93,14 @@ const currentAvatarUrl = computed(() => {
 
 const currentAvatarAlt = computed(() => `${currentUser.value.displayName} 的头像`)
 
+watch(sessionUser, (user) => {
+  if (user) {
+    sessionUserSnapshot.value = user
+  }
+}, {
+  immediate: true,
+})
+
 watch(menuVisible, (visible) => {
   if (!visible) {
     appearanceMenuVisible.value = false
@@ -106,11 +112,24 @@ watch(() => currentUser.value.avatarUrl, () => {
 })
 
 function toggleAppearanceMenu() {
+  if (isSavingAppearance.value) {
+    return
+  }
+
   appearanceMenuVisible.value = !appearanceMenuVisible.value
 }
 
-function handleAppearanceSelect(mode: AppearanceMode) {
-  appearanceStore.setPreference(mode)
+async function handleAppearanceSelect(mode: AppearancePreference) {
+  if (isSavingAppearance.value || userStore.preferences.appearance === mode) {
+    return
+  }
+
+  try {
+    await userStore.updateAppearancePreference(mode)
+  }
+  catch (error) {
+    ElMessage.error(getRequestErrorDisplayMessage(error, '保存外观偏好失败'))
+  }
 }
 
 async function switchContext() {
@@ -125,10 +144,10 @@ async function switchContext() {
   await router.push(DEFAULT_ADMIN_NAVIGATION_ITEM.path)
 }
 
-function handleSettingsClick() {
+async function openUserSettings() {
   appearanceMenuVisible.value = false
   menuVisible.value = false
-  ElMessage.info('全局设置功能建设中')
+  await router.push('/user')
 }
 
 function handleAvatarImageError() {
@@ -245,6 +264,7 @@ function getLogoutIconName() {
           text
           class="session-user-menu-item session-user-menu-entry"
           :class="{ 'is-active': appearanceMenuVisible }"
+          :disabled="isSavingAppearance"
           @click.stop="toggleAppearanceMenu"
         >
           <span class="session-user-menu-entry__content">
@@ -277,7 +297,8 @@ function getLogoutIconName() {
               :key="option.value"
               text
               class="session-appearance-option"
-              :class="{ 'is-active': appearanceStore.preference === option.value }"
+              :class="{ 'is-active': userStore.preferences.appearance === option.value }"
+              :disabled="isSavingAppearance"
               @click.stop="handleAppearanceSelect(option.value)"
             >
               <span class="session-appearance-option__content">
@@ -288,7 +309,7 @@ function getLogoutIconName() {
                 </span>
 
                 <SvgIcon
-                  v-if="appearanceStore.preference === option.value"
+                  v-if="userStore.preferences.appearance === option.value"
                   category="ui"
                   icon="check"
                   size="14px"
@@ -305,11 +326,11 @@ function getLogoutIconName() {
       <ElButton
         text
         class="session-user-menu-item"
-        @click="handleSettingsClick"
+        @click="openUserSettings"
       >
         <span class="session-user-menu-item__content">
-          <SvgIcon category="ui" icon="settings-outline" size="14px" class="session-user-menu-item__icon" />
-          <span class="leading-none">设置</span>
+          <SvgIcon category="ui" icon="settings-gear" size="14px" class="session-user-menu-item__icon" />
+          <span class="leading-none">个人设置</span>
         </span>
       </ElButton>
 

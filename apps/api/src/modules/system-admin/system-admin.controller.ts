@@ -9,6 +9,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Put,
 } from '@nestjs/common'
 import {
@@ -26,10 +27,13 @@ import {
   SystemAdminUserItemDto,
   SystemAiConfigDto,
   SystemAuthGovernanceDto,
+  SystemEmailConfigDto,
+  TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAdminUserStatusDto,
   UpdateSystemAiConfigDto,
   UpdateSystemAuthGovernanceDto,
+  UpdateSystemEmailConfigDto,
 } from './system-admin.dto'
 import { SystemAdminService } from './system-admin.service'
 
@@ -88,6 +92,35 @@ export class SystemAdminController {
     @Body() payload: UpdateSystemAuthGovernanceDto,
   ): Promise<SystemAuthGovernanceDto> {
     return this.systemAdminService.updateAuthGovernance(authUser.id, payload)
+  }
+
+  @ApiOperation({ summary: '获取系统发件配置' })
+  @ApiRequestResponse(SystemEmailConfigDto)
+  @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_EMAIL_CONFIG_READ)
+  @Get('email-config')
+  async getEmailConfig(): Promise<SystemEmailConfigDto> {
+    return this.systemAdminService.getEmailConfig()
+  }
+
+  @ApiOperation({ summary: '更新系统发件配置' })
+  @ApiRequestResponse(SystemEmailConfigDto)
+  @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_EMAIL_CONFIG_UPDATE)
+  @Put('email-config')
+  async updateEmailConfig(
+    @CurrentUser() authUser: AuthUserContext,
+    @Body() payload: UpdateSystemEmailConfigDto,
+  ): Promise<SystemEmailConfigDto> {
+    return this.systemAdminService.updateEmailConfig(authUser.id, payload)
+  }
+
+  @ApiOperation({ summary: '发送发件配置测试邮件' })
+  @ApiRequestResponse(TestSystemEmailConfigResponseDto)
+  @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_EMAIL_CONFIG_UPDATE)
+  @Post('email-config/test')
+  async testEmailConfig(
+    @CurrentUser() authUser: AuthUserContext,
+  ): Promise<TestSystemEmailConfigResponseDto> {
+    return this.systemAdminService.testEmailConfig(authUser.id)
   }
 
   @ApiOperation({ summary: '获取系统 AI 配置' })

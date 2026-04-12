@@ -2,7 +2,7 @@ import type {
   CreateDocumentRequest,
   DocumentDetail,
   DocumentRecent,
-  DocumentSection,
+  DocumentTreeGroup,
   UpdateDocumentRequest,
 } from '@haohaoxue/samepage-domain'
 
@@ -14,7 +14,7 @@ export type DocumentRecentDto = DocumentRecent
 /**
  * Web 端文档树 DTO。
  */
-export type DocumentDto = DocumentSection[]
+export type DocumentDto = DocumentTreeGroup[]
 
 /**
  * Web 端文档详情 DTO。

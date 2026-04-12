@@ -1,4 +1,4 @@
-import { DOCUMENT_SECTION_ID } from '@haohaoxue/samepage-domain'
+import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory } from 'vue-router'
 import { createAppRouter } from '@/router'
@@ -19,7 +19,7 @@ describe('recentDocumentList', () => {
           {
             id: 'welcome',
             title: '欢迎来到 SamePage',
-            section: DOCUMENT_SECTION_ID.PERSONAL,
+            collection: DOCUMENT_COLLECTION.PERSONAL,
             ancestorTitles: [],
             createdAt: '2026-03-29T08:00:00.000Z',
             updatedAt: '2026-03-30T08:00:00.000Z',
@@ -27,7 +27,7 @@ describe('recentDocumentList', () => {
           {
             id: 'meeting-notes',
             title: '迭代会议纪要',
-            section: DOCUMENT_SECTION_ID.SHARED,
+            collection: DOCUMENT_COLLECTION.SHARED,
             ancestorTitles: ['产品空间', '项目节奏'],
             createdAt: '2026-03-29T10:00:00.000Z',
             updatedAt: '2026-03-30T10:00:00.000Z',

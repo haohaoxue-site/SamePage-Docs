@@ -83,23 +83,16 @@ export class RequestEmailVerificationResponseDto {
   requested!: boolean
 }
 
-export class ConfirmEmailVerificationDto {
-  @ApiProperty()
-  @IsString()
-  @MinLength(20)
-  token!: string
-}
-
-export class ConfirmEmailVerificationResponseDto {
-  @ApiProperty()
-  email!: string
-}
-
 export class PasswordRegisterDto {
   @ApiProperty()
+  @IsEmail()
+  email!: string
+
+  @ApiProperty()
   @IsString()
-  @MinLength(20)
-  token!: string
+  @MinLength(6)
+  @MaxLength(6)
+  code!: string
 
   @ApiProperty()
   @IsString()
@@ -126,15 +119,4 @@ export class ChangePasswordDto {
   @MinLength(8)
   @MaxLength(128)
   newPassword!: string
-}
-
-export class AuthRegistrationOptionsDto {
-  @ApiProperty()
-  allowPasswordRegistration!: boolean
-
-  @ApiProperty()
-  allowGithubRegistration!: boolean
-
-  @ApiProperty()
-  allowLinuxDoRegistration!: boolean
 }
