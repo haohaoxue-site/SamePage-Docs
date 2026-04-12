@@ -36,5 +36,7 @@ export const APPEARANCE_PREFERENCE_LABELS = {
   [APPEARANCE_PREFERENCE.DARK]: '深色',
 } as const satisfies Record<(typeof APPEARANCE_PREFERENCE_VALUES)[number], string>
 
+export const ACCOUNT_DELETION_CONFIRMATION_PHRASE = '删除我的账号'
+
 export const LanguagePreferenceSchema = z.enum(LANGUAGE_PREFERENCE_VALUES)
 export const AppearancePreferenceSchema = z.enum(APPEARANCE_PREFERENCE_VALUES)

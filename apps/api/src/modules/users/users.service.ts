@@ -3,15 +3,17 @@ import type {
   AuthProviderName,
   ConfirmBindEmailDto,
   CurrentUserDto,
+  DeleteCurrentUserDto,
   LanguagePreference,
   UpdateCurrentUserAvatarResponseDto,
   UpdateUserPreferencesDto,
   UserSettingsDto,
 } from '@haohaoxue/samepage-domain'
 import type { FastifyRequest } from 'fastify'
+import type { AuthUserContext } from '../auth/auth.interface'
 import { Buffer } from 'node:buffer'
 import { createHash, randomInt } from 'node:crypto'
-import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
+import { ROLES, SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import {
   BadRequestException,
   Injectable,
@@ -62,6 +64,9 @@ export class UsersService {
           },
         },
         oauthAccounts: {
+          where: {
+            deletedAt: null,
+          },
           select: {
             provider: true,
             providerEmailVerified: true,
@@ -110,6 +115,9 @@ export class UsersService {
           },
         },
         oauthAccounts: {
+          where: {
+            deletedAt: null,
+          },
           select: {
             provider: true,
             providerUsername: true,
@@ -431,6 +439,9 @@ export class UsersService {
           },
         },
         oauthAccounts: {
+          where: {
+            deletedAt: null,
+          },
           select: {
             id: true,
             provider: true,
@@ -460,6 +471,52 @@ export class UsersService {
     })
 
     return this.getCurrentUser(userId)
+  }
+
+  async deleteCurrentUser(
+    authUser: AuthUserContext,
+    payload: DeleteCurrentUserDto,
+  ): Promise<void> {
+    if (authUser.roles.includes(ROLES.SYSTEM_ADMIN)) {
+      throw new BadRequestException('系统管理员账号不支持在这里删除')
+    }
+
+    const currentUser = await this.prisma.$bypass.user.findUnique({
+      where: { id: authUser.id },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        avatarStorageKey: true,
+      },
+    })
+
+    if (!currentUser) {
+      throw new NotFoundException(`User "${authUser.id}" not found`)
+    }
+
+    const expectedConfirmation = currentUser.email ?? currentUser.displayName
+    const normalizedAccountConfirmation = normalizeAccountDeletionConfirmation(payload.accountConfirmation, Boolean(currentUser.email))
+
+    if (normalizedAccountConfirmation !== normalizeAccountDeletionConfirmation(expectedConfirmation, Boolean(currentUser.email))) {
+      throw new BadRequestException(currentUser.email ? '请输入当前邮箱完成确认' : '请输入当前显示名称完成确认')
+    }
+
+    await this.prisma.$bypass.$transaction(async (tx) => {
+      await tx.authOauthState.deleteMany({
+        where: {
+          initiatorUserId: authUser.id,
+        },
+      })
+
+      await tx.user.delete({
+        where: {
+          id: authUser.id,
+        },
+      })
+    })
+
+    await this.storageService.removeAvatar(currentUser.avatarStorageKey)
   }
 
   async updatePreferences(
@@ -542,6 +599,10 @@ function normalizeEmail(email: string): string {
   }
 
   return normalizedEmail
+}
+
+function normalizeAccountDeletionConfirmation(value: string, isEmail: boolean): string {
+  return isEmail ? normalizeEmail(value) : value.trim()
 }
 
 function buildAvatarUrl(userId: string): string {

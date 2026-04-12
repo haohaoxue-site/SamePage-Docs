@@ -1,9 +1,12 @@
 import type {
   AppearancePreference,
   AuthMethodName,
+  DeleteCurrentUserDto as DeleteCurrentUserPayloadDto,
+  DeleteCurrentUserResponseDto as DeleteCurrentUserResultDto,
   LanguagePreference,
 } from '@haohaoxue/samepage-domain'
 import {
+  ACCOUNT_DELETION_CONFIRMATION_PHRASE,
   APPEARANCE_PREFERENCE_VALUES,
   AUTH_METHOD_VALUES,
   LANGUAGE_PREFERENCE_VALUES,
@@ -11,6 +14,7 @@ import {
 import { ApiProperty } from '@nestjs/swagger'
 import { UserStatus } from '@prisma/client'
 import {
+  Equals,
   IsEmail,
   IsIn,
   IsOptional,
@@ -149,6 +153,24 @@ export class ConfirmBindEmailDto {
   @MinLength(8)
   @MaxLength(128)
   newPassword?: string
+}
+
+export class DeleteCurrentUserDto implements DeleteCurrentUserPayloadDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  accountConfirmation!: string
+
+  @ApiProperty({ example: ACCOUNT_DELETION_CONFIRMATION_PHRASE })
+  @IsString()
+  @Equals(ACCOUNT_DELETION_CONFIRMATION_PHRASE)
+  confirmationPhrase!: string
+}
+
+export class DeleteCurrentUserResponseDto implements DeleteCurrentUserResultDto {
+  @ApiProperty()
+  deleted!: boolean
 }
 
 export class UpdateUserPreferencesDto {

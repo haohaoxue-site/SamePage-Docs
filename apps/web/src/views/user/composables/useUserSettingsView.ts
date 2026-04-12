@@ -1,97 +1,43 @@
-import type {
-  AppearancePreference,
-  AuthProviderName,
-  LanguagePreference,
-  UserSettingsDto,
-} from '@haohaoxue/samepage-domain'
 import type { AuthCapabilitiesDto } from '@/apis/capabilities'
-import { AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
-import { formatAuthMethod, normalizeAuthProviderName } from '@haohaoxue/samepage-shared'
+import { ACCOUNT_DELETION_CONFIRMATION_PHRASE, PERMISSIONS } from '@haohaoxue/samepage-contracts'
 import { ElMessage } from 'element-plus'
-import { computed, onMounted, reactive, shallowRef } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, shallowRef } from 'vue'
+import { useRouter } from 'vue-router'
 import { getAuthCapabilities } from '@/apis/capabilities'
-import {
-  requestBindEmailCode,
-  startOauthBinding,
-} from '@/apis/user'
+import { deleteCurrentUser } from '@/apis/user'
+import { resetAdminRoutes } from '@/router'
+import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
-
-const DEFAULT_AUTH_CAPABILITIES: AuthCapabilitiesDto = {
-  emailBindingEnabled: false,
-  passwordRegistrationEnabled: false,
-  providers: {
-    [AUTH_PROVIDER.GITHUB]: {
-      enabled: false,
-      allowRegistration: false,
-    },
-    [AUTH_PROVIDER.LINUX_DO]: {
-      enabled: false,
-      allowRegistration: false,
-    },
-  },
-}
+import { DEFAULT_AUTH_CAPABILITIES, useUserSettingsAccount } from './useUserSettingsAccount'
+import { useUserSettingsPreference } from './useUserSettingsPreference'
+import { useUserSettingsProfile } from './useUserSettingsProfile'
 
 export function useUserSettingsView() {
-  const route = useRoute()
   const router = useRouter()
+  const authStore = useAuthStore()
   const userStore = useUserStore()
   const authCapabilities = shallowRef<AuthCapabilitiesDto>(DEFAULT_AUTH_CAPABILITIES)
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
-  const isSavingProfile = shallowRef(false)
-  const isUploadingAvatar = shallowRef(false)
-  const isSendingEmailCode = shallowRef(false)
-  const isBindingEmail = shallowRef(false)
-  const bindingProvider = shallowRef<AuthProviderName | null>(null)
-  const disconnectingProvider = shallowRef<AuthProviderName | null>(null)
-  const profileForm = reactive({
-    displayName: '',
+  const isDeletingAccount = shallowRef(false)
+  const profileSettings = useUserSettingsProfile()
+  const accountSettings = useUserSettingsAccount({
+    authCapabilities,
   })
-  const emailForm = reactive({
-    email: '',
-    code: '',
-    newPassword: '',
-    confirmPassword: '',
-  })
-  const isSavingLanguage = computed(() => userStore.isSavingLanguage)
-  const isSavingAppearance = computed(() => userStore.isSavingAppearance)
-  const languagePreference = computed<LanguagePreference>({
-    get: () => userStore.preferences.language,
-    set: (value) => {
-      void saveLanguagePreference(value)
-    },
-  })
-  const appearancePreference = computed<AppearancePreference>({
-    get: () => userStore.preferences.appearance,
-    set: (value) => {
-      void saveAppearancePreference(value)
-    },
-  })
-  const settings = computed(() => userStore.settings)
-
-  const account = computed<UserSettingsDto['account']>(() => settings.value?.account ?? {
-    email: null,
-    hasPasswordAuth: false,
-    emailVerified: false,
-    github: {
-      connected: false,
-      username: null,
-    },
-    linuxDo: {
-      connected: false,
-      username: null,
-    },
-  })
-
-  const avatarUrl = computed(() => settings.value?.profile.avatarUrl ?? userStore.currentUser?.avatarUrl ?? null)
-  const emailBindingEnabled = computed(() => authCapabilities.value.emailBindingEnabled)
-  const canDisconnectGithub = computed(() =>
-    account.value.github.connected && (account.value.hasPasswordAuth || account.value.linuxDo.connected),
+  const preferenceSettings = useUserSettingsPreference()
+  const currentUser = computed(() => userStore.currentUser)
+  const deleteAccountConfirmationMode = computed<'email' | 'displayName'>(() =>
+    accountSettings.account.value.email ? 'email' : 'displayName',
   )
-  const canDisconnectLinuxDo = computed(() =>
-    account.value.linuxDo.connected && (account.value.hasPasswordAuth || account.value.github.connected),
+  const deleteAccountConfirmationTarget = computed(() =>
+    accountSettings.account.value.email ?? currentUser.value?.displayName ?? '',
+  )
+  const canDeleteAccount = computed(() =>
+    currentUser.value?.permissions.includes(PERMISSIONS.USER_DELETE_SELF) ?? false,
+  )
+  const shouldShowDeleteAccountSection = computed(() =>
+    canDeleteAccount.value && !userStore.isSystemAdmin,
   )
 
   async function loadView() {
@@ -106,8 +52,9 @@ export function useUserSettingsView() {
       ])
 
       authCapabilities.value = nextAuthCapabilities ?? DEFAULT_AUTH_CAPABILITIES
-      syncFormState()
-      await consumeRouteFeedback()
+      profileSettings.syncProfileForm()
+      accountSettings.syncEmailForm()
+      await accountSettings.consumeRouteFeedback()
     }
     catch (error) {
       errorMessage.value = getRequestErrorDisplayMessage(error, '加载用户设置失败')
@@ -117,197 +64,49 @@ export function useUserSettingsView() {
     }
   }
 
-  async function saveProfile() {
-    isSavingProfile.value = true
+  async function removeAccount(payload: { accountConfirmation: string, confirmationPhrase: string }) {
+    if (!shouldShowDeleteAccountSection.value) {
+      return false
+    }
+
+    isDeletingAccount.value = true
 
     try {
-      await userStore.updateProfile(profileForm.displayName.trim())
-      profileForm.displayName = userStore.currentUser?.displayName ?? profileForm.displayName
-      ElMessage.success('资料已更新')
+      await deleteCurrentUser(payload)
+      authStore.clearSession()
+      ElMessage.success('账号已删除')
+
+      try {
+        await router.replace({ name: 'login' })
+      }
+      finally {
+        resetAdminRoutes(router)
+      }
+
+      return true
     }
     catch (error) {
-      ElMessage.error(getRequestErrorDisplayMessage(error, '保存资料失败'))
+      ElMessage.error(getRequestErrorDisplayMessage(error, '删除账号失败'))
+      return false
     }
     finally {
-      isSavingProfile.value = false
-    }
-  }
-
-  async function uploadAvatar(file: File) {
-    isUploadingAvatar.value = true
-
-    try {
-      await userStore.updateAvatar(file)
-      ElMessage.success('头像已更新')
-    }
-    catch (error) {
-      ElMessage.error(getRequestErrorDisplayMessage(error, '上传头像失败'))
-    }
-    finally {
-      isUploadingAvatar.value = false
-    }
-  }
-
-  async function sendEmailCode() {
-    isSendingEmailCode.value = true
-
-    try {
-      await requestBindEmailCode({
-        email: emailForm.email.trim(),
-      })
-      ElMessage.success('验证码已发送，请前往邮箱查看')
-    }
-    catch (error) {
-      ElMessage.error(getRequestErrorDisplayMessage(error, '发送验证码失败'))
-    }
-    finally {
-      isSendingEmailCode.value = false
-    }
-  }
-
-  async function bindEmail() {
-    isBindingEmail.value = true
-    const hadEmail = Boolean(account.value.email)
-
-    try {
-      await userStore.bindEmail({
-        email: emailForm.email.trim(),
-        code: emailForm.code.trim(),
-        newPassword: emailForm.newPassword.trim() || undefined,
-      })
-
-      syncFormState()
-      ElMessage.success(hadEmail ? '邮箱已更新' : '邮箱已绑定')
-    }
-    catch (error) {
-      ElMessage.error(getRequestErrorDisplayMessage(error, '绑定邮箱失败'))
-    }
-    finally {
-      isBindingEmail.value = false
-    }
-  }
-
-  async function connectOauth(provider: AuthProviderName) {
-    bindingProvider.value = provider
-
-    try {
-      const result = await startOauthBinding(provider)
-      window.location.assign(result.authorizeUrl)
-    }
-    catch (error) {
-      bindingProvider.value = null
-      ElMessage.error(getRequestErrorDisplayMessage(error, '发起账号绑定失败'))
-    }
-  }
-
-  async function disconnectOauth(provider: AuthProviderName) {
-    disconnectingProvider.value = provider
-
-    try {
-      await userStore.disconnectOauth(provider)
-      syncFormState()
-      ElMessage.success(`${formatProviderLabel(provider)} 已解绑`)
-    }
-    catch (error) {
-      ElMessage.error(getRequestErrorDisplayMessage(error, '解绑失败'))
-    }
-    finally {
-      disconnectingProvider.value = null
+      isDeletingAccount.value = false
     }
   }
 
   onMounted(loadView)
 
   return {
-    account,
-    avatarUrl,
-    bindingProvider,
-    canDisconnectGithub,
-    canDisconnectLinuxDo,
-    disconnectingProvider,
-    emailBindingEnabled,
-    emailForm,
+    deleteAccount: removeAccount,
+    deleteAccountConfirmationMode,
+    deleteAccountConfirmationPhrase: ACCOUNT_DELETION_CONFIRMATION_PHRASE,
+    deleteAccountConfirmationTarget,
     errorMessage,
-    isBindingEmail,
+    isDeletingAccount,
     isLoading,
-    isSavingLanguage,
-    isSavingAppearance,
-    isSavingProfile,
-    isSendingEmailCode,
-    isUploadingAvatar,
-    languagePreference,
-    appearancePreference,
-    profileForm,
-    saveProfile,
-    sendEmailCode,
-    bindEmail,
-    connectOauth,
-    disconnectOauth,
-    uploadAvatar,
+    shouldShowDeleteAccountSection,
+    ...profileSettings,
+    ...accountSettings,
+    ...preferenceSettings,
   }
-
-  async function saveLanguagePreference(value: LanguagePreference) {
-    try {
-      await userStore.updateLanguagePreference(value)
-    }
-    catch (error) {
-      ElMessage.error(getRequestErrorDisplayMessage(error, '保存语言偏好失败'))
-    }
-  }
-
-  async function saveAppearancePreference(value: AppearancePreference) {
-    try {
-      await userStore.updateAppearancePreference(value)
-    }
-    catch (error) {
-      ElMessage.error(getRequestErrorDisplayMessage(error, '保存外观偏好失败'))
-    }
-  }
-
-  function syncFormState() {
-    const nextSettings = userStore.settings
-
-    if (!nextSettings) {
-      return
-    }
-
-    profileForm.displayName = nextSettings.profile.displayName
-    emailForm.email = nextSettings.account.email || ''
-    emailForm.code = ''
-    emailForm.newPassword = ''
-    emailForm.confirmPassword = ''
-  }
-
-  async function consumeRouteFeedback() {
-    const bindStatus = typeof route.query.bind_status === 'string' ? route.query.bind_status : ''
-    const provider = typeof route.query.provider === 'string' ? route.query.provider : ''
-    const bindMessage = typeof route.query.bind_message === 'string' ? route.query.bind_message : ''
-
-    if (!bindStatus) {
-      return
-    }
-
-    const nextQuery = { ...route.query }
-    delete nextQuery.bind_status
-    delete nextQuery.provider
-    delete nextQuery.bind_message
-    await router.replace({ query: nextQuery })
-
-    if (bindStatus === 'success') {
-      ElMessage.success(`${formatProviderLabel(provider)} 账号已绑定`)
-      return
-    }
-
-    ElMessage.error(bindMessage || `${formatProviderLabel(provider)} 账号绑定失败`)
-  }
-}
-
-function formatProviderLabel(provider: string) {
-  const normalizedProvider = normalizeAuthProviderName(provider)
-
-  if (normalizedProvider) {
-    return formatAuthMethod(normalizedProvider)
-  }
-
-  return '第三方账号'
 }

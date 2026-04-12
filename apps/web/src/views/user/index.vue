@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { nextTick, useTemplateRef } from 'vue'
 import WorkspacePage from '@/layouts/components/WorkspacePage.vue'
 import UserAccountSection from './components/UserAccountSection.vue'
+import UserDeleteSection from './components/UserDeleteSection.vue'
 import UserPreferenceSection from './components/UserPreferenceSection.vue'
 import UserProfileSection from './components/UserProfileSection.vue'
 import { useUserSettingsView } from './composables/useUserSettingsView'
@@ -12,11 +14,16 @@ const {
   bindingProvider,
   canDisconnectGithub,
   canDisconnectLinuxDo,
+  deleteAccount,
+  deleteAccountConfirmationMode,
+  deleteAccountConfirmationPhrase,
+  deleteAccountConfirmationTarget,
   disconnectingProvider,
   emailBindingEnabled,
   emailForm,
   errorMessage,
   isBindingEmail,
+  isDeletingAccount,
   isLoading,
   isSavingLanguage,
   isSavingAppearance,
@@ -27,11 +34,25 @@ const {
   profileForm,
   saveProfile,
   sendEmailCode,
+  shouldShowDeleteAccountSection,
   bindEmail,
   connectOauth,
   disconnectOauth,
   uploadAvatar,
 } = useUserSettingsView()
+
+const userAccountSectionRef = useTemplateRef<InstanceType<typeof UserAccountSection>>('userAccountSectionRef')
+
+async function handleConfirmEmail() {
+  const isSuccess = await bindEmail()
+
+  if (!isSuccess) {
+    return
+  }
+
+  await nextTick()
+  userAccountSectionRef.value?.clearEmailValidation()
+}
 </script>
 
 <template>
@@ -70,6 +91,7 @@ const {
         />
 
         <UserAccountSection
+          ref="userAccountSectionRef"
           v-model:email="emailForm.email"
           v-model:code="emailForm.code"
           v-model:new-password="emailForm.newPassword"
@@ -83,7 +105,7 @@ const {
           :can-disconnect-github="canDisconnectGithub"
           :can-disconnect-linux-do="canDisconnectLinuxDo"
           @send-code="sendEmailCode"
-          @confirm-email="bindEmail"
+          @confirm-email="handleConfirmEmail"
           @start-oauth-binding="connectOauth"
           @disconnect-oauth-binding="disconnectOauth"
         />
@@ -95,6 +117,16 @@ const {
           :is-saving-appearance="isSavingAppearance"
         />
       </div>
+
+      <UserDeleteSection
+        v-if="shouldShowDeleteAccountSection"
+        class="user-settings-view__danger"
+        :is-deleting="isDeletingAccount"
+        :confirmation-target="deleteAccountConfirmationTarget"
+        :confirmation-mode="deleteAccountConfirmationMode"
+        :confirmation-phrase="deleteAccountConfirmationPhrase"
+        @delete-account="deleteAccount"
+      />
     </div>
   </WorkspacePage>
 </template>
@@ -130,6 +162,10 @@ const {
   &__grid {
     display: grid;
     gap: 1rem;
+  }
+
+  &__danger {
+    margin-top: 1rem;
   }
 }
 </style>

@@ -11,6 +11,10 @@ export const DEFAULT_RBAC_SEED = {
       description: '更新当前用户信息',
     },
     {
+      code: PERMISSIONS.USER_DELETE_SELF,
+      description: '删除当前用户账号',
+    },
+    {
       code: PERMISSIONS.SYSTEM_ADMIN_OVERVIEW_READ,
       description: '查看系统后台概览',
     },
@@ -59,7 +63,7 @@ export const DEFAULT_RBAC_SEED = {
     {
       code: ROLES.USER,
       name: '普通用户',
-      permissions: [PERMISSIONS.USER_READ_SELF, PERMISSIONS.USER_UPDATE_SELF],
+      permissions: [PERMISSIONS.USER_READ_SELF, PERMISSIONS.USER_UPDATE_SELF, PERMISSIONS.USER_DELETE_SELF],
     },
     {
       code: ROLES.SYSTEM_ADMIN,

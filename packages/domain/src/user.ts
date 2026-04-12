@@ -70,6 +70,15 @@ export interface ConfirmBindEmailDto {
   newPassword?: string
 }
 
+export interface DeleteCurrentUserDto {
+  accountConfirmation: string
+  confirmationPhrase: string
+}
+
+export interface DeleteCurrentUserResponseDto {
+  deleted: boolean
+}
+
 export interface UpdateUserPreferencesDto {
   language?: LanguagePreference
   appearance?: AppearancePreference

@@ -27,9 +27,12 @@ import { CurrentUser } from '../../decorators/current-user.decorator'
 import { Public } from '../../decorators/public.decorator'
 import { RequirePermissions } from '../../decorators/require-permissions.decorator'
 import { ApiRequestResponse } from '../../utils/swagger'
+import { AuthService } from '../auth/auth.service'
 import {
   ConfirmBindEmailDto,
   CurrentUserDto,
+  DeleteCurrentUserDto,
+  DeleteCurrentUserResponseDto,
   RequestBindEmailCodeDto,
   RequestBindEmailCodeResponseDto,
   StartOauthBindingResponseDto,
@@ -46,7 +49,10 @@ import { UsersService } from './users.service'
 @ApiBearerAuth()
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly authService: AuthService,
+  ) {}
 
   @ApiOperation({ summary: '获取当前用户' })
   @ApiRequestResponse(CurrentUserDto)
@@ -174,6 +180,20 @@ export class UsersController {
     @Param('provider') provider: string,
   ): Promise<CurrentUserDto> {
     return this.usersService.disconnectOauthBinding(authUser.id, this.parseProvider(provider))
+  }
+
+  @ApiOperation({ summary: '删除当前账号' })
+  @ApiRequestResponse(DeleteCurrentUserResponseDto)
+  @RequirePermissions(PERMISSIONS.USER_DELETE_SELF)
+  @Post('me/delete')
+  async deleteCurrentUser(
+    @CurrentUser() authUser: AuthUserContext,
+    @Body() payload: DeleteCurrentUserDto,
+    @Res({ passthrough: true }) response: FastifyReply,
+  ): Promise<DeleteCurrentUserResponseDto> {
+    await this.usersService.deleteCurrentUser(authUser, payload)
+    response.header('set-cookie', this.authService.buildLogoutCookieHeader())
+    return { deleted: true }
   }
 
   @ApiOperation({ summary: '更新偏好设置' })

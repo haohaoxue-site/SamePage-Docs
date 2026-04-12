@@ -2,6 +2,8 @@ export type {
   AppearancePreference,
   ConfirmBindEmailDto,
   CurrentUserDto,
+  DeleteCurrentUserDto,
+  DeleteCurrentUserResponseDto,
   LanguagePreference,
   RequestBindEmailCodeDto,
   RequestBindEmailCodeResponseDto,

@@ -1,5 +1,6 @@
 import type {
   AuthProviderName,
+  DeleteCurrentUserDto,
   UserSettingsDto,
 } from '@haohaoxue/samepage-domain'
 
@@ -50,4 +51,21 @@ export interface UserAccountSectionEmits {
 export interface UserPreferenceSectionProps {
   isSavingLanguage: boolean
   isSavingAppearance: boolean
+}
+
+/**
+ * 删除账号区属性。
+ */
+export interface UserDeleteSectionProps {
+  isDeleting: boolean
+  confirmationTarget: string
+  confirmationMode: 'email' | 'displayName'
+  confirmationPhrase: string
+}
+
+/**
+ * 删除账号区事件。
+ */
+export interface UserDeleteSectionEmits {
+  deleteAccount: [payload: DeleteCurrentUserDto]
 }

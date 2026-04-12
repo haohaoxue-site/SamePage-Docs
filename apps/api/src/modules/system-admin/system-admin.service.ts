@@ -94,6 +94,9 @@ export class SystemAdminService {
           },
         },
         oauthAccounts: {
+          where: {
+            deletedAt: null,
+          },
           select: {
             provider: true,
           },

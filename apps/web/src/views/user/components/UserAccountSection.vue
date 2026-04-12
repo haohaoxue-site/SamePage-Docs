@@ -9,14 +9,13 @@ import {
   createConfirmPasswordRules,
   createEmailRules,
   createPasswordRules,
+  isValidEmail,
+  isValidPassword,
 } from '@/views/auth/utils/rules'
 
 const props = defineProps<UserAccountSectionProps>()
-
 const emit = defineEmits<UserAccountSectionEmits>()
-
 const EMAIL_CODE_RE = /^\d{6}$/
-
 const emailModel = defineModel<string>('email', { required: true })
 const codeModel = defineModel<string>('code', { required: true })
 const newPasswordModel = defineModel<string>('newPassword', { required: true })
@@ -32,6 +31,8 @@ const form = reactive({
 const requiresPasswordSetup = computed(() => !props.account.hasPasswordAuth)
 const hasEmailAccountInfo = computed(() => Boolean(props.account.email) || props.account.hasPasswordAuth)
 const showEmailStatus = computed(() => props.emailBindingEnabled || hasEmailAccountInfo.value)
+const normalizedEmail = computed(() => form.email.trim())
+const normalizedCode = computed(() => form.code.trim())
 const sectionDescription = computed(() => {
   if (props.emailBindingEnabled) {
     return '管理邮箱、GitHub 与 LinuxDo 登录方式。解绑第三方账号前，系统会校验是否仍保留可用登录方式。'
@@ -86,6 +87,24 @@ const emailButtonText = computed(() => {
 
   return props.account.email ? '更新邮箱' : '绑定邮箱'
 })
+const isEmailReady = computed(() => isValidEmail(normalizedEmail.value))
+const isCodeReady = computed(() => EMAIL_CODE_RE.test(normalizedCode.value))
+const isPasswordReady = computed(() => !requiresPasswordSetup.value || isValidPassword(form.newPassword))
+const isConfirmPasswordReady = computed(() =>
+  !requiresPasswordSetup.value
+  || (Boolean(form.confirmPassword) && form.confirmPassword === form.newPassword),
+)
+const isSendCodeDisabled = computed(() =>
+  props.isSendingCode || props.isBindingEmail || !isEmailReady.value,
+)
+const isConfirmEmailDisabled = computed(() =>
+  props.isBindingEmail
+  || props.isSendingCode
+  || !isEmailReady.value
+  || !isCodeReady.value
+  || !isPasswordReady.value
+  || !isConfirmPasswordReady.value,
+)
 
 async function handleConfirmEmail() {
   const isValid = await emailFormRef.value?.validate().catch(() => false)
@@ -101,9 +120,25 @@ function handleStartOauthBinding(provider: AuthProviderName) {
   emit('startOauthBinding', provider)
 }
 
+function handleSendCode() {
+  if (isSendCodeDisabled.value) {
+    return
+  }
+
+  emit('sendCode')
+}
+
 function handleDisconnect(provider: AuthProviderName) {
   emit('disconnectOauthBinding', provider)
 }
+
+function clearEmailValidation() {
+  emailFormRef.value?.clearValidate()
+}
+
+defineExpose({
+  clearEmailValidation,
+})
 </script>
 
 <template>
@@ -131,7 +166,7 @@ function handleDisconnect(provider: AuthProviderName) {
         <span class="user-account-section__status-label">密码登录</span>
         <strong class="user-account-section__status-value">{{ props.account.hasPasswordAuth ? '已启用' : '未启用' }}</strong>
         <span class="user-account-section__status-hint">
-          {{ props.account.hasPasswordAuth ? '邮箱登录方式可继续使用。' : '首次绑定邮箱时需要一起设置登录密码。' }}
+          {{ props.account.hasPasswordAuth ? '邮箱登录方式可继续使用。' : '完成设置后即可使用邮箱登录。' }}
         </span>
       </div>
     </div>
@@ -151,8 +186,14 @@ function handleDisconnect(provider: AuthProviderName) {
         </ElFormItem>
         <ElFormItem label="验证码" prop="code">
           <div class="user-account-section__code-field">
-            <ElInput v-model="form.code" maxlength="6" placeholder="请输入 6 位验证码" />
-            <ElButton :loading="props.isSendingCode" @click="emit('sendCode')">
+            <ElInput
+              v-model="form.code"
+              maxlength="6"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              placeholder="请输入 6 位验证码"
+            />
+            <ElButton :disabled="isSendCodeDisabled" :loading="props.isSendingCode" @click="handleSendCode">
               {{ props.isSendingCode ? '发送中...' : '发送验证码' }}
             </ElButton>
           </div>
@@ -162,18 +203,27 @@ function handleDisconnect(provider: AuthProviderName) {
       <template v-if="requiresPasswordSetup">
         <div class="user-account-section__password-grid">
           <ElFormItem label="登录密码" prop="newPassword">
-            <ElInput v-model="form.newPassword" type="password" show-password autocomplete="new-password" />
+            <ElInput
+              v-model="form.newPassword"
+              type="password"
+              show-password
+              autocomplete="new-password"
+              placeholder="设置登录密码"
+            />
           </ElFormItem>
           <ElFormItem label="确认登录密码" prop="confirmPassword">
-            <ElInput v-model="form.confirmPassword" type="password" show-password autocomplete="new-password" />
+            <ElInput
+              v-model="form.confirmPassword"
+              type="password"
+              show-password
+              autocomplete="new-password"
+              placeholder="再次输入登录密码"
+            />
           </ElFormItem>
         </div>
-        <p class="user-account-section__hint">
-          当前账号还没有邮箱密码登录方式，首次绑定邮箱时需要一并设置登录密码。
-        </p>
       </template>
 
-      <ElButton type="primary" :loading="props.isBindingEmail" native-type="submit">
+      <ElButton type="primary" :disabled="isConfirmEmailDisabled" :loading="props.isBindingEmail" native-type="submit">
         {{ props.isBindingEmail ? '提交中...' : emailButtonText }}
       </ElButton>
     </ElForm>
@@ -281,8 +331,7 @@ function handleDisconnect(provider: AuthProviderName) {
     font-size: 1rem;
   }
 
-  &__status-hint,
-  &__hint {
+  &__status-hint {
     color: var(--brand-text-secondary);
     font-size: 0.75rem;
     line-height: 1.6;

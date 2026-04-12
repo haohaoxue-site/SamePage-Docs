@@ -431,6 +431,10 @@ export class AuthService {
     }
   }
 
+  buildLogoutCookieHeader(): string {
+    return this.clearRefreshCookie()
+  }
+
   private async issueAuthSession(userId: string, request: FastifyRequest): Promise<TokenExchangeResult> {
     await this.rbacService.syncBootstrapRolesForUser(userId)
     const authUser = await this.buildAuthUserContext(userId)
@@ -517,7 +521,7 @@ export class AuthService {
   }
 
   private async upsertUserByOAuth(provider: AuthProvider, profile: OAuthProfile): Promise<User> {
-    const existingAccount = await this.prisma.oauthAccount.findUnique({
+    const existingAccount = await this.prisma.$bypass.oauthAccount.findUnique({
       where: {
         provider_providerUserId: {
           provider,
@@ -528,13 +532,11 @@ export class AuthService {
     })
 
     if (existingAccount) {
-      await this.prisma.oauthAccount.update({
+      await this.prisma.$bypass.oauthAccount.update({
         where: { id: existingAccount.id },
         data: {
-          providerUsername: profile.username,
-          providerEmail: null,
-          providerEmailVerified: false,
-          rawProfile: profile.rawProfile as Prisma.InputJsonValue,
+          ...buildOauthAccountData(profile),
+          deletedAt: null,
         },
       })
 
@@ -589,7 +591,7 @@ export class AuthService {
           avatarUrl: true,
         },
       }),
-      this.prisma.oauthAccount.findUnique({
+      this.prisma.$bypass.oauthAccount.findUnique({
         where: {
           provider_providerUserId: {
             provider,
@@ -609,7 +611,7 @@ export class AuthService {
       throw new BadRequestException('当前账号不存在或已失效')
     }
 
-    if (existingProviderBinding && existingProviderBinding.userId !== userId) {
+    if (existingProviderBinding && !existingProviderBinding.deletedAt && existingProviderBinding.userId !== userId) {
       throw new BadRequestException(`该${formatAuthMethod(resolveAuthMethod(provider))}账号已绑定到其他账号`)
     }
 
@@ -620,14 +622,13 @@ export class AuthService {
       throw new BadRequestException(`当前账号已绑定其他${formatAuthMethod(resolveAuthMethod(provider))}账号`)
     }
 
-    if (existingProviderBinding && existingProviderBinding.userId === userId) {
-      await this.prisma.oauthAccount.update({
+    if (existingProviderBinding) {
+      await this.prisma.$bypass.oauthAccount.update({
         where: { id: existingProviderBinding.id },
         data: {
-          providerUsername: profile.username,
-          providerEmail: null,
-          providerEmailVerified: false,
-          rawProfile: profile.rawProfile as Prisma.InputJsonValue,
+          userId,
+          ...buildOauthAccountData(profile),
+          deletedAt: null,
         },
       })
 
@@ -649,10 +650,7 @@ export class AuthService {
           userId,
           provider,
           providerUserId: profile.providerUserId,
-          providerUsername: profile.username,
-          providerEmail: null,
-          providerEmailVerified: false,
-          rawProfile: profile.rawProfile as Prisma.InputJsonValue,
+          ...buildOauthAccountData(profile),
         },
       })
 
@@ -829,6 +827,9 @@ export class AuthService {
           },
         },
         oauthAccounts: {
+          where: {
+            deletedAt: null,
+          },
           select: {
             provider: true,
             providerEmailVerified: true,
@@ -1027,6 +1028,15 @@ export class AuthService {
       : (protocolHeader ?? request.protocol ?? 'http')
 
     return new URL(request.url, `${protocol}://${host}`)
+  }
+}
+
+function buildOauthAccountData(profile: OAuthProfile) {
+  return {
+    providerUsername: profile.username,
+    providerEmail: null,
+    providerEmailVerified: false,
+    rawProfile: profile.rawProfile as Prisma.InputJsonValue,
   }
 }
 

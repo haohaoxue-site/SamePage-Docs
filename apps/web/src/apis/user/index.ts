@@ -2,6 +2,8 @@ import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type {
   ConfirmBindEmailDto,
   CurrentUserDto,
+  DeleteCurrentUserDto,
+  DeleteCurrentUserResponseDto,
   RequestBindEmailCodeDto,
   RequestBindEmailCodeResponseDto,
   UpdateCurrentUserAvatarResponseDto,
@@ -75,6 +77,15 @@ export function disconnectOauthBinding(provider: AuthProviderName): Promise<Curr
   return axios.request({
     method: 'delete',
     url: `/users/me/oauth/${provider}`,
+  })
+}
+
+export function deleteCurrentUser(data: DeleteCurrentUserDto): Promise<DeleteCurrentUserResponseDto> {
+  return axios.request({
+    method: 'post',
+    url: '/users/me/delete',
+    data,
+    withCookieAuth: true,
   })
 }
 

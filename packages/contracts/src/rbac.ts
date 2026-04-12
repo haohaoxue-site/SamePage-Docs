@@ -1,6 +1,7 @@
 export const PERMISSIONS = {
   USER_READ_SELF: 'user:read_self',
   USER_UPDATE_SELF: 'user:update_self',
+  USER_DELETE_SELF: 'user:delete_self',
   SYSTEM_ADMIN_OVERVIEW_READ: 'system_admin:overview:read',
   SYSTEM_ADMIN_USER_LIST: 'system_admin:user:list',
   SYSTEM_ADMIN_USER_UPDATE_STATUS: 'system_admin:user:update_status',
