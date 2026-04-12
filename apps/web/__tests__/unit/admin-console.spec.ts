@@ -30,6 +30,7 @@ vi.mock('@/apis/system-admin', () => ({
     ownedDocumentCount: 4,
     sharedDocumentCount: 2,
     createdAt: '2026-03-25T10:00:00.000Z',
+    createdBy: null,
     lastLoginAt: '2026-03-25T12:00:00.000Z',
   }]),
   updateSystemAdminUserStatus: vi.fn(async () => ({
@@ -41,6 +42,7 @@ vi.mock('@/apis/system-admin', () => ({
     allowPasswordRegistration: true,
     allowGithubRegistration: true,
     allowLinuxDoRegistration: false,
+    emailServiceEnabled: true,
     systemAdminEmail: 'alice@example.com',
     systemAdminDisplayName: 'Alice',
     systemAdminMustChangePassword: false,
@@ -56,7 +58,7 @@ vi.mock('@/apis/system-admin', () => ({
     hasApiKey: true,
     maskedApiKey: '••••••••1234',
     updatedAt: '2026-03-25T12:00:00.000Z',
-    updatedByDisplayName: 'Alice',
+    updatedBy: null,
   })),
   updateSystemAiConfig: vi.fn(async () => ({
     id: 'config-1',
@@ -67,7 +69,7 @@ vi.mock('@/apis/system-admin', () => ({
     hasApiKey: true,
     maskedApiKey: '••••••••1234',
     updatedAt: '2026-03-25T12:00:00.000Z',
-    updatedByDisplayName: 'Alice',
+    updatedBy: null,
   })),
   getSystemAdminAuditLogs: vi.fn(async () => []),
   getGovernanceSummary: vi.fn(async () => ({

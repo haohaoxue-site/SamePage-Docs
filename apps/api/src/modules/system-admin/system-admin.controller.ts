@@ -26,14 +26,18 @@ import {
   SystemAdminOverviewDto,
   SystemAdminUserItemDto,
   SystemAiConfigDto,
+  SystemAiServiceStatusDto,
   SystemAuthGovernanceDto,
   SystemEmailConfigDto,
+  SystemEmailServiceStatusDto,
   TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAdminUserStatusDto,
   UpdateSystemAiConfigDto,
+  UpdateSystemAiServiceStatusDto,
   UpdateSystemAuthGovernanceDto,
   UpdateSystemEmailConfigDto,
+  UpdateSystemEmailServiceStatusDto,
 } from './system-admin.dto'
 import { SystemAdminService } from './system-admin.service'
 
@@ -102,6 +106,14 @@ export class SystemAdminController {
     return this.systemAdminService.getEmailConfig()
   }
 
+  @ApiOperation({ summary: '获取发件服务状态' })
+  @ApiRequestResponse(SystemEmailServiceStatusDto)
+  @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_EMAIL_CONFIG_READ)
+  @Get('email-service')
+  async getEmailServiceStatus(): Promise<SystemEmailServiceStatusDto> {
+    return this.systemAdminService.getEmailServiceStatus()
+  }
+
   @ApiOperation({ summary: '更新系统发件配置' })
   @ApiRequestResponse(SystemEmailConfigDto)
   @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_EMAIL_CONFIG_UPDATE)
@@ -111,6 +123,17 @@ export class SystemAdminController {
     @Body() payload: UpdateSystemEmailConfigDto,
   ): Promise<SystemEmailConfigDto> {
     return this.systemAdminService.updateEmailConfig(authUser.id, payload)
+  }
+
+  @ApiOperation({ summary: '更新发件服务状态' })
+  @ApiRequestResponse(SystemEmailServiceStatusDto)
+  @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_EMAIL_CONFIG_UPDATE)
+  @Patch('email-service')
+  async updateEmailServiceStatus(
+    @CurrentUser() authUser: AuthUserContext,
+    @Body() payload: UpdateSystemEmailServiceStatusDto,
+  ): Promise<SystemEmailServiceStatusDto> {
+    return this.systemAdminService.updateEmailServiceStatus(authUser.id, payload)
   }
 
   @ApiOperation({ summary: '发送发件配置测试邮件' })
@@ -131,6 +154,14 @@ export class SystemAdminController {
     return this.systemAdminService.getAiConfig()
   }
 
+  @ApiOperation({ summary: '获取 AI 服务状态' })
+  @ApiRequestResponse(SystemAiServiceStatusDto)
+  @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_AI_CONFIG_READ)
+  @Get('ai-service')
+  async getAiServiceStatus(): Promise<SystemAiServiceStatusDto> {
+    return this.systemAdminService.getAiServiceStatus()
+  }
+
   @ApiOperation({ summary: '更新系统 AI 配置' })
   @ApiRequestResponse(SystemAiConfigDto)
   @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_AI_CONFIG_UPDATE)
@@ -140,6 +171,17 @@ export class SystemAdminController {
     @Body() payload: UpdateSystemAiConfigDto,
   ): Promise<SystemAiConfigDto> {
     return this.systemAdminService.updateAiConfig(authUser.id, payload)
+  }
+
+  @ApiOperation({ summary: '更新 AI 服务状态' })
+  @ApiRequestResponse(SystemAiServiceStatusDto)
+  @RequirePermissions(PERMISSIONS.SYSTEM_ADMIN_AI_CONFIG_UPDATE)
+  @Patch('ai-service')
+  async updateAiServiceStatus(
+    @CurrentUser() authUser: AuthUserContext,
+    @Body() payload: UpdateSystemAiServiceStatusDto,
+  ): Promise<SystemAiServiceStatusDto> {
+    return this.systemAdminService.updateAiServiceStatus(authUser.id, payload)
   }
 
   @ApiOperation({ summary: '获取系统审计日志' })

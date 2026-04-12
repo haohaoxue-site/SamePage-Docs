@@ -94,7 +94,7 @@ export class UsersController {
     @CurrentUser() authUser: AuthUserContext,
     @Body() payload: UpdateCurrentUserProfileDto,
   ): Promise<CurrentUserDto> {
-    return this.usersService.updateCurrentUserProfile(authUser.id, payload.displayName)
+    return this.usersService.updateCurrentUserProfile(authUser, payload.displayName)
   }
 
   @ApiOperation({ summary: '更新当前用户头像' })

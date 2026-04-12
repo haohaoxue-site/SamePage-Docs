@@ -9,19 +9,30 @@ const {
   configStatusLabel,
   currentConfig,
   currentProviderTitle,
+  currentServiceStatus,
   errorMessage,
   form,
   formRules,
   isLoading,
   isSaving,
   isTesting,
+  isUpdatingServiceStatus,
   providerCards,
   saveConfig,
   selectProvider,
   testConfig,
+  updateServiceStatus,
 } = useAdminEmailConfig()
 
-const configStatusStateClass = computed(() => currentConfig.value?.enabled ? 'enabled' : 'disabled')
+const configStatusStateClass = computed(() => currentServiceStatus.value?.enabled ? 'enabled' : 'disabled')
+
+function handleServiceStatusChange(value: string | number | boolean) {
+  if (typeof value !== 'boolean') {
+    return
+  }
+
+  updateServiceStatus(value)
+}
 
 async function handleSaveConfig() {
   await saveConfig(emailConfigFormRef.value)
@@ -39,9 +50,6 @@ async function handleSaveConfig() {
             <h2 class="admin-email-config__title">
               服务商模板
             </h2>
-            <p class="admin-email-config__description">
-              选择后会自动带入推荐的 SMTP 参数，仍然可以按企业实际配置调整。
-            </p>
 
             <div class="admin-email-config__provider-grid">
               <button
@@ -58,9 +66,7 @@ async function handleSaveConfig() {
               >
                 <div class="admin-email-config__provider-card-header">
                   <strong>{{ provider.title }}</strong>
-                  <span>{{ provider.disabled ? '后续支持' : '可用' }}</span>
                 </div>
-                <p>{{ provider.description }}</p>
                 <small>Host: {{ provider.defaults.smtpHost }} / Port: {{ provider.defaults.smtpPort }}</small>
               </button>
             </div>
@@ -72,9 +78,6 @@ async function handleSaveConfig() {
                 <h2 class="admin-email-config__title">
                   SMTP 配置
                 </h2>
-                <p class="admin-email-config__description">
-                  当前保存的是全站统一发件账号，注册和绑定邮箱时都会用这里发信。
-                </p>
               </div>
               <ElButton :loading="isTesting" @click="testConfig">
                 {{ isTesting ? '发送中...' : '发送测试邮件' }}
@@ -89,16 +92,6 @@ async function handleSaveConfig() {
               class="admin-email-config__form"
               @submit.prevent="handleSaveConfig"
             >
-              <div class="admin-email-config__toggle-card">
-                <div>
-                  <span class="admin-email-config__toggle-title">启用发件服务</span>
-                  <p class="admin-email-config__toggle-description">
-                    关闭后，注册和绑定邮箱都不会发送验证码。
-                  </p>
-                </div>
-                <ElSwitch v-model="form.enabled" />
-              </div>
-
               <div class="admin-email-config__grid">
                 <ElFormItem label="SMTP Host" prop="smtpHost">
                   <ElInput v-model="form.smtpHost" placeholder="smtp.exmail.qq.com" />
@@ -112,7 +105,7 @@ async function handleSaveConfig() {
                 <ElFormItem label="发件密码" prop="smtpPassword">
                   <ElInput v-model="form.smtpPassword" type="password" show-password autocomplete="new-password" />
                   <div class="admin-email-config__password-hint">
-                    <span>{{ currentConfig?.hasPassword ? '留空则保留当前密码。' : '首次启用时必须填写密码。' }}</span>
+                    <span>{{ currentConfig?.hasPassword ? '留空则保留当前密码。' : '启用发件服务前需要先保存发件密码。' }}</span>
                     <ElCheckbox v-model="form.clearPassword">
                       清空现有密码
                     </ElCheckbox>
@@ -140,47 +133,105 @@ async function handleSaveConfig() {
         </ElCard>
 
         <ElCard shadow="never" class="admin-email-config__status-card">
-          <div class="admin-email-config__status-header">
-            <span class="admin-email-config__status-label">当前状态</span>
-            <div class="admin-email-config__status-chip" :class="configStatusStateClass">
-              {{ configStatusLabel }}
-            </div>
-          </div>
+          <div class="admin-email-config__status-card-inner">
+            <section class="admin-email-config__service-panel">
+              <div class="admin-email-config__service-header">
+                <div class="admin-email-config__service-copy">
+                  <span class="admin-email-config__eyebrow">运行状态</span>
+                  <h2 class="admin-email-config__service-title">
+                    控制站点邮件发送
+                  </h2>
+                </div>
+                <div class="admin-email-config__status-chip" :class="configStatusStateClass">
+                  {{ configStatusLabel }}
+                </div>
+              </div>
 
-          <dl class="admin-email-config__summary">
-            <div class="admin-email-config__summary-row">
-              <dt>当前模板</dt>
-              <dd>{{ currentProviderTitle }}</dd>
-            </div>
-            <div class="admin-email-config__summary-row">
-              <dt>SMTP 主机</dt>
-              <dd>{{ currentConfig?.smtpHost || '-' }}</dd>
-            </div>
-            <div class="admin-email-config__summary-row">
-              <dt>发件账号</dt>
-              <dd>{{ currentConfig?.smtpUsername || '-' }}</dd>
-            </div>
-            <div class="admin-email-config__summary-row">
-              <dt>发件人</dt>
-              <dd>{{ currentConfig?.fromName || '-' }}</dd>
-            </div>
-            <div class="admin-email-config__summary-row">
-              <dt>发件邮箱</dt>
-              <dd>{{ currentConfig?.fromEmail || '-' }}</dd>
-            </div>
-            <div class="admin-email-config__summary-row">
-              <dt>密码状态</dt>
-              <dd>{{ currentConfig?.hasPassword ? '已保存' : '未保存' }}</dd>
-            </div>
-            <div class="admin-email-config__summary-row">
-              <dt>最近更新</dt>
-              <dd>{{ currentConfig?.updatedAt ? formatDateTime(currentConfig.updatedAt) : '暂无' }}</dd>
-            </div>
-            <div class="admin-email-config__summary-row">
-              <dt>更新人</dt>
-              <dd>{{ currentConfig?.updatedByDisplayName || '暂无' }}</dd>
-            </div>
-          </dl>
+              <p class="admin-email-config__service-description">
+                这个开关会立即生效，不需要和 SMTP 配置一起保存。关闭后，注册和绑定邮箱会暂停发送验证码邮件。
+              </p>
+
+              <div class="admin-email-config__service-switch-card">
+                <div>
+                  <span class="admin-email-config__service-switch-title">启用发件服务</span>
+                  <p class="admin-email-config__service-switch-hint">
+                    适合临时停用邮件发送或排查 SMTP 设置时使用。
+                  </p>
+                </div>
+                <ElSwitch
+                  :model-value="currentServiceStatus?.enabled ?? false"
+                  :loading="isUpdatingServiceStatus"
+                  :disabled="isUpdatingServiceStatus"
+                  @change="handleServiceStatusChange"
+                />
+              </div>
+            </section>
+
+            <section class="admin-email-config__summary-section">
+              <div class="admin-email-config__summary-header">
+                <span class="admin-email-config__summary-title">当前配置</span>
+                <span class="admin-email-config__summary-subtitle">已保存的发件信息</span>
+              </div>
+
+              <dl class="admin-email-config__summary">
+                <div class="admin-email-config__summary-row">
+                  <dt class="admin-email-config__summary-term">
+                    当前模板
+                  </dt>
+                  <dd class="admin-email-config__summary-value">
+                    {{ currentProviderTitle }}
+                  </dd>
+                </div>
+                <div class="admin-email-config__summary-row">
+                  <dt class="admin-email-config__summary-term">
+                    SMTP 主机
+                  </dt>
+                  <dd class="admin-email-config__summary-value">
+                    {{ currentConfig?.smtpHost || '-' }}
+                  </dd>
+                </div>
+                <div class="admin-email-config__summary-row">
+                  <dt class="admin-email-config__summary-term">
+                    发件账号
+                  </dt>
+                  <dd class="admin-email-config__summary-value">
+                    {{ currentConfig?.smtpUsername || '-' }}
+                  </dd>
+                </div>
+                <div class="admin-email-config__summary-row">
+                  <dt class="admin-email-config__summary-term">
+                    发件人
+                  </dt>
+                  <dd class="admin-email-config__summary-value">
+                    {{ currentConfig?.fromName || '-' }}
+                  </dd>
+                </div>
+                <div class="admin-email-config__summary-row">
+                  <dt class="admin-email-config__summary-term">
+                    发件邮箱
+                  </dt>
+                  <dd class="admin-email-config__summary-value">
+                    {{ currentConfig?.fromEmail || '-' }}
+                  </dd>
+                </div>
+                <div class="admin-email-config__summary-row">
+                  <dt class="admin-email-config__summary-term">
+                    密码状态
+                  </dt>
+                  <dd class="admin-email-config__summary-value">
+                    {{ currentConfig?.hasPassword ? '已保存' : '未保存' }}
+                  </dd>
+                </div>
+              </dl>
+
+              <div class="admin-email-config__updated-at">
+                <span class="admin-email-config__updated-at-label">最近更新</span>
+                <span class="admin-email-config__updated-at-value">
+                  {{ currentConfig?.updatedAt ? formatDateTime(currentConfig.updatedAt) : '暂无' }}
+                </span>
+              </div>
+            </section>
+          </div>
         </ElCard>
       </div>
     </template>
@@ -204,6 +255,21 @@ async function handleSaveConfig() {
   &__main-card,
   &__status-card {
     border-color: color-mix(in srgb, var(--brand-border-base) 82%, transparent);
+    box-shadow: 0 24px 60px -48px color-mix(in srgb, var(--brand-text-primary) 22%, transparent);
+  }
+
+  &__status-card {
+    order: -1;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at top right, color-mix(in srgb, var(--brand-primary) 5%, transparent), transparent 40%),
+      linear-gradient(180deg, color-mix(in srgb, var(--brand-bg-sidebar) 18%, transparent), var(--brand-bg-surface));
+
+    @media (min-width: 1024px) {
+      order: 0;
+      position: sticky;
+      top: 1.5rem;
+    }
   }
 
   &__section + &__section {
@@ -225,13 +291,6 @@ async function handleSaveConfig() {
     font-weight: 700;
   }
 
-  &__description {
-    margin: 0.375rem 0 0;
-    color: var(--brand-text-secondary);
-    font-size: 0.875rem;
-    line-height: 1.6;
-  }
-
   &__provider-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -249,12 +308,19 @@ async function handleSaveConfig() {
     border: 1px solid color-mix(in srgb, var(--brand-border-base) 78%, transparent);
     border-radius: 1rem;
     background: var(--brand-bg-surface);
-    transition: border-color 0.2s ease, transform 0.2s ease;
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+
+    &:not(.is-disabled):hover {
+      border-color: color-mix(in srgb, var(--brand-primary) 36%, var(--brand-border-base));
+      transform: translateY(-1px);
+      box-shadow: 0 16px 28px -24px color-mix(in srgb, var(--brand-primary) 55%, transparent);
+    }
 
     &.is-active {
       border-color: color-mix(in srgb, var(--brand-primary) 60%, transparent);
       transform: translateY(-1px);
       background: color-mix(in srgb, var(--brand-primary) 6%, var(--brand-bg-surface));
+      box-shadow: 0 20px 36px -28px color-mix(in srgb, var(--brand-primary) 72%, transparent);
     }
 
     &.is-disabled {
@@ -282,27 +348,81 @@ async function handleSaveConfig() {
     margin-top: 1rem;
   }
 
-  &__toggle-card {
+  &__status-card-inner {
     display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  &__service-panel {
+    padding: 1.25rem;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 12%, var(--brand-border-base));
+    border-radius: 1.25rem;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 7%, var(--brand-bg-surface)), var(--brand-bg-surface));
+    box-shadow: 0 24px 48px -40px color-mix(in srgb, var(--brand-primary) 60%, transparent);
+  }
+
+  &__service-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  &__service-copy {
+    min-width: 0;
+  }
+
+  &__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    color: var(--brand-text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  &__service-title {
+    margin: 0.5rem 0 0;
+    color: var(--brand-text-primary);
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  &__service-description {
+    margin: 0.875rem 0 0;
+    color: var(--brand-text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.7;
+  }
+
+  &__service-switch-card {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1rem;
-    padding: 1rem;
-    border: 1px solid color-mix(in srgb, var(--brand-border-base) 78%, transparent);
+    margin-top: 1.25rem;
+    padding: 1rem 1rem 1rem 1.125rem;
+    border: 1px solid color-mix(in srgb, var(--brand-border-base) 84%, transparent);
     border-radius: 1rem;
-    background: color-mix(in srgb, var(--brand-fill-lighter) 72%, transparent);
+    background: color-mix(in srgb, var(--brand-bg-surface) 88%, white);
   }
 
-  &__toggle-title {
+  &__service-switch-title {
+    display: block;
     color: var(--brand-text-primary);
     font-weight: 600;
   }
 
-  &__toggle-description {
-    margin: 0.25rem 0 0;
+  &__service-switch-hint {
+    margin: 0.375rem 0 0;
     color: var(--brand-text-secondary);
     font-size: 0.75rem;
+    line-height: 1.6;
+    max-width: 20rem;
   }
 
   &__grid {
@@ -326,17 +446,26 @@ async function handleSaveConfig() {
     font-size: 0.75rem;
   }
 
-  &__status-header {
+  &__summary-section {
+    padding-top: 0.25rem;
+  }
+
+  &__summary-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
+    flex-direction: column;
+    gap: 0.25rem;
     margin-bottom: 1rem;
   }
 
-  &__status-label {
+  &__summary-title {
+    color: var(--brand-text-primary);
+    font-size: 0.9375rem;
+    font-weight: 700;
+  }
+
+  &__summary-subtitle {
     color: var(--brand-text-secondary);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
   }
 
   &__status-chip {
@@ -344,6 +473,7 @@ async function handleSaveConfig() {
     border-radius: 999px;
     font-size: 0.75rem;
     font-weight: 600;
+    white-space: nowrap;
 
     &.enabled {
       color: var(--brand-success);
@@ -359,28 +489,65 @@ async function handleSaveConfig() {
   &__summary {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.875rem;
   }
 
   &__summary-row {
     display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding-bottom: 0.75rem;
+    flex-direction: column;
+    gap: 0.375rem;
+    padding-bottom: 0.875rem;
     border-bottom: 1px solid color-mix(in srgb, var(--brand-border-base) 82%, transparent);
 
-    dt {
-      color: var(--brand-text-secondary);
-      font-size: 0.8125rem;
+    @media (min-width: 768px) {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
     }
 
-    dd {
-      margin: 0;
-      color: var(--brand-text-primary);
-      font-size: 0.875rem;
-      text-align: right;
-      word-break: break-all;
+    &:last-child {
+      padding-bottom: 0;
+      border-bottom: none;
     }
+  }
+
+  &__summary-term {
+    color: var(--brand-text-secondary);
+    font-size: 0.8125rem;
+  }
+
+  &__summary-value {
+    margin: 0;
+    color: var(--brand-text-primary);
+    font-size: 0.875rem;
+    word-break: break-all;
+
+    @media (min-width: 768px) {
+      text-align: right;
+    }
+  }
+
+  &__updated-at {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid color-mix(in srgb, var(--brand-border-base) 82%, transparent);
+  }
+
+  &__updated-at-label {
+    color: var(--brand-text-secondary);
+    font-size: 0.8125rem;
+  }
+
+  &__updated-at-value {
+    color: var(--brand-text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: right;
   }
 }
 </style>

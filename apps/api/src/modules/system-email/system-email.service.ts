@@ -1,8 +1,10 @@
 import type { CryptoConfig } from '../../config/auth.config'
 import type {
   SystemEmailConfigDto,
+  SystemEmailServiceStatusDto,
   TestSystemEmailConfigResponseDto,
   UpdateSystemEmailConfigDto,
+  UpdateSystemEmailServiceStatusDto,
 } from '../system-admin/system-admin.dto'
 import { SYSTEM_EMAIL_PROVIDER, SYSTEM_EMAIL_PROVIDER_DEFAULTS } from '@haohaoxue/samepage-contracts'
 import {
@@ -31,20 +33,12 @@ export class SystemEmailService {
   async getEmailConfig(): Promise<SystemEmailConfigDto> {
     const config = await this.prisma.systemEmailConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
-      include: {
-        updatedByUser: {
-          select: {
-            displayName: true,
-          },
-        },
-      },
     })
 
     if (!config) {
       const defaults = SYSTEM_EMAIL_PROVIDER_DEFAULTS[DEFAULT_PROVIDER]
       return {
         provider: DEFAULT_PROVIDER,
-        enabled: false,
         smtpHost: defaults.smtpHost,
         smtpPort: defaults.smtpPort,
         smtpSecure: defaults.smtpSecure,
@@ -53,13 +47,12 @@ export class SystemEmailService {
         fromEmail: '',
         hasPassword: false,
         updatedAt: null,
-        updatedByDisplayName: null,
+        updatedBy: null,
       }
     }
 
     return {
       provider: config.provider as SystemEmailProvider,
-      enabled: config.enabled,
       smtpHost: config.smtpHost,
       smtpPort: config.smtpPort,
       smtpSecure: config.smtpSecure,
@@ -68,19 +61,24 @@ export class SystemEmailService {
       fromEmail: config.fromEmail,
       hasPassword: Boolean(this.decryptPassword(config.smtpPasswordEncrypted)),
       updatedAt: config.updatedAt,
-      updatedByDisplayName: config.updatedByUser?.displayName ?? null,
+      updatedBy: null,
+    }
+  }
+
+  async getEmailServiceStatus(): Promise<SystemEmailServiceStatusDto> {
+    const config = await this.prisma.systemEmailConfig.findFirst({
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    return {
+      enabled: config?.enabled ?? false,
+      updatedAt: config?.updatedAt ?? null,
+      updatedBy: null,
     }
   }
 
   async isEnabled(): Promise<boolean> {
-    const config = await this.prisma.systemEmailConfig.findFirst({
-      orderBy: { updatedAt: 'desc' },
-      select: {
-        enabled: true,
-      },
-    })
-
-    return config?.enabled ?? false
+    return (await this.getEmailServiceStatus()).enabled
   }
 
   async updateEmailConfig(
@@ -96,21 +94,32 @@ export class SystemEmailService {
       : payload.smtpPassword?.trim()
         ? payload.smtpPassword.trim()
         : existingPassword
+    const nextSmtpHost = payload.smtpHost.trim()
+    const nextSmtpUsername = payload.smtpUsername.trim()
+    const nextFromName = payload.fromName.trim()
+    const nextFromEmail = payload.fromEmail.trim().toLowerCase()
 
-    if (payload.enabled && !nextPassword) {
-      throw new BadRequestException('启用发件服务前必须填写发件密码')
+    if (existing?.enabled) {
+      this.assertEmailServiceReady({
+        smtpHost: nextSmtpHost,
+        smtpPort: payload.smtpPort,
+        smtpUsername: nextSmtpUsername,
+        fromName: nextFromName,
+        fromEmail: nextFromEmail,
+        smtpPassword: nextPassword,
+      })
     }
 
     const data = {
       provider: payload.provider,
-      enabled: payload.enabled,
-      smtpHost: payload.smtpHost.trim(),
+      enabled: existing?.enabled ?? false,
+      smtpHost: nextSmtpHost,
       smtpPort: payload.smtpPort,
       smtpSecure: payload.smtpSecure,
-      smtpUsername: payload.smtpUsername.trim(),
+      smtpUsername: nextSmtpUsername,
       smtpPasswordEncrypted: nextPassword ? encryptAes256Gcm(nextPassword, this.encryptionKey) : null,
-      fromName: payload.fromName.trim(),
-      fromEmail: payload.fromEmail.trim().toLowerCase(),
+      fromName: nextFromName,
+      fromEmail: nextFromEmail,
       updatedByUserId: actorUserId,
     }
 
@@ -130,6 +139,44 @@ export class SystemEmailService {
     }
 
     return this.getEmailConfig()
+  }
+
+  async updateEmailServiceStatus(
+    actorUserId: string,
+    payload: UpdateSystemEmailServiceStatusDto,
+  ): Promise<SystemEmailServiceStatusDto> {
+    const existing = await this.prisma.systemEmailConfig.findFirst({
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    if (payload.enabled) {
+      this.assertEmailServiceReady({
+        smtpHost: existing?.smtpHost ?? '',
+        smtpPort: existing?.smtpPort ?? 0,
+        smtpUsername: existing?.smtpUsername ?? '',
+        fromName: existing?.fromName ?? '',
+        fromEmail: existing?.fromEmail ?? '',
+        smtpPassword: this.decryptPassword(existing?.smtpPasswordEncrypted ?? null),
+      })
+    }
+
+    if (!existing) {
+      return {
+        enabled: false,
+        updatedAt: null,
+        updatedBy: null,
+      }
+    }
+
+    await this.prisma.systemEmailConfig.update({
+      where: { id: existing.id },
+      data: {
+        enabled: payload.enabled,
+        updatedByUserId: actorUserId,
+      },
+    })
+
+    return this.getEmailServiceStatus()
   }
 
   async sendTestEmail(recipientEmail: string): Promise<TestSystemEmailConfigResponseDto> {
@@ -174,6 +221,30 @@ export class SystemEmailService {
 
   getProviderDefaults(provider: SystemEmailProvider) {
     return SYSTEM_EMAIL_PROVIDER_DEFAULTS[provider]
+  }
+
+  private assertEmailServiceReady(input: {
+    smtpHost: string
+    smtpPort: number
+    smtpUsername: string
+    fromName: string
+    fromEmail: string
+    smtpPassword: string | null
+  }) {
+    if (
+      !input.smtpHost.trim()
+      || !Number.isFinite(input.smtpPort)
+      || input.smtpPort <= 0
+      || !input.smtpUsername.trim()
+      || !input.fromName.trim()
+      || !input.fromEmail.trim()
+    ) {
+      throw new BadRequestException('启用发件服务前请先保存完整的 SMTP 配置')
+    }
+
+    if (!input.smtpPassword) {
+      throw new BadRequestException('启用发件服务前请先填写并保存发件密码')
+    }
   }
 
   private async getActiveTransportConfig(): Promise<{

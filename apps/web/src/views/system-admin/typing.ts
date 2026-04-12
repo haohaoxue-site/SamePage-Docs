@@ -5,16 +5,10 @@ import type {
 } from '@/apis/system-admin'
 import type { SvgIconCategory } from '@/components/svg-icon/typing'
 
-/**
- * 后台审计日志列表属性。
- */
 export interface AdminAuditLogListProps {
   logs: SystemAdminAuditLogItemDto[]
 }
 
-/**
- * 后台概览指标卡属性。
- */
 export interface ConsoleMetricCardProps {
   label: string
   value: string | number
@@ -31,17 +25,11 @@ export interface ConsoleMetricCardProps {
   icon?: string
 }
 
-/**
- * 后台用户表格属性。
- */
 export interface SystemAdminUserTableProps {
   users: SystemAdminUserItemDto[]
   updatingUserId: string | null
 }
 
-/**
- * 后台用户表格事件。
- */
 export interface SystemAdminUserTableEmits {
   toggleStatus: [user: SystemAdminUserItemDto, nextStatus: SystemAdminUserStatus]
 }

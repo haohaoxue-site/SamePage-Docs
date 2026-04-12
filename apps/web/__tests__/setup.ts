@@ -15,7 +15,9 @@ interface MockDocument {
   content: string
   summary: string
   createdAt: string
+  createdBy: string | null
   updatedAt: string
+  updatedBy: string | null
   hasChildren: boolean
   hasContent: boolean
   collection: DocumentCollectionId
@@ -30,10 +32,11 @@ interface MockDocumentItem {
   parentId: string | null
   summary: string
   createdAt: string
+  createdBy: string | null
   updatedAt: string
+  updatedBy: string | null
   hasChildren: boolean
   hasContent: boolean
-  sharedByDisplayName: string | null
   children: MockDocumentItem[]
 }
 
@@ -49,7 +52,9 @@ const initialMockDocuments: MockDocument[] = [
     `,
     summary: '这是产品的第一篇引导文档，用来说明当前 MVP 的定位与目标。',
     createdAt: '2026-03-29T08:00:00.000Z',
+    createdBy: null,
     updatedAt: '2026-03-30T08:00:00.000Z',
+    updatedBy: null,
     hasChildren: true,
     hasContent: true,
     collection: DOCUMENT_COLLECTION.PERSONAL,
@@ -64,7 +69,9 @@ const initialMockDocuments: MockDocument[] = [
     `,
     summary: '明确产品愿景、阶段目标和用户价值，作为团队对齐的起点。',
     createdAt: '2026-03-29T09:00:00.000Z',
+    createdBy: null,
     updatedAt: '2026-03-30T09:00:00.000Z',
+    updatedBy: null,
     hasChildren: false,
     hasContent: true,
     collection: DOCUMENT_COLLECTION.PERSONAL,
@@ -79,7 +86,9 @@ const initialMockDocuments: MockDocument[] = [
     `,
     summary: '记录首阶段重点：工程基线、页面壳子、编辑器 MVP。',
     createdAt: '2026-03-29T10:00:00.000Z',
+    createdBy: null,
     updatedAt: '2026-03-30T10:00:00.000Z',
+    updatedBy: null,
     hasChildren: false,
     hasContent: true,
     collection: DOCUMENT_COLLECTION.PERSONAL,
@@ -92,7 +101,6 @@ function buildTree(collection: DocumentCollectionId) {
   const collectionDocuments = mockDocuments.filter(document => document.collection === collection)
   const documentMap = new Map(collectionDocuments.map(document => [document.id, {
     ...document,
-    sharedByDisplayName: null,
     children: [] as MockDocumentItem[],
   }]))
 
@@ -154,7 +162,9 @@ vi.mock('@/apis/document', () => ({
         title: document.title,
         collection: document.collection,
         createdAt: document.createdAt,
+        createdBy: document.createdBy,
         updatedAt: document.updatedAt,
+        updatedBy: document.updatedBy,
         ancestorTitles: buildRecentAncestorTitles(document),
       }))),
   getDocumentById: vi.fn(async (id: string) => {
@@ -179,7 +189,9 @@ vi.mock('@/apis/document', () => ({
       content: payload.content ?? '',
       summary: '',
       createdAt: '2026-03-30T11:00:00.000Z',
+      createdBy: null,
       updatedAt: '2026-03-30T11:00:00.000Z',
+      updatedBy: null,
       hasChildren: false,
       hasContent: Boolean((payload.content ?? '').replace(/<[^>]+>/g, '').trim()),
       collection: DOCUMENT_COLLECTION.PERSONAL,

@@ -29,6 +29,7 @@ export interface SystemAdminUserItemDto {
   ownedDocumentCount: number
   sharedDocumentCount: number
   createdAt: string
+  createdBy: string | null
   lastLoginAt: string | null
 }
 
@@ -46,6 +47,7 @@ export interface SystemAuthGovernanceDto {
   allowPasswordRegistration: boolean
   allowGithubRegistration: boolean
   allowLinuxDoRegistration: boolean
+  emailServiceEnabled: boolean
   systemAdminEmail: string
   systemAdminDisplayName: string | null
   systemAdminMustChangePassword: boolean
@@ -54,14 +56,13 @@ export interface SystemAuthGovernanceDto {
 }
 
 export interface UpdateSystemAuthGovernanceDto {
-  allowPasswordRegistration: boolean
-  allowGithubRegistration: boolean
-  allowLinuxDoRegistration: boolean
+  allowPasswordRegistration?: boolean
+  allowGithubRegistration?: boolean
+  allowLinuxDoRegistration?: boolean
 }
 
 export interface SystemEmailConfigDto {
   provider: SystemEmailProvider
-  enabled: boolean
   smtpHost: string
   smtpPort: number
   smtpSecure: boolean
@@ -70,12 +71,17 @@ export interface SystemEmailConfigDto {
   fromEmail: string
   hasPassword: boolean
   updatedAt: string | null
-  updatedByDisplayName: string | null
+  updatedBy: string | null
+}
+
+export interface SystemEmailServiceStatusDto {
+  enabled: boolean
+  updatedAt: string | null
+  updatedBy: string | null
 }
 
 export interface UpdateSystemEmailConfigDto {
   provider: SystemEmailProvider
-  enabled: boolean
   smtpHost: string
   smtpPort: number
   smtpSecure: boolean
@@ -86,28 +92,40 @@ export interface UpdateSystemEmailConfigDto {
   fromEmail: string
 }
 
+export interface UpdateSystemEmailServiceStatusDto {
+  enabled: boolean
+}
+
 export interface TestSystemEmailConfigResponseDto {
   sent: boolean
 }
 
 export interface SystemAiConfigDto {
   id: string | null
-  enabled: boolean
   provider: string
   baseUrl: string | null
   defaultModel: string | null
   hasApiKey: boolean
   maskedApiKey: string | null
   updatedAt: string | null
-  updatedByDisplayName: string | null
+  updatedBy: string | null
+}
+
+export interface SystemAiServiceStatusDto {
+  enabled: boolean
+  updatedAt: string | null
+  updatedBy: string | null
 }
 
 export interface UpdateSystemAiConfigDto {
-  enabled: boolean
   baseUrl?: string
   defaultModel?: string
   apiKey?: string
   clearApiKey?: boolean
+}
+
+export interface UpdateSystemAiServiceStatusDto {
+  enabled: boolean
 }
 
 export interface SystemAdminAuditLogItemDto {
@@ -120,6 +138,7 @@ export interface SystemAdminAuditLogItemDto {
   actorAvatarUrl: string | null
   metadata: Record<string, unknown> | null
   createdAt: string
+  createdBy: string | null
 }
 
 export interface GovernanceSummaryDto {

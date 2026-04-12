@@ -3,6 +3,7 @@ import type { AppearancePreference, LanguagePreference } from '@haohaoxue/samepa
 import type { UserPreferenceSectionProps } from '../typing'
 import { APPEARANCE_PREFERENCE_VALUES, LANGUAGE_PREFERENCE_VALUES } from '@haohaoxue/samepage-contracts'
 import { formatAppearancePreference, formatLanguagePreference } from '@haohaoxue/samepage-shared'
+import UserSettingsSectionHeader from './UserSettingsSectionHeader.vue'
 
 const props = defineProps<UserPreferenceSectionProps>()
 const language = defineModel<LanguagePreference>('language', { required: true })
@@ -11,16 +12,10 @@ const appearance = defineModel<AppearancePreference>('appearance', { required: t
 
 <template>
   <ElCard shadow="never" class="user-preference-section">
-    <div class="user-preference-section__header">
-      <div>
-        <h2 class="user-preference-section__title">
-          偏好设置
-        </h2>
-        <p class="user-preference-section__description">
-          设置常用语言和页面外观。
-        </p>
-      </div>
-    </div>
+    <UserSettingsSectionHeader
+      title="偏好设置"
+      description="设置常用语言和页面外观。"
+    />
 
     <div class="user-preference-section__group">
       <div class="user-preference-section__label">
@@ -67,24 +62,6 @@ const appearance = defineModel<AppearancePreference>('appearance', { required: t
 <style scoped lang="scss">
 .user-preference-section {
   border-color: color-mix(in srgb, var(--brand-border-base) 85%, transparent);
-
-  &__header {
-    margin-bottom: 1.25rem;
-  }
-
-  &__title {
-    margin: 0;
-    color: var(--brand-text-primary);
-    font-size: 1.125rem;
-    font-weight: 700;
-  }
-
-  &__description {
-    margin: 0.375rem 0 0;
-    color: var(--brand-text-secondary);
-    font-size: 0.875rem;
-    line-height: 1.6;
-  }
 
   &__group {
     margin-bottom: 1.25rem;

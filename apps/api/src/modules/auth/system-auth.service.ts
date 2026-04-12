@@ -116,7 +116,7 @@ export class SystemAuthService implements OnModuleInit {
 
   async updateRegistrationOptions(
     updatedByUserId: string,
-    payload: RegistrationOptions,
+    payload: Partial<RegistrationOptions>,
   ): Promise<SystemAuthConfig> {
     await this.getOrCreateConfig()
 

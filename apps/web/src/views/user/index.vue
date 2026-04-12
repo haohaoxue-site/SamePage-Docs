@@ -27,15 +27,16 @@ const {
   isLoading,
   isSavingLanguage,
   isSavingAppearance,
-  isSavingProfile,
+  isSavingDisplayName,
   isSendingEmailCode,
   isUploadingAvatar,
   languagePreference,
   profileForm,
-  saveProfile,
+  saveDisplayName,
   sendEmailCode,
   shouldShowDeleteAccountSection,
   bindEmail,
+  canEditDisplayName,
   connectOauth,
   disconnectOauth,
   uploadAvatar,
@@ -84,9 +85,10 @@ async function handleConfirmEmail() {
         <UserProfileSection
           v-model:display-name="profileForm.displayName"
           :avatar-url="avatarUrl"
-          :is-saving="isSavingProfile"
+          :can-edit-display-name="canEditDisplayName"
+          :is-saving-display-name="isSavingDisplayName"
           :is-uploading="isUploadingAvatar"
-          @submit="saveProfile"
+          @save-display-name="saveDisplayName"
           @upload="uploadAvatar"
         />
 

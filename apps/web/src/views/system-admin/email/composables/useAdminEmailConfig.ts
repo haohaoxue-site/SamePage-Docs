@@ -1,5 +1,9 @@
 import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
-import type { SystemEmailConfigDto, SystemEmailProvider } from '@/apis/system-admin'
+import type {
+  SystemEmailConfigDto,
+  SystemEmailProvider,
+  SystemEmailServiceStatusDto,
+} from '@/apis/system-admin'
 import {
   SYSTEM_EMAIL_PROVIDER,
   SYSTEM_EMAIL_PROVIDER_DEFAULTS,
@@ -12,8 +16,10 @@ import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, shallowRef } from 'vue'
 import {
   getSystemEmailConfig,
+  getSystemEmailServiceStatus,
   testSystemEmailConfig,
   updateSystemEmailConfig,
+  updateSystemEmailServiceStatus,
 } from '@/apis/system-admin'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 import { createEmailRules } from '@/views/auth/utils/rules'
@@ -46,13 +52,14 @@ export function useAdminEmailConfig() {
   type RuleValidator = NonNullable<FormItemRule['validator']>
 
   const currentConfig = shallowRef<SystemEmailConfigDto | null>(null)
+  const currentServiceStatus = shallowRef<SystemEmailServiceStatusDto | null>(null)
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
   const isSaving = shallowRef(false)
   const isTesting = shallowRef(false)
+  const isUpdatingServiceStatus = shallowRef(false)
   const form = reactive({
     provider: SYSTEM_EMAIL_PROVIDER.TENCENT_EXMAIL as SystemEmailProvider,
-    enabled: false,
     smtpHost: '',
     smtpPort: 465,
     smtpSecure: true,
@@ -68,19 +75,13 @@ export function useAdminEmailConfig() {
     ...meta,
   })))
 
-  const configStatusLabel = computed(() => {
-    if (!currentConfig.value) {
-      return '未配置'
-    }
-
-    return currentConfig.value.enabled ? '已启用' : '未启用'
-  })
-  const currentProviderTitle = computed(() => formatSystemEmailProvider(form.provider))
+  const configStatusLabel = computed(() => currentServiceStatus.value?.enabled ? '已启用' : '未启用')
+  const currentProviderTitle = computed(() => formatSystemEmailProvider(currentConfig.value?.provider ?? form.provider))
 
   const validatePassword: RuleValidator = (_rule, value, callback) => {
     const normalizedValue = typeof value === 'string' ? value.trim() : ''
     const hasExistingPassword = currentConfig.value?.hasPassword ?? false
-    const shouldRequirePassword = form.enabled && (!hasExistingPassword || form.clearPassword)
+    const shouldRequirePassword = (currentServiceStatus.value?.enabled ?? false) && (!hasExistingPassword || form.clearPassword)
 
     if (!normalizedValue && !shouldRequirePassword) {
       callback()
@@ -151,10 +152,13 @@ export function useAdminEmailConfig() {
     errorMessage.value = ''
 
     try {
-      const config = await getSystemEmailConfig()
+      const [config, serviceStatus] = await Promise.all([
+        getSystemEmailConfig(),
+        getSystemEmailServiceStatus(),
+      ])
       currentConfig.value = config
+      currentServiceStatus.value = serviceStatus
       form.provider = config.provider
-      form.enabled = config.enabled
       form.smtpHost = config.smtpHost
       form.smtpPort = config.smtpPort
       form.smtpSecure = config.smtpSecure
@@ -185,7 +189,6 @@ export function useAdminEmailConfig() {
     try {
       currentConfig.value = await updateSystemEmailConfig({
         provider: form.provider,
-        enabled: form.enabled,
         smtpHost: form.smtpHost,
         smtpPort: form.smtpPort,
         smtpSecure: form.smtpSecure,
@@ -204,6 +207,41 @@ export function useAdminEmailConfig() {
     }
     finally {
       isSaving.value = false
+    }
+  }
+
+  async function updateServiceStatus(nextEnabled: boolean) {
+    const previousStatus = currentServiceStatus.value
+    currentServiceStatus.value = {
+      enabled: nextEnabled,
+      updatedAt: previousStatus?.updatedAt ?? null,
+      updatedBy: previousStatus?.updatedBy ?? null,
+    }
+    isUpdatingServiceStatus.value = true
+
+    try {
+      const nextStatus = await updateSystemEmailServiceStatus({
+        enabled: nextEnabled,
+      })
+
+      currentServiceStatus.value = nextStatus
+
+      if (currentConfig.value) {
+        currentConfig.value = {
+          ...currentConfig.value,
+          updatedAt: nextStatus.updatedAt,
+          updatedBy: nextStatus.updatedBy,
+        }
+      }
+
+      ElMessage.success(nextEnabled ? '发件服务已启用' : '发件服务已关闭')
+    }
+    catch (error) {
+      currentServiceStatus.value = previousStatus
+      ElMessage.error(getRequestErrorDisplayMessage(error, nextEnabled ? '启用发件服务失败' : '关闭发件服务失败'))
+    }
+    finally {
+      isUpdatingServiceStatus.value = false
     }
   }
 
@@ -239,16 +277,19 @@ export function useAdminEmailConfig() {
     configStatusLabel,
     currentConfig,
     currentProviderTitle,
+    currentServiceStatus,
     errorMessage,
     form,
     formRules,
     isLoading,
     isSaving,
     isTesting,
+    isUpdatingServiceStatus,
     providerCards,
     saveConfig,
     selectProvider,
     testConfig,
+    updateServiceStatus,
   }
 
   function normalizeForm() {

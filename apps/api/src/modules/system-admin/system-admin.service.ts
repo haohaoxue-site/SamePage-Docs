@@ -5,13 +5,17 @@ import type {
   SystemAdminOverviewDto,
   SystemAdminUserItemDto,
   SystemAiConfigDto,
+  SystemAiServiceStatusDto,
   SystemAuthGovernanceDto,
   SystemEmailConfigDto,
+  SystemEmailServiceStatusDto,
   TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAiConfigDto,
+  UpdateSystemAiServiceStatusDto,
   UpdateSystemAuthGovernanceDto,
   UpdateSystemEmailConfigDto,
+  UpdateSystemEmailServiceStatusDto,
 } from './system-admin.dto'
 import {
   BadRequestException,
@@ -128,6 +132,7 @@ export class SystemAdminService {
       ownedDocumentCount: user._count.ownedDocuments,
       sharedDocumentCount: user.documentMemberships.length,
       createdAt: user.createdAt,
+      createdBy: null,
       lastLoginAt: user.lastLoginAt,
     }))
   }
@@ -176,12 +181,16 @@ export class SystemAdminService {
   }
 
   async getAuthGovernance(): Promise<SystemAuthGovernanceDto> {
-    const snapshot = await this.systemAuthService.getGovernanceSnapshot()
+    const [snapshot, emailServiceEnabled] = await Promise.all([
+      this.systemAuthService.getGovernanceSnapshot(),
+      this.systemEmailService.isEnabled(),
+    ])
 
     return {
       allowPasswordRegistration: snapshot.config.allowPasswordRegistration,
       allowGithubRegistration: snapshot.config.allowGithubRegistration,
       allowLinuxDoRegistration: snapshot.config.allowLinuxDoRegistration,
+      emailServiceEnabled,
       systemAdminEmail: snapshot.config.systemAdminEmail,
       systemAdminDisplayName: snapshot.systemAdminUser?.displayName ?? null,
       systemAdminMustChangePassword: snapshot.localCredential?.mustChangePassword ?? false,
@@ -194,17 +203,25 @@ export class SystemAdminService {
     actorUserId: string,
     payload: UpdateSystemAuthGovernanceDto,
   ): Promise<SystemAuthGovernanceDto> {
-    await this.systemAuthService.updateRegistrationOptions(actorUserId, {
-      allowPasswordRegistration: payload.allowPasswordRegistration,
-      allowGithubRegistration: payload.allowGithubRegistration,
-      allowLinuxDoRegistration: payload.allowLinuxDoRegistration,
-    })
+    const nextRegistrationOptions = Object.fromEntries(
+      Object.entries({
+        allowPasswordRegistration: payload.allowPasswordRegistration,
+        allowGithubRegistration: payload.allowGithubRegistration,
+        allowLinuxDoRegistration: payload.allowLinuxDoRegistration,
+      }).filter(([, value]) => value !== undefined),
+    ) as UpdateSystemAuthGovernanceDto
+
+    if (Object.keys(nextRegistrationOptions).length === 0) {
+      throw new BadRequestException('至少更新一项注册配置')
+    }
+
+    await this.systemAuthService.updateRegistrationOptions(actorUserId, nextRegistrationOptions)
 
     await this.createAuditLog(actorUserId, {
       action: 'system_auth_governance.updated',
       targetType: 'system_auth_config',
       targetId: 'default',
-      metadata: payload as unknown as Prisma.InputJsonValue,
+      metadata: nextRegistrationOptions as unknown as Prisma.InputJsonValue,
     })
 
     return this.getAuthGovernance()
@@ -212,6 +229,10 @@ export class SystemAdminService {
 
   async getEmailConfig(): Promise<SystemEmailConfigDto> {
     return this.systemEmailService.getEmailConfig()
+  }
+
+  async getEmailServiceStatus(): Promise<SystemEmailServiceStatusDto> {
+    return this.systemEmailService.getEmailServiceStatus()
   }
 
   async updateEmailConfig(
@@ -226,7 +247,6 @@ export class SystemAdminService {
       targetId: 'default',
       metadata: {
         provider: payload.provider,
-        enabled: payload.enabled,
         smtpHost: payload.smtpHost,
         smtpPort: payload.smtpPort,
         smtpSecure: payload.smtpSecure,
@@ -235,6 +255,24 @@ export class SystemAdminService {
         fromEmail: payload.fromEmail,
         hasPassword: result.hasPassword,
         clearPassword: payload.clearPassword ?? false,
+      },
+    })
+
+    return result
+  }
+
+  async updateEmailServiceStatus(
+    actorUserId: string,
+    payload: UpdateSystemEmailServiceStatusDto,
+  ): Promise<SystemEmailServiceStatusDto> {
+    const result = await this.systemEmailService.updateEmailServiceStatus(actorUserId, payload)
+
+    await this.createAuditLog(actorUserId, {
+      action: 'system_email_service.updated',
+      targetType: 'system_email_service',
+      targetId: 'default',
+      metadata: {
+        enabled: payload.enabled,
       },
     })
 
@@ -270,26 +308,18 @@ export class SystemAdminService {
   async getAiConfig(): Promise<SystemAiConfigDto> {
     const config = await this.prisma.systemAiConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
-      include: {
-        updatedByUser: {
-          select: {
-            displayName: true,
-          },
-        },
-      },
     })
 
     if (!config) {
       return {
         id: null,
-        enabled: false,
         provider: 'openai-compatible',
         baseUrl: null,
         defaultModel: null,
         hasApiKey: false,
         maskedApiKey: null,
         updatedAt: null,
-        updatedByDisplayName: null,
+        updatedBy: null,
       }
     }
 
@@ -297,14 +327,25 @@ export class SystemAdminService {
 
     return {
       id: config.id,
-      enabled: config.enabled,
       provider: config.provider,
       baseUrl: config.baseUrl,
       defaultModel: config.defaultModel,
       hasApiKey: Boolean(decryptedApiKey),
       maskedApiKey: maskApiKey(decryptedApiKey),
       updatedAt: config.updatedAt,
-      updatedByDisplayName: config.updatedByUser?.displayName ?? null,
+      updatedBy: null,
+    }
+  }
+
+  async getAiServiceStatus(): Promise<SystemAiServiceStatusDto> {
+    const config = await this.prisma.systemAiConfig.findFirst({
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    return {
+      enabled: config?.enabled ?? false,
+      updatedAt: config?.updatedAt ?? null,
+      updatedBy: null,
     }
   }
 
@@ -319,10 +360,7 @@ export class SystemAdminService {
     const normalizedBaseUrl = payload.baseUrl?.trim()
       || existing?.baseUrl
       || DEFAULT_SYSTEM_AI_BASE_URL
-
-    if (payload.enabled && !normalizedBaseUrl) {
-      throw new BadRequestException('启用系统 AI 配置时必须提供 baseUrl')
-    }
+    const normalizedDefaultModel = payload.defaultModel?.trim() || existing?.defaultModel || null
 
     const existingPlainApiKey = this.decryptApiKey(existing?.apiKey ?? null)
     const nextPlainApiKey = payload.clearApiKey
@@ -331,11 +369,19 @@ export class SystemAdminService {
         ? payload.apiKey.trim()
         : existingPlainApiKey
 
+    if (existing?.enabled) {
+      this.assertAiServiceReady({
+        baseUrl: normalizedBaseUrl,
+        defaultModel: normalizedDefaultModel,
+        apiKey: nextPlainApiKey,
+      })
+    }
+
     const configData = {
-      enabled: payload.enabled,
+      enabled: existing?.enabled ?? false,
       provider: 'openai-compatible',
       baseUrl: normalizedBaseUrl,
-      defaultModel: payload.defaultModel?.trim() || null,
+      defaultModel: normalizedDefaultModel,
       apiKey: nextPlainApiKey ? encryptAes256Gcm(nextPlainApiKey, this.encryptionKey) : null,
       updatedByUserId: actorUserId,
     }
@@ -357,15 +403,58 @@ export class SystemAdminService {
       targetType: 'system_ai_config',
       targetId: existing?.id ?? null,
       metadata: {
-        enabled: payload.enabled,
         baseUrl: normalizedBaseUrl,
-        defaultModel: payload.defaultModel?.trim() || null,
+        defaultModel: normalizedDefaultModel,
         hasApiKey: Boolean(nextPlainApiKey),
         clearApiKey: payload.clearApiKey ?? false,
       },
     })
 
     return this.getAiConfig()
+  }
+
+  async updateAiServiceStatus(
+    actorUserId: string,
+    payload: UpdateSystemAiServiceStatusDto,
+  ): Promise<SystemAiServiceStatusDto> {
+    const existing = await this.prisma.systemAiConfig.findFirst({
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    if (payload.enabled) {
+      this.assertAiServiceReady({
+        baseUrl: existing?.baseUrl ?? DEFAULT_SYSTEM_AI_BASE_URL,
+        defaultModel: existing?.defaultModel ?? null,
+        apiKey: this.decryptApiKey(existing?.apiKey ?? null),
+      })
+    }
+
+    if (!existing) {
+      return {
+        enabled: false,
+        updatedAt: null,
+        updatedBy: null,
+      }
+    }
+
+    await this.prisma.systemAiConfig.update({
+      where: { id: existing.id },
+      data: {
+        enabled: payload.enabled,
+        updatedByUserId: actorUserId,
+      },
+    })
+
+    await this.createAuditLog(actorUserId, {
+      action: 'system_ai_service.updated',
+      targetType: 'system_ai_service',
+      targetId: 'default',
+      metadata: {
+        enabled: payload.enabled,
+      },
+    })
+
+    return this.getAiServiceStatus()
   }
 
   async getAuditLogs(): Promise<SystemAdminAuditLogItemDto[]> {
@@ -393,6 +482,7 @@ export class SystemAdminService {
       actorAvatarUrl: log.actorUser.avatarUrl,
       metadata: asRecord(log.metadata),
       createdAt: log.createdAt,
+      createdBy: null,
     }))
   }
 
@@ -433,6 +523,20 @@ export class SystemAdminService {
     }
 
     return decryptAes256Gcm(storedApiKey, this.encryptionKey)
+  }
+
+  private assertAiServiceReady(input: {
+    baseUrl: string | null
+    defaultModel: string | null
+    apiKey: string | null
+  }) {
+    if (!input.baseUrl?.trim() || !input.defaultModel?.trim()) {
+      throw new BadRequestException('启用 AI 服务前请先保存完整的 AI 配置')
+    }
+
+    if (!input.apiKey?.trim()) {
+      throw new BadRequestException('启用 AI 服务前请先填写并保存 API Key')
+    }
   }
 
   private async createAuditLog(

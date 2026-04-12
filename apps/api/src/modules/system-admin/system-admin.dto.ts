@@ -81,6 +81,9 @@ export class SystemAdminUserItemDto {
   createdAt!: Date
 
   @ApiProperty({ nullable: true })
+  createdBy!: string | null
+
+  @ApiProperty({ nullable: true })
   lastLoginAt!: Date | null
 }
 
@@ -112,6 +115,9 @@ export class SystemAuthGovernanceDto {
   allowLinuxDoRegistration!: boolean
 
   @ApiProperty()
+  emailServiceEnabled!: boolean
+
+  @ApiProperty()
   systemAdminEmail!: string
 
   @ApiProperty({ nullable: true })
@@ -128,25 +134,25 @@ export class SystemAuthGovernanceDto {
 }
 
 export class UpdateSystemAuthGovernanceDto {
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsBoolean()
-  allowPasswordRegistration!: boolean
+  allowPasswordRegistration?: boolean
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsBoolean()
-  allowGithubRegistration!: boolean
+  allowGithubRegistration?: boolean
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsBoolean()
-  allowLinuxDoRegistration!: boolean
+  allowLinuxDoRegistration?: boolean
 }
 
 export class SystemEmailConfigDto {
   @ApiProperty({ enum: SYSTEM_EMAIL_PROVIDER_VALUES })
   provider!: (typeof SYSTEM_EMAIL_PROVIDER_VALUES)[number]
-
-  @ApiProperty()
-  enabled!: boolean
 
   @ApiProperty()
   smtpHost!: string
@@ -173,17 +179,24 @@ export class SystemEmailConfigDto {
   updatedAt!: Date | null
 
   @ApiProperty({ nullable: true })
-  updatedByDisplayName!: string | null
+  updatedBy!: string | null
+}
+
+export class SystemEmailServiceStatusDto {
+  @ApiProperty()
+  enabled!: boolean
+
+  @ApiProperty({ nullable: true })
+  updatedAt!: Date | null
+
+  @ApiProperty({ nullable: true })
+  updatedBy!: string | null
 }
 
 export class UpdateSystemEmailConfigDto {
   @ApiProperty({ enum: SYSTEM_EMAIL_PROVIDER_VALUES })
   @IsIn(SYSTEM_EMAIL_PROVIDER_VALUES)
   provider!: (typeof SYSTEM_EMAIL_PROVIDER_VALUES)[number]
-
-  @ApiProperty()
-  @IsBoolean()
-  enabled!: boolean
 
   @ApiProperty()
   @IsString()
@@ -230,6 +243,12 @@ export class UpdateSystemEmailConfigDto {
   fromEmail!: string
 }
 
+export class UpdateSystemEmailServiceStatusDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean
+}
+
 export class TestSystemEmailConfigResponseDto {
   @ApiProperty()
   sent!: boolean
@@ -238,9 +257,6 @@ export class TestSystemEmailConfigResponseDto {
 export class SystemAiConfigDto {
   @ApiProperty({ nullable: true })
   id!: string | null
-
-  @ApiProperty()
-  enabled!: boolean
 
   @ApiProperty()
   provider!: string
@@ -261,14 +277,21 @@ export class SystemAiConfigDto {
   updatedAt!: Date | null
 
   @ApiProperty({ nullable: true })
-  updatedByDisplayName!: string | null
+  updatedBy!: string | null
+}
+
+export class SystemAiServiceStatusDto {
+  @ApiProperty()
+  enabled!: boolean
+
+  @ApiProperty({ nullable: true })
+  updatedAt!: Date | null
+
+  @ApiProperty({ nullable: true })
+  updatedBy!: string | null
 }
 
 export class UpdateSystemAiConfigDto {
-  @ApiProperty()
-  @IsBoolean()
-  enabled!: boolean
-
   @ApiProperty({ nullable: true })
   @IsOptional()
   @IsString()
@@ -293,6 +316,12 @@ export class UpdateSystemAiConfigDto {
   @IsOptional()
   @IsBoolean()
   clearApiKey?: boolean
+}
+
+export class UpdateSystemAiServiceStatusDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean
 }
 
 export class SystemAdminAuditLogItemDto {
@@ -322,6 +351,9 @@ export class SystemAdminAuditLogItemDto {
 
   @ApiProperty()
   createdAt!: Date
+
+  @ApiProperty({ nullable: true })
+  createdBy!: string | null
 }
 
 export class GovernanceSummaryDto {

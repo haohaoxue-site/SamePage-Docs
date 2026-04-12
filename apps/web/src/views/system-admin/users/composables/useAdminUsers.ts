@@ -2,6 +2,7 @@ import type {
   SystemAdminUserItemDto,
   SystemAdminUserStatus,
   SystemAuthGovernanceDto,
+  UpdateSystemAuthGovernanceDto,
 } from '@/apis/system-admin'
 import { ElMessage } from 'element-plus'
 import { reactive, shallowRef } from 'vue'
@@ -13,16 +14,29 @@ import {
 } from '@/apis/system-admin'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
+export type RegistrationGovernanceField = keyof UpdateSystemAuthGovernanceDto
+
+const governanceFieldLabels: Record<RegistrationGovernanceField, string> = {
+  allowPasswordRegistration: '邮箱密码注册',
+  allowGithubRegistration: 'GitHub 注册',
+  allowLinuxDoRegistration: 'LinuxDo 注册',
+}
+
 export function useAdminUsers() {
   const users = shallowRef<SystemAdminUserItemDto[]>([])
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
-  const isSavingGovernance = shallowRef(false)
   const updatingUserId = shallowRef<string | null>(null)
+  const savingGovernanceFields = reactive<Record<RegistrationGovernanceField, boolean>>({
+    allowPasswordRegistration: false,
+    allowGithubRegistration: false,
+    allowLinuxDoRegistration: false,
+  })
   const governance = reactive<SystemAuthGovernanceDto>({
     allowPasswordRegistration: false,
     allowGithubRegistration: false,
     allowLinuxDoRegistration: false,
+    emailServiceEnabled: false,
     systemAdminEmail: '',
     systemAdminDisplayName: null,
     systemAdminMustChangePassword: false,
@@ -80,24 +94,28 @@ export function useAdminUsers() {
     }
   }
 
-  async function saveGovernance() {
-    isSavingGovernance.value = true
+  async function updateGovernanceOption(
+    field: RegistrationGovernanceField,
+    nextValue: boolean,
+  ) {
+    const previousValue = governance[field]
+    governance[field] = nextValue
+    savingGovernanceFields[field] = true
 
     try {
       const nextGovernance = await updateSystemAuthGovernance({
-        allowPasswordRegistration: governance.allowPasswordRegistration,
-        allowGithubRegistration: governance.allowGithubRegistration,
-        allowLinuxDoRegistration: governance.allowLinuxDoRegistration,
+        [field]: nextValue,
       })
 
       applyGovernance(nextGovernance)
-      ElMessage.success('认证治理配置已更新')
+      ElMessage.success(`${governanceFieldLabels[field]}已更新`)
     }
     catch (error) {
-      ElMessage.error(getRequestErrorDisplayMessage(error, '更新认证治理配置失败'))
+      governance[field] = previousValue
+      ElMessage.error(getRequestErrorDisplayMessage(error, `更新${governanceFieldLabels[field]}失败`))
     }
     finally {
-      isSavingGovernance.value = false
+      savingGovernanceFields[field] = false
     }
   }
 
@@ -105,10 +123,10 @@ export function useAdminUsers() {
     errorMessage,
     governance,
     isLoading,
-    isSavingGovernance,
     loadData,
-    saveGovernance,
+    savingGovernanceFields,
     toggleUserStatus,
+    updateGovernanceOption,
     updatingUserId,
     users,
   }

@@ -163,7 +163,11 @@ export class UsersService {
     return context.permissions
   }
 
-  async updateCurrentUserProfile(userId: string, displayName: string): Promise<CurrentUserDto> {
+  async updateCurrentUserProfile(authUser: AuthUserContext, displayName: string): Promise<CurrentUserDto> {
+    if (authUser.roles.includes(ROLES.SYSTEM_ADMIN)) {
+      throw new BadRequestException('系统管理员账号不支持修改显示名称')
+    }
+
     const normalizedDisplayName = displayName.trim()
 
     if (!normalizedDisplayName.length) {
@@ -171,13 +175,13 @@ export class UsersService {
     }
 
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: authUser.id },
       data: {
         displayName: normalizedDisplayName,
       },
     })
 
-    return this.getCurrentUser(userId)
+    return this.getCurrentUser(authUser.id)
   }
 
   async updateCurrentUserAvatar(

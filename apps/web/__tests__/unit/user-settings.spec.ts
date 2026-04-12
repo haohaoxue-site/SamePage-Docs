@@ -5,6 +5,7 @@ import UserSettingsView from '@/views/user/index.vue'
 
 const {
   bindEmailMock,
+  canEditDisplayNameState,
   clearEmailValidationMock,
   connectOauthMock,
   deleteAccountMock,
@@ -15,6 +16,9 @@ const {
   uploadAvatarMock,
 } = vi.hoisted(() => ({
   bindEmailMock: vi.fn(),
+  canEditDisplayNameState: {
+    value: true,
+  },
   clearEmailValidationMock: vi.fn(),
   connectOauthMock: vi.fn(),
   deleteAccountMock: vi.fn(),
@@ -44,6 +48,7 @@ vi.mock('@/views/user/composables/useUserSettingsView', () => ({
     }),
     avatarUrl: shallowRef(null),
     bindingProvider: shallowRef(null),
+    canEditDisplayName: shallowRef(canEditDisplayNameState.value),
     canDisconnectGithub: shallowRef(true),
     canDisconnectLinuxDo: shallowRef(true),
     deleteAccount: deleteAccountMock,
@@ -62,9 +67,9 @@ vi.mock('@/views/user/composables/useUserSettingsView', () => ({
     isBindingEmail: shallowRef(false),
     isDeletingAccount: shallowRef(false),
     isLoading: shallowRef(false),
+    isSavingDisplayName: shallowRef(false),
     isSavingLanguage: shallowRef(false),
     isSavingAppearance: shallowRef(false),
-    isSavingProfile: shallowRef(false),
     isSendingEmailCode: shallowRef(false),
     isUploadingAvatar: shallowRef(false),
     languagePreference: shallowRef(LANGUAGE_PREFERENCE.AUTO),
@@ -72,7 +77,7 @@ vi.mock('@/views/user/composables/useUserSettingsView', () => ({
     profileForm: {
       displayName: 'Alice',
     },
-    saveProfile: saveProfileMock,
+    saveDisplayName: saveProfileMock,
     sendEmailCode: sendEmailCodeMock,
     shouldShowDeleteAccountSection: shallowRef(shouldShowDeleteAccountSectionState.value),
     bindEmail: bindEmailMock,
@@ -103,6 +108,16 @@ const UserAccountSectionStub = defineComponent({
   `,
 })
 
+const UserProfileSectionStub = defineComponent({
+  props: {
+    canEditDisplayName: {
+      type: Boolean,
+      required: true,
+    },
+  },
+  template: '<div class="user-profile-section-stub">{{ canEditDisplayName ? "editable" : "readonly" }}</div>',
+})
+
 const UserDeleteSectionStub = defineComponent({
   template: '<div class="user-delete-section-stub" />',
 })
@@ -119,7 +134,7 @@ function mountView() {
             </div>
           `,
         },
-        UserProfileSection: true,
+        UserProfileSection: UserProfileSectionStub,
         UserAccountSection: UserAccountSectionStub,
         UserDeleteSection: UserDeleteSectionStub,
         UserPreferenceSection: true,
@@ -131,6 +146,7 @@ function mountView() {
 describe('user settings view', () => {
   beforeEach(() => {
     bindEmailMock.mockReset()
+    canEditDisplayNameState.value = true
     clearEmailValidationMock.mockReset()
     connectOauthMock.mockReset()
     deleteAccountMock.mockReset()
@@ -172,5 +188,14 @@ describe('user settings view', () => {
     await flushPromises()
 
     expect(wrapper.find('.user-delete-section-stub').exists()).toBe(false)
+  })
+
+  it('passes readonly profile state for system administrators', async () => {
+    canEditDisplayNameState.value = false
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.user-profile-section-stub').text()).toContain('readonly')
   })
 })

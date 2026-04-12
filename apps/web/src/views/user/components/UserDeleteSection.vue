@@ -2,6 +2,7 @@
 import type { FormInstance, FormRules } from 'element-plus'
 import type { UserDeleteSectionEmits, UserDeleteSectionProps } from '../typing'
 import { computed, reactive, shallowRef, useTemplateRef } from 'vue'
+import UserSettingsSectionHeader from './UserSettingsSectionHeader.vue'
 
 const props = defineProps<UserDeleteSectionProps>()
 const emit = defineEmits<UserDeleteSectionEmits>()
@@ -104,16 +105,10 @@ function normalizeAccountConfirmation(value: string, mode: UserDeleteSectionProp
 
 <template>
   <ElCard shadow="never" class="user-delete-section">
-    <div class="user-delete-section__header">
-      <div>
-        <h2 class="user-delete-section__title">
-          删除账号
-        </h2>
-        <p class="user-delete-section__description">
-          删除后，当前邮箱、登录方式、文档和聊天记录都会被永久移除，无法恢复。
-        </p>
-      </div>
-    </div>
+    <UserSettingsSectionHeader
+      title="删除账号"
+      description="删除后，当前邮箱、登录方式、文档和聊天记录都会被永久移除，无法恢复。"
+    />
 
     <ElButton
       type="danger"
@@ -188,24 +183,6 @@ function normalizeAccountConfirmation(value: string, mode: UserDeleteSectionProp
   border-color: color-mix(in srgb, var(--brand-error) 34%, var(--brand-border-base));
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--brand-error) 3%, var(--brand-bg-surface)) 0%, var(--brand-bg-surface) 100%);
-
-  &__header {
-    margin-bottom: 1.25rem;
-  }
-
-  &__title {
-    margin: 0;
-    color: var(--brand-text-primary);
-    font-size: 1.125rem;
-    font-weight: 700;
-  }
-
-  &__description {
-    margin: 0.375rem 0 0;
-    color: var(--brand-text-secondary);
-    font-size: 0.875rem;
-    line-height: 1.6;
-  }
 
   &__dialog-text,
   &__dialog-target {

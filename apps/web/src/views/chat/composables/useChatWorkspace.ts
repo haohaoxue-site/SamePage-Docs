@@ -174,7 +174,9 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
       id: session.id,
       title: nextTitle,
       createdAt: session.createdAt,
+      createdBy: session.createdBy,
       updatedAt,
+      updatedBy: session.updatedBy,
     })
 
     isStreaming.value = true

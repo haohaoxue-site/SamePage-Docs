@@ -223,4 +223,22 @@ describe('usersService', () => {
       confirmationPhrase: ACCOUNT_DELETION_CONFIRMATION_PHRASE,
     })).rejects.toThrow('系统管理员账号不支持在这里删除')
   })
+
+  it('rejects display name updates for system administrators', async () => {
+    const update = vi.fn(async () => undefined)
+    const prisma = {
+      user: {
+        update,
+      },
+    } as unknown as PrismaService
+    const service = createUsersService(prisma)
+
+    await expect(service.updateCurrentUserProfile({
+      id: 'user-1',
+      roles: [ROLES.SYSTEM_ADMIN],
+      permissions: [],
+    }, 'New Name')).rejects.toThrow('系统管理员账号不支持修改显示名称')
+
+    expect(update).not.toHaveBeenCalled()
+  })
 })

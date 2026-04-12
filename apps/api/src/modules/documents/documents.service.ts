@@ -287,7 +287,6 @@ export class DocumentsService {
     return roots.map(document =>
       this.buildGroupBranch(document, context, {
         visibleDocumentIds,
-        sharedByDisplayName: null,
       }),
     )
   }
@@ -296,11 +295,7 @@ export class DocumentsService {
     return Array.from(context.sharedRootIds)
       .map(rootId => context.documentsById.get(rootId))
       .filter((document): document is PersistedDocument => Boolean(document))
-      .map(document =>
-        this.buildGroupBranch(document, context, {
-          sharedByDisplayName: document.owner.displayName,
-        }),
-      )
+      .map(document => this.buildGroupBranch(document, context, {}))
   }
 
   private buildGroupBranch(
@@ -308,14 +303,12 @@ export class DocumentsService {
     context: TreeContext,
     options: {
       visibleDocumentIds?: Set<string>
-      sharedByDisplayName: string | null
     },
   ): DocumentItem {
     const nextChildren = (context.childrenByParent.get(document.id) ?? [])
       .filter(child => !options.visibleDocumentIds || options.visibleDocumentIds.has(child.id))
       .map(child => this.buildGroupBranch(child, context, {
         visibleDocumentIds: options.visibleDocumentIds,
-        sharedByDisplayName: null,
       }))
 
     return {
@@ -323,7 +316,6 @@ export class DocumentsService {
       parentId: document.parentId,
       hasChildren: nextChildren.length > 0,
       hasContent: hasDocumentContent(document.content),
-      sharedByDisplayName: options.sharedByDisplayName,
       children: nextChildren,
     }
   }
@@ -394,7 +386,9 @@ function toDocumentBase(document: PersistedDocument): DocumentBase {
     title: document.title,
     summary: document.summary,
     createdAt: document.createdAt.toISOString(),
+    createdBy: null,
     updatedAt: document.updatedAt.toISOString(),
+    updatedBy: null,
   }
 }
 
@@ -409,7 +403,9 @@ function toDocumentRecent(
     collection: resolveRecentDocumentCollection(document, userId),
     ancestorTitles: collectRecentAncestorTitles(document, context, userId),
     createdAt: document.createdAt.toISOString(),
+    createdBy: null,
     updatedAt: document.updatedAt.toISOString(),
+    updatedBy: null,
   }
 }
 

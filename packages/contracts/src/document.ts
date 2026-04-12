@@ -45,7 +45,9 @@ export const DocumentBaseSchema = z.object({
   title: z.string(),
   summary: z.string(),
   createdAt: z.string(),
+  createdBy: z.string().nullable(),
   updatedAt: z.string(),
+  updatedBy: z.string().nullable(),
 })
 
 export const DocumentRecentSchema = z.object({
@@ -54,14 +56,15 @@ export const DocumentRecentSchema = z.object({
   collection: DocumentCollectionIdSchema,
   ancestorTitles: z.string().array(),
   createdAt: z.string(),
+  createdBy: z.string().nullable(),
   updatedAt: z.string(),
+  updatedBy: z.string().nullable(),
 })
 
 export const DocumentItemSchema: z.ZodType<DocumentItemRaw> = DocumentBaseSchema.extend({
   parentId: z.string().nullable(),
   hasChildren: z.boolean(),
   hasContent: z.boolean(),
-  sharedByDisplayName: z.string().nullable(),
   children: z.lazy(() => DocumentItemSchema.array()),
 })
 
@@ -97,6 +100,5 @@ interface DocumentItemRaw extends z.infer<typeof DocumentBaseSchema> {
   parentId: string | null
   hasChildren: boolean
   hasContent: boolean
-  sharedByDisplayName: string | null
   children: DocumentItemRaw[]
 }

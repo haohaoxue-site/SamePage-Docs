@@ -71,7 +71,6 @@ describe('documentsService', () => {
     expect(sections.find(section => section.id === DOCUMENT_COLLECTION.PERSONAL)?.nodes).toHaveLength(0)
     expect(sections.find(section => section.id === DOCUMENT_COLLECTION.SHARED)?.nodes).toHaveLength(1)
     expect(sections.find(section => section.id === DOCUMENT_COLLECTION.SHARED)?.nodes[0]?.id).toBe('child')
-    expect(sections.find(section => section.id === DOCUMENT_COLLECTION.SHARED)?.nodes[0]?.sharedByDisplayName).toBe('张三')
   })
 
   it('updates an owned document draft', async () => {
@@ -185,7 +184,9 @@ describe('documentsService', () => {
         collection: DOCUMENT_COLLECTION.SHARED,
         ancestorTitles: ['共享目录'],
         createdAt: baseDocuments[1].createdAt.toISOString(),
+        createdBy: null,
         updatedAt: '2026-03-30T13:00:00.000Z',
+        updatedBy: null,
       },
       {
         id: 'owned-leaf',
@@ -193,7 +194,9 @@ describe('documentsService', () => {
         collection: DOCUMENT_COLLECTION.PERSONAL,
         ancestorTitles: ['我的空间', '项目方案'],
         createdAt: baseDocuments[1].createdAt.toISOString(),
+        createdBy: null,
         updatedAt: '2026-03-30T12:00:00.000Z',
+        updatedBy: null,
       },
       {
         id: 'shared-root',
@@ -201,7 +204,9 @@ describe('documentsService', () => {
         collection: DOCUMENT_COLLECTION.SHARED,
         ancestorTitles: [],
         createdAt: baseDocuments[1].createdAt.toISOString(),
+        createdBy: null,
         updatedAt: '2026-03-30T11:00:00.000Z',
+        updatedBy: null,
       },
       {
         id: 'owned-child',
@@ -209,7 +214,9 @@ describe('documentsService', () => {
         collection: DOCUMENT_COLLECTION.PERSONAL,
         ancestorTitles: ['我的空间'],
         createdAt: baseDocuments[1].createdAt.toISOString(),
+        createdBy: null,
         updatedAt: '2026-03-30T09:00:00.000Z',
+        updatedBy: null,
       },
       {
         id: 'owned-root',
@@ -217,7 +224,9 @@ describe('documentsService', () => {
         collection: DOCUMENT_COLLECTION.PERSONAL,
         ancestorTitles: [],
         createdAt: baseDocuments[0].createdAt.toISOString(),
+        createdBy: null,
         updatedAt: '2026-03-30T08:00:00.000Z',
+        updatedBy: null,
       },
     ])
     expect(recentDocuments[0]).not.toHaveProperty('summary')

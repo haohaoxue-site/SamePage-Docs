@@ -3,6 +3,7 @@ import type { FormInstance } from 'element-plus'
 import type { UserProfileSectionEmits, UserProfileSectionProps } from '../typing'
 import { computed, reactive, useTemplateRef } from 'vue'
 import { createDisplayNameRules } from '@/views/auth/utils/rules'
+import UserSettingsSectionHeader from './UserSettingsSectionHeader.vue'
 
 const props = defineProps<UserProfileSectionProps>()
 const emit = defineEmits<UserProfileSectionEmits>()
@@ -16,7 +17,12 @@ const form = reactive({
 const avatarInitial = computed(() => form.displayName.trim().slice(0, 1).toUpperCase() || 'U')
 const displayNameRules = {
   displayName: createDisplayNameRules(),
-}
+} as const
+const sectionDescription = computed(() =>
+  props.canEditDisplayName
+    ? '更换头像后会立即生效，显示名称保存后会同步更新。'
+    : '更换头像后会立即生效，当前账号的显示名称不可修改。',
+)
 
 function handlePickAvatar() {
   fileInputRef.value?.click()
@@ -33,29 +39,27 @@ function handleFileChange(event: Event) {
   target.value = ''
 }
 
-async function handleSubmit() {
+async function handleSaveDisplayName() {
+  if (!props.canEditDisplayName) {
+    return
+  }
+
   const isValid = await profileFormRef.value?.validate().catch(() => false)
 
   if (!isValid) {
     return
   }
 
-  emit('submit')
+  emit('saveDisplayName')
 }
 </script>
 
 <template>
   <ElCard shadow="never" class="user-profile-section">
-    <div class="user-profile-section__header">
-      <div>
-        <h2 class="user-profile-section__title">
-          个人资料
-        </h2>
-        <p class="user-profile-section__description">
-          更新头像和显示名称，工作区内会实时同步展示。
-        </p>
-      </div>
-    </div>
+    <UserSettingsSectionHeader
+      title="个人资料"
+      :description="sectionDescription"
+    />
 
     <div class="user-profile-section__hero">
       <ElAvatar :size="72" class="user-profile-section__avatar">
@@ -89,18 +93,29 @@ async function handleSubmit() {
     <ElForm
       ref="profileFormRef"
       :model="form"
-      :rules="displayNameRules"
+      :rules="props.canEditDisplayName ? displayNameRules : undefined"
       label-position="top"
       class="user-profile-section__form"
-      @submit.prevent="handleSubmit"
+      @submit.prevent="handleSaveDisplayName"
     >
       <ElFormItem label="显示名称" prop="displayName">
-        <ElInput v-model="form.displayName" maxlength="50" show-word-limit />
+        <div class="user-profile-section__display-name-row w-full">
+          <ElInput
+            v-model="form.displayName"
+            :readonly="!props.canEditDisplayName"
+            maxlength="50"
+            show-word-limit
+          />
+          <ElButton
+            v-if="props.canEditDisplayName"
+            type="primary"
+            :loading="props.isSavingDisplayName"
+            native-type="submit"
+          >
+            保存
+          </ElButton>
+        </div>
       </ElFormItem>
-
-      <ElButton type="primary" :loading="props.isSaving" native-type="submit">
-        {{ props.isSaving ? '保存中...' : '保存资料' }}
-      </ElButton>
     </ElForm>
   </ElCard>
 </template>
@@ -108,24 +123,6 @@ async function handleSubmit() {
 <style scoped lang="scss">
 .user-profile-section {
   border-color: color-mix(in srgb, var(--brand-border-base) 85%, transparent);
-
-  &__header {
-    margin-bottom: 1.25rem;
-  }
-
-  &__title {
-    margin: 0;
-    color: var(--brand-text-primary);
-    font-size: 1.125rem;
-    font-weight: 700;
-  }
-
-  &__description {
-    margin: 0.375rem 0 0;
-    color: var(--brand-text-secondary);
-    font-size: 0.875rem;
-    line-height: 1.6;
-  }
 
   &__hero {
     display: flex;
@@ -160,6 +157,21 @@ async function handleSubmit() {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+  }
+
+  &__display-name-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+
+    :deep(.el-input) {
+      flex: 1;
+      min-width: 0;
+    }
+
+    :deep(.el-button) {
+      flex-shrink: 0;
+    }
   }
 }
 </style>

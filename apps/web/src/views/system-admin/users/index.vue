@@ -10,13 +10,56 @@ const {
   errorMessage,
   governance,
   isLoading,
-  isSavingGovernance,
   loadData,
-  saveGovernance,
+  savingGovernanceFields,
   toggleUserStatus,
+  updateGovernanceOption,
   updatingUserId,
   users,
 } = useAdminUsers()
+
+const registrationSwitches = [
+  {
+    key: 'allowPasswordRegistration',
+    label: '邮箱密码注册',
+    description: '控制新的邮箱密码账号是否允许注册。',
+  },
+  {
+    key: 'allowGithubRegistration',
+    label: 'GitHub 注册',
+    description: '控制新的 GitHub 账号是否允许首次创建用户。',
+  },
+  {
+    key: 'allowLinuxDoRegistration',
+    label: 'LinuxDo 注册',
+    description: '控制新的 LinuxDo 账号是否允许首次创建用户。',
+  },
+] as const
+
+type RegistrationSwitchKey = (typeof registrationSwitches)[number]['key']
+
+function shouldShowEmailServiceHint(key: RegistrationSwitchKey) {
+  return key === 'allowPasswordRegistration' && !governance.emailServiceEnabled
+}
+
+function isGovernanceSwitchDisabled(key: RegistrationSwitchKey) {
+  if (key === 'allowPasswordRegistration' && !governance.emailServiceEnabled) {
+    return true
+  }
+
+  return savingGovernanceFields[key]
+}
+
+function handleGovernanceSwitchChange(
+  key: RegistrationSwitchKey,
+  value: string | number | boolean,
+) {
+  if (typeof value !== 'boolean') {
+    return
+  }
+
+  updateGovernanceOption(key, value)
+}
 
 const summaryCards = computed(() => {
   const activeUsers = users.value.filter(user => user.status === 'ACTIVE').length
@@ -88,43 +131,57 @@ function formatDate(value: string | null) {
                     注册治理
                   </h2>
                   <p class="admin-users__section-description">
-                    关闭开关后只阻止新注册，不影响已存在账号继续登录。
+                    切换后立即生效，只影响新注册，不影响已有账号继续登录。
                   </p>
                 </div>
-                <ElButton type="primary" :loading="isSavingGovernance" @click="saveGovernance">
-                  保存配置
-                </ElButton>
               </div>
 
               <div class="admin-users__switches">
-                <label class="admin-users__switch-card">
+                <label
+                  v-for="item in registrationSwitches"
+                  :key="item.key"
+                  class="admin-users__switch-card"
+                >
                   <div>
-                    <span class="admin-users__switch-label">邮箱密码注册</span>
+                    <span class="admin-users__switch-label">{{ item.label }}</span>
                     <p class="admin-users__switch-description">
-                      控制新的本地邮箱密码账号是否允许注册。
+                      {{ item.description }}
                     </p>
                   </div>
-                  <ElSwitch v-model="governance.allowPasswordRegistration" />
-                </label>
-
-                <label class="admin-users__switch-card">
-                  <div>
-                    <span class="admin-users__switch-label">GitHub 注册</span>
-                    <p class="admin-users__switch-description">
-                      控制新的 GitHub 账号是否允许首次创建用户。
-                    </p>
+                  <div class="admin-users__switch-action">
+                    <ElTooltip
+                      v-if="shouldShowEmailServiceHint(item.key)"
+                      placement="top"
+                      effect="light"
+                      :show-after="150"
+                    >
+                      <template #content>
+                        <div class="admin-users__switch-hint">
+                          <p class="admin-users__switch-hint-text">
+                            未启用发件服务，开启邮箱密码注册前请先前往邮件配置启用发件服务。
+                          </p>
+                          <RouterLink to="/admin/email" class="admin-users__switch-hint-link">
+                            前往发件配置
+                          </RouterLink>
+                        </div>
+                      </template>
+                      <button
+                        type="button"
+                        class="admin-users__switch-hint-trigger"
+                        aria-label="查看发件服务提示"
+                        @click.stop.prevent
+                        @mousedown.stop.prevent
+                      >
+                        <SvgIcon category="ui" icon="info" size="1rem" />
+                      </button>
+                    </ElTooltip>
+                    <ElSwitch
+                      :model-value="governance[item.key]"
+                      :disabled="isGovernanceSwitchDisabled(item.key)"
+                      :loading="savingGovernanceFields[item.key]"
+                      @change="handleGovernanceSwitchChange(item.key, $event)"
+                    />
                   </div>
-                  <ElSwitch v-model="governance.allowGithubRegistration" />
-                </label>
-
-                <label class="admin-users__switch-card">
-                  <div>
-                    <span class="admin-users__switch-label">LinuxDo 注册</span>
-                    <p class="admin-users__switch-description">
-                      控制新的 LinuxDo 账号是否允许首次创建用户。
-                    </p>
-                  </div>
-                  <ElSwitch v-model="governance.allowLinuxDoRegistration" />
                 </label>
               </div>
             </div>
@@ -258,6 +315,13 @@ function formatDate(value: string | null) {
     background: var(--brand-bg-surface);
   }
 
+  &__switch-action {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    flex-shrink: 0;
+  }
+
   &__switch-label {
     display: block;
     color: var(--brand-text-primary);
@@ -270,6 +334,54 @@ function formatDate(value: string | null) {
     color: var(--brand-text-secondary);
     font-size: 0.75rem;
     line-height: 1.6;
+  }
+
+  &__switch-hint {
+    max-width: 16rem;
+  }
+
+  &__switch-hint-text {
+    margin: 0;
+    color: var(--brand-text-primary);
+    font-size: 0.75rem;
+    line-height: 1.6;
+  }
+
+  &__switch-hint-link {
+    display: inline-flex;
+    margin-top: 0.5rem;
+    color: var(--brand-primary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+
+  &__switch-hint-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    color: var(--brand-warning);
+    background: color-mix(in srgb, var(--brand-warning) 12%, transparent);
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--brand-warning) 18%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--brand-primary) 35%, transparent);
+      outline-offset: 2px;
+    }
   }
 
   &__admin-summary {

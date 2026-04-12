@@ -5,7 +5,7 @@ import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 export function useUserSettingsProfile() {
   const userStore = useUserStore()
-  const isSavingProfile = shallowRef(false)
+  const isSavingDisplayName = shallowRef(false)
   const isUploadingAvatar = shallowRef(false)
   const profileForm = reactive({
     displayName: '',
@@ -23,19 +23,19 @@ export function useUserSettingsProfile() {
     profileForm.displayName = nextSettings.profile.displayName
   }
 
-  async function saveProfile() {
-    isSavingProfile.value = true
+  async function saveDisplayName() {
+    isSavingDisplayName.value = true
 
     try {
       await userStore.updateProfile(profileForm.displayName.trim())
       profileForm.displayName = userStore.currentUser?.displayName ?? profileForm.displayName
-      ElMessage.success('资料已更新')
+      ElMessage.success('显示名称已更新')
     }
     catch (error) {
-      ElMessage.error(getRequestErrorDisplayMessage(error, '保存资料失败'))
+      ElMessage.error(getRequestErrorDisplayMessage(error, '保存显示名称失败'))
     }
     finally {
-      isSavingProfile.value = false
+      isSavingDisplayName.value = false
     }
   }
 
@@ -56,11 +56,11 @@ export function useUserSettingsProfile() {
 
   return {
     avatarUrl,
-    isSavingProfile,
+    isSavingDisplayName,
     isUploadingAvatar,
     profileForm,
     syncProfileForm,
-    saveProfile,
+    saveDisplayName,
     uploadAvatar,
   }
 }

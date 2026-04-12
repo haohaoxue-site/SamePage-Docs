@@ -27,6 +27,7 @@ export function useUserSettingsView() {
   })
   const preferenceSettings = useUserSettingsPreference()
   const currentUser = computed(() => userStore.currentUser)
+  const canEditDisplayName = computed(() => !userStore.isSystemAdmin)
   const deleteAccountConfirmationMode = computed<'email' | 'displayName'>(() =>
     accountSettings.account.value.email ? 'email' : 'displayName',
   )
@@ -97,6 +98,7 @@ export function useUserSettingsView() {
   onMounted(loadView)
 
   return {
+    canEditDisplayName,
     deleteAccount: removeAccount,
     deleteAccountConfirmationMode,
     deleteAccountConfirmationPhrase: ACCOUNT_DELETION_CONFIRMATION_PHRASE,

@@ -3,9 +3,6 @@ import type { SvgIconCategory } from '@/components/svg-icon/typing'
 
 export type HomeWidgetId = 'welcome' | 'recent-documents' | 'schedule'
 
-/**
- * 首页模块定义。
- */
 export interface HomeWidgetDefinition {
   /**
    * 标识
@@ -24,9 +21,6 @@ export interface HomeWidgetDefinition {
   description: string
 }
 
-/**
- * 快速操作项。
- */
 export interface HomeQuickActionItem {
   /**
    * 标识
@@ -60,9 +54,6 @@ export interface HomeQuickActionItem {
   to: string
 }
 
-/**
- * 最近活动项。
- */
 export interface HomeActivityItem {
   /**
    * 标识
@@ -86,9 +77,6 @@ export interface HomeActivityItem {
   timeLabel: string
 }
 
-/**
- * 日程项。
- */
 export interface HomeScheduleItem {
   /**
    * 标识
@@ -114,9 +102,6 @@ export interface HomeScheduleItem {
 
 export type HomeRecentDocument = DocumentRecent
 
-/**
- * 首页概览模型。
- */
 export interface HomeOverviewModel {
   eyebrow: string
   title: string
@@ -124,52 +109,31 @@ export interface HomeOverviewModel {
   dateLabel: string
 }
 
-/**
- * 首页欢迎面板属性。
- */
 export interface HomeWelcomePanelProps {
   overview: HomeOverviewModel
 }
 
-/**
- * 首页快捷操作面板属性。
- */
 export interface HomeQuickActionsPanelProps {
   actions: HomeQuickActionItem[]
 }
 
-/**
- * 首页最近活动面板属性。
- */
 export interface HomeRecentActivityPanelProps {
   activities: HomeActivityItem[]
 }
 
-/**
- * 首页日程面板属性。
- */
 export interface HomeSchedulePanelProps {
   schedules: HomeScheduleItem[]
 }
 
-/**
- * 首页组件设置浮层属性。
- */
 export interface HomeWidgetSettingsPopoverProps {
   widgets: HomeWidgetDefinition[]
   visibleWidgetSet: Set<HomeWidgetId>
 }
 
-/**
- * 首页组件设置浮层事件。
- */
 export interface HomeWidgetSettingsPopoverEmits {
   toggle: [widgetId: HomeWidgetId]
 }
 
-/**
- * 首页最近文档列表属性。
- */
 export interface RecentDocumentListProps {
   documents: HomeRecentDocument[]
 }

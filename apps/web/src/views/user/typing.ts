@@ -4,26 +4,18 @@ import type {
   UserSettingsDto,
 } from '@haohaoxue/samepage-domain'
 
-/**
- * 资料设置区属性。
- */
 export interface UserProfileSectionProps {
   avatarUrl: string | null
-  isSaving: boolean
+  canEditDisplayName: boolean
+  isSavingDisplayName: boolean
   isUploading: boolean
 }
 
-/**
- * 资料设置区事件。
- */
 export interface UserProfileSectionEmits {
-  submit: []
+  saveDisplayName: []
   upload: [file: File]
 }
 
-/**
- * 账户绑定区属性。
- */
 export interface UserAccountSectionProps {
   account: UserSettingsDto['account']
   emailBindingEnabled: boolean
@@ -35,9 +27,6 @@ export interface UserAccountSectionProps {
   canDisconnectLinuxDo: boolean
 }
 
-/**
- * 账户绑定区事件。
- */
 export interface UserAccountSectionEmits {
   sendCode: []
   confirmEmail: []
@@ -45,17 +34,16 @@ export interface UserAccountSectionEmits {
   disconnectOauthBinding: [provider: AuthProviderName]
 }
 
-/**
- * 偏好设置区属性。
- */
+export interface UserSettingsSectionHeaderProps {
+  title: string
+  description: string
+}
+
 export interface UserPreferenceSectionProps {
   isSavingLanguage: boolean
   isSavingAppearance: boolean
 }
 
-/**
- * 删除账号区属性。
- */
 export interface UserDeleteSectionProps {
   isDeleting: boolean
   confirmationTarget: string
@@ -63,9 +51,6 @@ export interface UserDeleteSectionProps {
   confirmationPhrase: string
 }
 
-/**
- * 删除账号区事件。
- */
 export interface UserDeleteSectionEmits {
   deleteAccount: [payload: DeleteCurrentUserDto]
 }

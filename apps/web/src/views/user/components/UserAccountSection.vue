@@ -12,6 +12,7 @@ import {
   isValidEmail,
   isValidPassword,
 } from '@/views/auth/utils/rules'
+import UserSettingsSectionHeader from './UserSettingsSectionHeader.vue'
 
 const props = defineProps<UserAccountSectionProps>()
 const emit = defineEmits<UserAccountSectionEmits>()
@@ -143,16 +144,10 @@ defineExpose({
 
 <template>
   <ElCard shadow="never" class="user-account-section">
-    <div class="user-account-section__header">
-      <div>
-        <h2 class="user-account-section__title">
-          账户绑定
-        </h2>
-        <p class="user-account-section__description">
-          {{ sectionDescription }}
-        </p>
-      </div>
-    </div>
+    <UserSettingsSectionHeader
+      title="账户绑定"
+      :description="sectionDescription"
+    />
 
     <div v-if="showEmailStatus" class="user-account-section__status-grid">
       <div class="user-account-section__status-card">
@@ -185,7 +180,7 @@ defineExpose({
           <ElInput v-model="form.email" autocomplete="email" placeholder="请输入需要绑定的邮箱地址" />
         </ElFormItem>
         <ElFormItem label="验证码" prop="code">
-          <div class="user-account-section__code-field">
+          <div class="user-account-section__code-field w-full">
             <ElInput
               v-model="form.code"
               maxlength="6"
@@ -281,24 +276,6 @@ defineExpose({
 <style scoped lang="scss">
 .user-account-section {
   border-color: color-mix(in srgb, var(--brand-border-base) 85%, transparent);
-
-  &__header {
-    margin-bottom: 1.25rem;
-  }
-
-  &__title {
-    margin: 0;
-    color: var(--brand-text-primary);
-    font-size: 1.125rem;
-    font-weight: 700;
-  }
-
-  &__description {
-    margin: 0.375rem 0 0;
-    color: var(--brand-text-secondary);
-    font-size: 0.875rem;
-    line-height: 1.6;
-  }
 
   &__status-grid {
     display: grid;

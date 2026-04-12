@@ -20,7 +20,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     title: '发件配置',
     routeName: 'admin-email',
     path: '/admin/email',
-    description: '配置平台发件账号，并测试验证邮件是否可正常送达。',
+    description: '配置平台发件账号。',
   },
   {
     label: '平台治理',
@@ -34,7 +34,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
     title: 'AI 配置',
     routeName: 'admin-ai-config',
     path: '/admin/ai-config',
-    description: '维护系统级 AI 接口地址、密钥与默认模型。',
+    description: '维护系统级 AI 接口。',
   },
   {
     label: '审计',
