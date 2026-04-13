@@ -30,6 +30,7 @@ import {
   SystemAuthGovernanceDto,
   SystemEmailConfigDto,
   SystemEmailServiceStatusDto,
+  TestSystemEmailConfigDto,
   TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAdminUserStatusDto,
@@ -142,8 +143,9 @@ export class SystemAdminController {
   @Post('email-config/test')
   async testEmailConfig(
     @CurrentUser() authUser: AuthUserContext,
+    @Body() payload: TestSystemEmailConfigDto,
   ): Promise<TestSystemEmailConfigResponseDto> {
-    return this.systemAdminService.testEmailConfig(authUser.id)
+    return this.systemAdminService.testEmailConfig(authUser.id, payload)
   }
 
   @ApiOperation({ summary: '获取系统 AI 配置' })

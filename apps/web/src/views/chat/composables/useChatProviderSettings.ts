@@ -1,159 +1,174 @@
-import type { ChatModelOption, ChatProviderConfig, ChatProviderLookup } from '@/apis/chat'
+import type { ChatModelOption, ChatModelSelection, ChatRuntimeConfig } from '@/apis/chat'
 import { useStorage } from '@vueuse/core'
 import { ElMessage } from 'element-plus'
-import { computed, reactive, shallowRef, watch } from 'vue'
-import { getChatModels } from '@/apis/chat'
+import { computed, onMounted, reactive, shallowRef } from 'vue'
+import { getChatModels, getChatRuntimeConfig } from '@/apis/chat'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
-const CHAT_PROVIDER_STORAGE_KEY = 'samepage_chat_provider'
-const CHAT_MODEL_CACHE_STORAGE_KEY = 'samepage_chat_model_cache'
-const DEFAULT_BASE_URL = 'https://api.openai.com/v1'
+const CHAT_MODEL_SETTINGS_STORAGE_KEY = 'samepage_chat_model_settings'
 
-function createProviderConfig(): ChatProviderConfig {
+function createModelSelection(): ChatModelSelection {
   return {
-    baseUrl: DEFAULT_BASE_URL,
-    apiKey: '',
     model: '',
   }
 }
 
-function normalizeProviderLookup(provider: ChatProviderLookup): ChatProviderLookup {
+function normalizeModelSelection(value: ChatModelSelection): ChatModelSelection {
   return {
-    baseUrl: provider.baseUrl.trim(),
-    apiKey: provider.apiKey.trim(),
+    model: value.model.trim(),
   }
 }
 
-function normalizeProviderConfig(provider: ChatProviderConfig): ChatProviderConfig {
+function toDraft(value: ChatModelSelection): ChatModelSelection {
   return {
-    ...normalizeProviderLookup(provider),
-    model: provider.model.trim(),
+    model: value.model,
   }
 }
 
-function hasProviderConfig(provider: ChatProviderConfig) {
-  return Boolean(
-    provider.baseUrl.trim()
-    && provider.apiKey.trim()
-    && provider.model.trim(),
-  )
-}
-
-function toDraft(provider: ChatProviderConfig): ChatProviderConfig {
+function createEmptyRuntimeConfig(): ChatRuntimeConfig {
   return {
-    baseUrl: provider.baseUrl,
-    apiKey: provider.apiKey,
-    model: provider.model,
+    enabled: false,
+    ready: false,
+    providerLabel: null,
   }
-}
-
-function resolveBaseUrlLabel(baseUrl: string) {
-  try {
-    return new URL(baseUrl).host
-  }
-  catch {
-    return baseUrl
-  }
-}
-
-function buildModelCacheKey(provider: ChatProviderLookup) {
-  const rawKey = `${provider.baseUrl.trim()}\n${provider.apiKey.trim()}`
-  let hash = 5381
-
-  for (let index = 0; index < rawKey.length; index += 1) {
-    hash = ((hash << 5) + hash) ^ rawKey.charCodeAt(index)
-  }
-
-  return `${provider.baseUrl.trim()}::${hash >>> 0}`
 }
 
 export function useChatProviderSettings() {
-  const storedProvider = useStorage<ChatProviderConfig>(
-    CHAT_PROVIDER_STORAGE_KEY,
-    createProviderConfig(),
-    undefined,
-    { mergeDefaults: true },
-  )
-  const modelCache = useStorage<Record<string, ChatModelOption[]>>(
-    CHAT_MODEL_CACHE_STORAGE_KEY,
-    {},
+  const storedSelection = useStorage<ChatModelSelection>(
+    CHAT_MODEL_SETTINGS_STORAGE_KEY,
+    createModelSelection(),
     undefined,
     { mergeDefaults: true },
   )
   const dialogVisible = shallowRef(false)
+  const isLoadingRuntimeConfig = shallowRef(true)
   const isLoadingModels = shallowRef(false)
+  const runtimeConfig = shallowRef<ChatRuntimeConfig>(createEmptyRuntimeConfig())
   const modelOptions = shallowRef<ChatModelOption[]>([])
-  const draft = reactive<ChatProviderConfig>(toDraft(storedProvider.value))
-  const draftModelCacheKey = computed(() => {
-    const provider = normalizeProviderLookup(draft)
-    if (!provider.baseUrl || !provider.apiKey) {
-      return ''
-    }
+  const draft = reactive<ChatModelSelection>(toDraft(storedSelection.value))
 
-    return buildModelCacheKey(provider)
+  const selectedModel = computed(() => {
+    const normalizedSelection = normalizeModelSelection(storedSelection.value)
+    return normalizedSelection.model || null
   })
-
-  const isConfigured = computed(() => hasProviderConfig(storedProvider.value))
-  const providerConfig = computed<ChatProviderConfig | null>(() => {
-    if (!isConfigured.value) {
-      return null
-    }
-
-    return normalizeProviderConfig(storedProvider.value)
-  })
-  const currentModelLabel = computed(() => providerConfig.value?.model || '未选择模型')
+  const isConfigured = computed(() => Boolean(
+    runtimeConfig.value.enabled
+    && runtimeConfig.value.ready
+    && selectedModel.value,
+  ))
+  const currentModelLabel = computed(() => selectedModel.value || '未选择模型')
   const currentProviderLabel = computed(() => {
-    if (!providerConfig.value) {
-      return '未配置 AI 提供商'
+    if (isLoadingRuntimeConfig.value && !runtimeConfig.value.providerLabel) {
+      return '正在加载 AI 服务状态'
     }
 
-    return resolveBaseUrlLabel(providerConfig.value.baseUrl)
+    if (!runtimeConfig.value.ready) {
+      return '管理员尚未完成 AI 服务设置'
+    }
+
+    if (!runtimeConfig.value.enabled) {
+      return 'AI 服务暂未开启'
+    }
+
+    return runtimeConfig.value.providerLabel || 'AI 服务已就绪'
+  })
+  const inputPlaceholder = computed(() => {
+    if (isLoadingRuntimeConfig.value && !runtimeConfig.value.providerLabel) {
+      return '正在加载 AI 服务状态'
+    }
+
+    if (!runtimeConfig.value.ready) {
+      return '管理员尚未完成 AI 服务设置'
+    }
+
+    if (!runtimeConfig.value.enabled) {
+      return 'AI 服务暂未开启'
+    }
+
+    if (!selectedModel.value) {
+      return '请先选择模型'
+    }
+
+    return '输入消息...'
   })
 
-  watch(
-    draftModelCacheKey,
-    (cacheKey) => {
-      modelOptions.value = cacheKey
-        ? modelCache.value[cacheKey] ?? []
-        : []
-    },
-    { immediate: true },
-  )
+  onMounted(() => {
+    void loadRuntimeConfig()
+  })
 
-  function openDialog() {
-    Object.assign(draft, toDraft(storedProvider.value))
+  async function loadRuntimeConfig(options: { silent?: boolean } = {}) {
+    const { silent = false } = options
+    isLoadingRuntimeConfig.value = true
+
+    try {
+      runtimeConfig.value = await getChatRuntimeConfig()
+      return true
+    }
+    catch (error) {
+      if (!silent) {
+        ElMessage.error(getRequestErrorDisplayMessage(error, '加载 AI 服务状态失败'))
+      }
+
+      return false
+    }
+    finally {
+      isLoadingRuntimeConfig.value = false
+    }
+  }
+
+  async function openDialog() {
+    Object.assign(draft, toDraft(storedSelection.value))
     dialogVisible.value = true
+    await refreshModels({
+      silent: false,
+      showSuccessMessage: false,
+    })
   }
 
   function closeDialog() {
     dialogVisible.value = false
   }
 
-  async function refreshModels() {
-    const provider = normalizeProviderLookup(draft)
-    if (!provider.baseUrl || !provider.apiKey) {
-      ElMessage.warning('请先填写 API 地址和 API Key')
+  async function refreshModels(options: { silent?: boolean, showSuccessMessage?: boolean } = {}) {
+    const {
+      silent = false,
+      showSuccessMessage = true,
+    } = options
+
+    const hasRuntimeConfig = await loadRuntimeConfig({ silent })
+    if (!hasRuntimeConfig) {
+      return
+    }
+
+    if (!runtimeConfig.value.ready) {
+      modelOptions.value = []
+
+      if (!silent) {
+        ElMessage.warning('管理员尚未完成 AI 服务设置')
+      }
       return
     }
 
     isLoadingModels.value = true
 
     try {
-      const result = await getChatModels(provider)
+      const result = await getChatModels()
       modelOptions.value = result.models
-      modelCache.value = {
-        ...modelCache.value,
-        [buildModelCacheKey(provider)]: result.models,
-      }
 
       if (!draft.model && result.models.length > 0) {
         draft.model = result.models[0].id
       }
 
-      ElMessage.success(result.models.length > 0 ? `已获取 ${result.models.length} 个模型` : '当前提供商未返回模型列表')
+      if (showSuccessMessage) {
+        ElMessage.success(result.models.length > 0 ? `已获取 ${result.models.length} 个模型` : '当前未获取到可用模型')
+      }
     }
     catch (error) {
-      ElMessage.error(getRequestErrorDisplayMessage(error, '获取模型列表失败'))
+      modelOptions.value = []
+
+      if (!silent) {
+        ElMessage.error(getRequestErrorDisplayMessage(error, '获取模型列表失败'))
+      }
     }
     finally {
       isLoadingModels.value = false
@@ -161,36 +176,28 @@ export function useChatProviderSettings() {
   }
 
   function saveSettings() {
-    const provider = normalizeProviderConfig(draft)
+    const selection = normalizeModelSelection(draft)
 
-    if (!provider.baseUrl) {
-      ElMessage.warning('请填写 API 地址')
+    if (!selection.model) {
+      ElMessage.warning('请选择模型')
       return false
     }
 
-    if (!provider.apiKey) {
-      ElMessage.warning('请填写 API Key')
-      return false
-    }
-
-    if (!provider.model) {
-      ElMessage.warning('请选择或输入模型')
-      return false
-    }
-
-    storedProvider.value = provider
+    storedSelection.value = selection
     dialogVisible.value = false
-    ElMessage.success('聊天模型配置已保存')
+    ElMessage.success('聊天模型已保存')
     return true
   }
 
   return {
     dialogVisible,
     draft,
-    modelOptions,
-    isLoadingModels,
+    inputPlaceholder,
     isConfigured,
-    providerConfig,
+    isLoadingModels,
+    isLoadingRuntimeConfig,
+    modelOptions,
+    selectedModel,
     currentModelLabel,
     currentProviderLabel,
     openDialog,

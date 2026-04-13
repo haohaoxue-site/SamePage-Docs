@@ -5,21 +5,31 @@ import { formatDateTime } from '@/utils/dayjs'
 import { useAdminEmailConfig } from './composables/useAdminEmailConfig'
 
 const emailConfigFormRef = useTemplateRef<FormInstance>('emailConfigFormRef')
+const testEmailFormRef = useTemplateRef<FormInstance>('testEmailFormRef')
 const {
   configStatusLabel,
+  closeTestDialog,
   currentConfig,
   currentProviderTitle,
   currentServiceStatus,
   errorMessage,
   form,
   formRules,
+  hasSavedPassword,
+  isEditingPassword,
   isLoading,
   isSaving,
+  isTestDialogVisible,
   isTesting,
   isUpdatingServiceStatus,
+  keepSavedPassword,
+  openTestDialog,
   providerCards,
   saveConfig,
   selectProvider,
+  startPasswordEdit,
+  testEmailForm,
+  testEmailFormRules,
   testConfig,
   updateServiceStatus,
 } = useAdminEmailConfig()
@@ -37,6 +47,24 @@ function handleServiceStatusChange(value: string | number | boolean) {
 async function handleSaveConfig() {
   await saveConfig(emailConfigFormRef.value)
 }
+
+async function handleSendTestEmail() {
+  await testConfig(testEmailFormRef.value)
+}
+
+function clearPasswordValidation() {
+  emailConfigFormRef.value?.clearValidate('smtpPassword')
+}
+
+function handleStartPasswordEdit() {
+  startPasswordEdit()
+  clearPasswordValidation()
+}
+
+function handleKeepSavedPassword() {
+  keepSavedPassword()
+  clearPasswordValidation()
+}
 </script>
 
 <template>
@@ -47,11 +75,11 @@ async function handleSaveConfig() {
       <div class="admin-email-config__layout">
         <ElCard shadow="never" class="admin-email-config__main-card">
           <div class="admin-email-config__section">
-            <h2 class="admin-email-config__title">
+            <h2 class="m-0 text-lg font-bold text-main">
               服务商模板
             </h2>
 
-            <div class="admin-email-config__provider-grid">
+            <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
               <button
                 v-for="provider in providerCards"
                 :key="provider.provider"
@@ -64,7 +92,7 @@ async function handleSaveConfig() {
                 :disabled="provider.disabled"
                 @click="selectProvider(provider.provider)"
               >
-                <div class="admin-email-config__provider-card-header">
+                <div class="flex justify-between gap-4 text-main">
                   <strong>{{ provider.title }}</strong>
                 </div>
                 <small>Host: {{ provider.defaults.smtpHost }} / Port: {{ provider.defaults.smtpPort }}</small>
@@ -73,14 +101,12 @@ async function handleSaveConfig() {
           </div>
 
           <div class="admin-email-config__section">
-            <div class="admin-email-config__section-header">
-              <div>
-                <h2 class="admin-email-config__title">
-                  SMTP 配置
-                </h2>
-              </div>
-              <ElButton :loading="isTesting" @click="testConfig">
-                {{ isTesting ? '发送中...' : '发送测试邮件' }}
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <h2 class="m-0 text-lg font-bold text-main">
+                SMTP 配置
+              </h2>
+              <ElButton @click="openTestDialog">
+                发送测试邮件
               </ElButton>
             </div>
 
@@ -89,10 +115,10 @@ async function handleSaveConfig() {
               :model="form"
               :rules="formRules"
               label-position="top"
-              class="admin-email-config__form"
+              class="mt-4"
               @submit.prevent="handleSaveConfig"
             >
-              <div class="admin-email-config__grid">
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <ElFormItem label="SMTP Host" prop="smtpHost">
                   <ElInput v-model="form.smtpHost" placeholder="smtp.exmail.qq.com" />
                 </ElFormItem>
@@ -103,12 +129,26 @@ async function handleSaveConfig() {
                   <ElInput v-model="form.smtpUsername" autocomplete="username" />
                 </ElFormItem>
                 <ElFormItem label="发件密码" prop="smtpPassword">
-                  <ElInput v-model="form.smtpPassword" type="password" show-password autocomplete="new-password" />
-                  <div class="admin-email-config__password-hint">
-                    <span>{{ currentConfig?.hasPassword ? '留空则保留当前密码。' : '启用发件服务前需要先保存发件密码。' }}</span>
-                    <ElCheckbox v-model="form.clearPassword">
-                      清空现有密码
-                    </ElCheckbox>
+                  <ElButton v-if="hasSavedPassword && !isEditingPassword" plain type="primary" class="w-full" @click="handleStartPasswordEdit">
+                    更换密码
+                  </ElButton>
+                  <div v-else class="flex w-full items-start gap-3">
+                    <ElInput
+                      v-model="form.smtpPassword"
+                      class="min-w-0 flex-1"
+                      type="password"
+                      show-password
+                      autocomplete="new-password"
+                      :placeholder="hasSavedPassword ? '输入新的发件密码' : '请输入发件密码'"
+                    />
+                    <ElButton
+                      v-if="hasSavedPassword && isEditingPassword"
+                      link
+                      class="shrink-0 self-center"
+                      @click="handleKeepSavedPassword"
+                    >
+                      取消更换
+                    </ElButton>
                   </div>
                 </ElFormItem>
                 <ElFormItem label="发件人名称" prop="fromName">
@@ -133,12 +173,12 @@ async function handleSaveConfig() {
         </ElCard>
 
         <ElCard shadow="never" class="admin-email-config__status-card">
-          <div class="admin-email-config__status-card-inner">
+          <div class="flex flex-col gap-6">
             <section class="admin-email-config__service-panel">
-              <div class="admin-email-config__service-header">
-                <div class="admin-email-config__service-copy">
-                  <span class="admin-email-config__eyebrow">运行状态</span>
-                  <h2 class="admin-email-config__service-title">
+              <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <span class="inline-flex items-center text-xs font-semibold tracking-[0.04em] text-secondary">运行状态</span>
+                  <h2 class="m-0 mt-2 text-xl font-bold leading-7 text-main">
                     控制站点邮件发送
                   </h2>
                 </div>
@@ -147,14 +187,14 @@ async function handleSaveConfig() {
                 </div>
               </div>
 
-              <p class="admin-email-config__service-description">
+              <p class="mt-3.5 text-sm leading-7 text-secondary">
                 这个开关会立即生效，不需要和 SMTP 配置一起保存。关闭后，注册和绑定邮箱会暂停发送验证码邮件。
               </p>
 
-              <div class="admin-email-config__service-switch-card">
+              <div class="admin-email-config__service-switch-card mt-5 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <span class="admin-email-config__service-switch-title">启用发件服务</span>
-                  <p class="admin-email-config__service-switch-hint">
+                  <span class="block font-semibold text-main">启用发件服务</span>
+                  <p class="mt-1.5 max-w-80 text-xs leading-6 text-secondary">
                     适合临时停用邮件发送或排查 SMTP 设置时使用。
                   </p>
                 </div>
@@ -167,66 +207,66 @@ async function handleSaveConfig() {
               </div>
             </section>
 
-            <section class="admin-email-config__summary-section">
-              <div class="admin-email-config__summary-header">
-                <span class="admin-email-config__summary-title">当前配置</span>
-                <span class="admin-email-config__summary-subtitle">已保存的发件信息</span>
+            <section class="pt-1">
+              <div class="mb-4 flex flex-col gap-1">
+                <span class="text-base font-bold text-main">当前配置</span>
+                <span class="text-xs text-secondary">已保存的发件信息</span>
               </div>
 
-              <dl class="admin-email-config__summary">
-                <div class="admin-email-config__summary-row">
-                  <dt class="admin-email-config__summary-term">
+              <dl class="flex flex-col gap-3.5">
+                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
+                  <dt class="text-[13px] text-secondary">
                     当前模板
                   </dt>
-                  <dd class="admin-email-config__summary-value">
+                  <dd class="m-0 break-all text-sm text-main md:text-right">
                     {{ currentProviderTitle }}
                   </dd>
                 </div>
-                <div class="admin-email-config__summary-row">
-                  <dt class="admin-email-config__summary-term">
+                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
+                  <dt class="text-[13px] text-secondary">
                     SMTP 主机
                   </dt>
-                  <dd class="admin-email-config__summary-value">
+                  <dd class="m-0 break-all text-sm text-main md:text-right">
                     {{ currentConfig?.smtpHost || '-' }}
                   </dd>
                 </div>
-                <div class="admin-email-config__summary-row">
-                  <dt class="admin-email-config__summary-term">
+                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
+                  <dt class="text-[13px] text-secondary">
                     发件账号
                   </dt>
-                  <dd class="admin-email-config__summary-value">
+                  <dd class="m-0 break-all text-sm text-main md:text-right">
                     {{ currentConfig?.smtpUsername || '-' }}
                   </dd>
                 </div>
-                <div class="admin-email-config__summary-row">
-                  <dt class="admin-email-config__summary-term">
+                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
+                  <dt class="text-[13px] text-secondary">
                     发件人
                   </dt>
-                  <dd class="admin-email-config__summary-value">
+                  <dd class="m-0 break-all text-sm text-main md:text-right">
                     {{ currentConfig?.fromName || '-' }}
                   </dd>
                 </div>
-                <div class="admin-email-config__summary-row">
-                  <dt class="admin-email-config__summary-term">
+                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
+                  <dt class="text-[13px] text-secondary">
                     发件邮箱
                   </dt>
-                  <dd class="admin-email-config__summary-value">
+                  <dd class="m-0 break-all text-sm text-main md:text-right">
                     {{ currentConfig?.fromEmail || '-' }}
                   </dd>
                 </div>
-                <div class="admin-email-config__summary-row">
-                  <dt class="admin-email-config__summary-term">
-                    密码状态
+                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
+                  <dt class="text-[13px] text-secondary">
+                    发件密码
                   </dt>
-                  <dd class="admin-email-config__summary-value">
-                    {{ currentConfig?.hasPassword ? '已保存' : '未保存' }}
+                  <dd class="m-0 break-all text-sm text-main md:text-right">
+                    {{ currentConfig?.hasPassword ? '已保存，页面不展示原值' : '暂未保存' }}
                   </dd>
                 </div>
               </dl>
 
-              <div class="admin-email-config__updated-at">
-                <span class="admin-email-config__updated-at-label">最近更新</span>
-                <span class="admin-email-config__updated-at-value">
+              <div class="admin-email-config__updated-at flex items-center justify-between gap-4">
+                <span class="text-[13px] text-secondary">最近更新</span>
+                <span class="text-right text-sm font-semibold text-main">
                   {{ currentConfig?.updatedAt ? formatDateTime(currentConfig.updatedAt) : '暂无' }}
                 </span>
               </div>
@@ -234,6 +274,41 @@ async function handleSaveConfig() {
           </div>
         </ElCard>
       </div>
+
+      <ElDialog
+        v-model="isTestDialogVisible"
+        title="发送测试邮件"
+        width="32rem"
+        destroy-on-close
+        @close="closeTestDialog"
+      >
+        <ElForm
+          ref="testEmailFormRef"
+          :model="testEmailForm"
+          :rules="testEmailFormRules"
+          label-position="top"
+          @submit.prevent="handleSendTestEmail"
+        >
+          <ElFormItem label="收件邮箱" prop="email">
+            <ElInput
+              v-model="testEmailForm.email"
+              autocomplete="email"
+              placeholder="请输入收件邮箱"
+            />
+          </ElFormItem>
+        </ElForm>
+
+        <template #footer>
+          <div class="flex justify-end gap-3">
+            <ElButton @click="closeTestDialog">
+              取消
+            </ElButton>
+            <ElButton type="primary" :loading="isTesting" @click="handleSendTestEmail">
+              {{ isTesting ? '发送中...' : '发送' }}
+            </ElButton>
+          </div>
+        </template>
+      </ElDialog>
     </template>
   </div>
 </template>
@@ -276,32 +351,6 @@ async function handleSaveConfig() {
     margin-top: 1.75rem;
   }
 
-  &__section-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  &__title {
-    margin: 0;
-    color: var(--brand-text-primary);
-    font-size: 1.125rem;
-    font-weight: 700;
-  }
-
-  &__provider-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-    margin-top: 1rem;
-
-    @media (min-width: 768px) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
   &__provider-card {
     text-align: left;
     padding: 1rem;
@@ -337,23 +386,6 @@ async function handleSaveConfig() {
     }
   }
 
-  &__provider-card-header {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    color: var(--brand-text-primary);
-  }
-
-  &__form {
-    margin-top: 1rem;
-  }
-
-  &__status-card-inner {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
   &__service-panel {
     padding: 1.25rem;
     border: 1px solid color-mix(in srgb, var(--brand-primary) 12%, var(--brand-border-base));
@@ -363,109 +395,11 @@ async function handleSaveConfig() {
     box-shadow: 0 24px 48px -40px color-mix(in srgb, var(--brand-primary) 60%, transparent);
   }
 
-  &__service-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  &__service-copy {
-    min-width: 0;
-  }
-
-  &__eyebrow {
-    display: inline-flex;
-    align-items: center;
-    color: var(--brand-text-secondary);
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-  }
-
-  &__service-title {
-    margin: 0.5rem 0 0;
-    color: var(--brand-text-primary);
-    font-size: 1.25rem;
-    font-weight: 700;
-    line-height: 1.4;
-  }
-
-  &__service-description {
-    margin: 0.875rem 0 0;
-    color: var(--brand-text-secondary);
-    font-size: 0.875rem;
-    line-height: 1.7;
-  }
-
   &__service-switch-card {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-top: 1.25rem;
     padding: 1rem 1rem 1rem 1.125rem;
     border: 1px solid color-mix(in srgb, var(--brand-border-base) 84%, transparent);
     border-radius: 1rem;
     background: color-mix(in srgb, var(--brand-bg-surface) 88%, white);
-  }
-
-  &__service-switch-title {
-    display: block;
-    color: var(--brand-text-primary);
-    font-weight: 600;
-  }
-
-  &__service-switch-hint {
-    margin: 0.375rem 0 0;
-    color: var(--brand-text-secondary);
-    font-size: 0.75rem;
-    line-height: 1.6;
-    max-width: 20rem;
-  }
-
-  &__grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-
-    @media (min-width: 768px) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  &__password-hint {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin-top: 0.5rem;
-    color: var(--brand-text-secondary);
-    font-size: 0.75rem;
-  }
-
-  &__summary-section {
-    padding-top: 0.25rem;
-  }
-
-  &__summary-header {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    margin-bottom: 1rem;
-  }
-
-  &__summary-title {
-    color: var(--brand-text-primary);
-    font-size: 0.9375rem;
-    font-weight: 700;
-  }
-
-  &__summary-subtitle {
-    color: var(--brand-text-secondary);
-    font-size: 0.75rem;
   }
 
   &__status-chip {
@@ -486,25 +420,9 @@ async function handleSaveConfig() {
     }
   }
 
-  &__summary {
-    display: flex;
-    flex-direction: column;
-    gap: 0.875rem;
-  }
-
   &__summary-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
     padding-bottom: 0.875rem;
     border-bottom: 1px solid color-mix(in srgb, var(--brand-border-base) 82%, transparent);
-
-    @media (min-width: 768px) {
-      flex-direction: row;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
-    }
 
     &:last-child {
       padding-bottom: 0;
@@ -512,42 +430,10 @@ async function handleSaveConfig() {
     }
   }
 
-  &__summary-term {
-    color: var(--brand-text-secondary);
-    font-size: 0.8125rem;
-  }
-
-  &__summary-value {
-    margin: 0;
-    color: var(--brand-text-primary);
-    font-size: 0.875rem;
-    word-break: break-all;
-
-    @media (min-width: 768px) {
-      text-align: right;
-    }
-  }
-
   &__updated-at {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
     margin-top: 1rem;
     padding-top: 1rem;
     border-top: 1px solid color-mix(in srgb, var(--brand-border-base) 82%, transparent);
-  }
-
-  &__updated-at-label {
-    color: var(--brand-text-secondary);
-    font-size: 0.8125rem;
-  }
-
-  &__updated-at-value {
-    color: var(--brand-text-primary);
-    font-size: 0.875rem;
-    font-weight: 600;
-    text-align: right;
   }
 }
 </style>

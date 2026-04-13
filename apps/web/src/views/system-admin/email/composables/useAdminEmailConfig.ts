@@ -21,6 +21,7 @@ import {
   updateSystemEmailConfig,
   updateSystemEmailServiceStatus,
 } from '@/apis/system-admin'
+import { useUserStore } from '@/stores/user'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 import { createEmailRules } from '@/views/auth/utils/rules'
 
@@ -51,12 +52,14 @@ const providerMeta = {
 export function useAdminEmailConfig() {
   type RuleValidator = NonNullable<FormItemRule['validator']>
 
+  const userStore = useUserStore()
   const currentConfig = shallowRef<SystemEmailConfigDto | null>(null)
   const currentServiceStatus = shallowRef<SystemEmailServiceStatusDto | null>(null)
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
   const isSaving = shallowRef(false)
   const isTesting = shallowRef(false)
+  const isTestDialogVisible = shallowRef(false)
   const isUpdatingServiceStatus = shallowRef(false)
   const form = reactive({
     provider: SYSTEM_EMAIL_PROVIDER.TENCENT_EXMAIL as SystemEmailProvider,
@@ -65,9 +68,11 @@ export function useAdminEmailConfig() {
     smtpSecure: true,
     smtpUsername: '',
     smtpPassword: '',
-    clearPassword: false,
     fromName: 'SamePage',
     fromEmail: '',
+  })
+  const testEmailForm = reactive({
+    email: '',
   })
 
   const providerCards = computed(() => Object.entries(providerMeta).map(([provider, meta]) => ({
@@ -77,11 +82,13 @@ export function useAdminEmailConfig() {
 
   const configStatusLabel = computed(() => currentServiceStatus.value?.enabled ? '已启用' : '未启用')
   const currentProviderTitle = computed(() => formatSystemEmailProvider(currentConfig.value?.provider ?? form.provider))
+  const defaultTestRecipientEmail = computed(() => userStore.currentUser?.email?.trim().toLowerCase() ?? '')
+  const hasSavedPassword = computed(() => currentConfig.value?.hasPassword ?? false)
+  const isEditingPassword = shallowRef(false)
 
   const validatePassword: RuleValidator = (_rule, value, callback) => {
     const normalizedValue = typeof value === 'string' ? value.trim() : ''
-    const hasExistingPassword = currentConfig.value?.hasPassword ?? false
-    const shouldRequirePassword = (currentServiceStatus.value?.enabled ?? false) && (!hasExistingPassword || form.clearPassword)
+    const shouldRequirePassword = (currentServiceStatus.value?.enabled ?? false) && !hasSavedPassword.value
 
     if (!normalizedValue && !shouldRequirePassword) {
       callback()
@@ -146,6 +153,9 @@ export function useAdminEmailConfig() {
     fromName: [{ validator: validateFromName }],
     fromEmail: createEmailRules('发件邮箱'),
   }
+  const testEmailFormRules: FormRules<typeof testEmailForm> = {
+    email: createEmailRules('收件邮箱'),
+  }
 
   async function loadConfig() {
     isLoading.value = true
@@ -163,8 +173,7 @@ export function useAdminEmailConfig() {
       form.smtpPort = config.smtpPort
       form.smtpSecure = config.smtpSecure
       form.smtpUsername = config.smtpUsername
-      form.smtpPassword = ''
-      form.clearPassword = false
+      resetPasswordDraft()
       form.fromName = config.fromName
       form.fromEmail = config.fromEmail
     }
@@ -194,12 +203,10 @@ export function useAdminEmailConfig() {
         smtpSecure: form.smtpSecure,
         smtpUsername: form.smtpUsername,
         smtpPassword: form.smtpPassword || undefined,
-        clearPassword: form.clearPassword || undefined,
         fromName: form.fromName,
         fromEmail: form.fromEmail,
       })
-      form.smtpPassword = ''
-      form.clearPassword = false
+      resetPasswordDraft()
       ElMessage.success('发件配置已保存')
     }
     catch (error) {
@@ -245,12 +252,32 @@ export function useAdminEmailConfig() {
     }
   }
 
-  async function testConfig() {
+  function openTestDialog() {
+    testEmailForm.email = defaultTestRecipientEmail.value
+    isTestDialogVisible.value = true
+  }
+
+  function closeTestDialog() {
+    isTestDialogVisible.value = false
+  }
+
+  async function testConfig(formRef: FormInstance | null | undefined) {
+    normalizeTestEmailForm()
+    const recipientEmail = testEmailForm.email
+    const isValid = formRef ? await formRef.validate().catch(() => false) : false
+
+    if (!isValid) {
+      return
+    }
+
     isTesting.value = true
 
     try {
-      await testSystemEmailConfig()
-      ElMessage.success('测试邮件已发送到当前管理员邮箱')
+      await testSystemEmailConfig({
+        email: recipientEmail,
+      })
+      isTestDialogVisible.value = false
+      ElMessage.success(`测试邮件已发送到 ${recipientEmail}`)
     }
     catch (error) {
       ElMessage.error(getRequestErrorDisplayMessage(error, '发送测试邮件失败'))
@@ -271,6 +298,15 @@ export function useAdminEmailConfig() {
     form.smtpSecure = providerMeta[provider].defaults.smtpSecure
   }
 
+  function startPasswordEdit() {
+    form.smtpPassword = ''
+    isEditingPassword.value = true
+  }
+
+  function keepSavedPassword() {
+    resetPasswordDraft()
+  }
+
   onMounted(loadConfig)
 
   return {
@@ -281,11 +317,20 @@ export function useAdminEmailConfig() {
     errorMessage,
     form,
     formRules,
+    hasSavedPassword,
+    isEditingPassword,
     isLoading,
     isSaving,
+    isTestDialogVisible,
     isTesting,
     isUpdatingServiceStatus,
+    keepSavedPassword,
     providerCards,
+    startPasswordEdit,
+    testEmailForm,
+    testEmailFormRules,
+    closeTestDialog,
+    openTestDialog,
     saveConfig,
     selectProvider,
     testConfig,
@@ -297,6 +342,15 @@ export function useAdminEmailConfig() {
     form.smtpUsername = form.smtpUsername.trim()
     form.smtpPassword = form.smtpPassword.trim()
     form.fromName = form.fromName.trim()
-    form.fromEmail = form.fromEmail.trim()
+    form.fromEmail = form.fromEmail.trim().toLowerCase()
+  }
+
+  function normalizeTestEmailForm() {
+    testEmailForm.email = testEmailForm.email.trim().toLowerCase()
+  }
+
+  function resetPasswordDraft() {
+    form.smtpPassword = ''
+    isEditingPassword.value = false
   }
 }

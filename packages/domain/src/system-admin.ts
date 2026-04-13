@@ -96,15 +96,20 @@ export interface UpdateSystemEmailServiceStatusDto {
   enabled: boolean
 }
 
+/**
+ * 发送测试邮件请求。
+ */
+export interface TestSystemEmailConfigDto {
+  email: string
+}
+
 export interface TestSystemEmailConfigResponseDto {
   sent: boolean
 }
 
 export interface SystemAiConfigDto {
   id: string | null
-  provider: string
   baseUrl: string | null
-  defaultModel: string | null
   hasApiKey: boolean
   maskedApiKey: string | null
   updatedAt: string | null
@@ -119,7 +124,6 @@ export interface SystemAiServiceStatusDto {
 
 export interface UpdateSystemAiConfigDto {
   baseUrl?: string
-  defaultModel?: string
   apiKey?: string
   clearApiKey?: boolean
 }

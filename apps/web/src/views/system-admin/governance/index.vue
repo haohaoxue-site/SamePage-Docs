@@ -40,11 +40,11 @@ onMounted(loadGovernanceSummary)
 </script>
 
 <template>
-  <div v-loading="isLoading" class="admin-governance">
+  <div v-loading="isLoading" class="admin-governance py-6">
     <ElAlert v-if="errorMessage" :title="errorMessage" type="error" show-icon :closable="false" class="rounded-xl" />
 
-    <template v-else-if="summary">
-      <section class="admin-governance__metrics">
+    <div v-else-if="summary" class="flex flex-col gap-6">
+      <section class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <ConsoleMetricCard
           v-for="card in governanceCards"
           :key="card.label"
@@ -56,70 +56,25 @@ onMounted(loadGovernanceSummary)
         />
       </section>
 
-      <section class="admin-governance__section">
-        <ElCard shadow="never" body-class="admin-governance__card-body" class="admin-governance__card">
-          <div class="admin-governance__card-header">
+      <section>
+        <ElCard shadow="never" body-class="p-6" class="border-border-a80">
+          <div class="mb-4 flex items-center gap-2">
             <SvgIcon category="ui" icon="bell" size="1.25rem" class="text-primary" />
             <h3 class="text-lg font-bold text-main">
               当前治理备注
             </h3>
           </div>
-          <div class="admin-governance__note">
+          <div class="admin-governance__note rounded-xl p-6 text-sm italic leading-6 text-secondary">
             "{{ summary.note || '暂无特定的治理政策更新。' }}"
           </div>
         </ElCard>
       </section>
-    </template>
+    </div>
   </div>
 </template>
 
 <style scoped lang="scss">
-.admin-governance {
-  padding-block: 1.5rem;
-
-  > * + * {
-    margin-top: 1.5rem;
-  }
-
-  .admin-governance__metrics {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-
-    @media (min-width: 768px) {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-
-  .admin-governance__section {
-    > * + * {
-      margin-top: 1rem;
-    }
-  }
-
-  .admin-governance__card {
-    border-color: color-mix(in srgb, var(--brand-border-base) 80%, transparent);
-  }
-
-  :deep(.admin-governance__card-body) {
-    padding: 1.5rem !important;
-  }
-
-  .admin-governance__card-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .admin-governance__note {
-    padding: 1.5rem;
-    border-radius: 0.75rem;
-    color: var(--brand-text-secondary);
-    font-size: 0.875rem;
-    font-style: italic;
-    line-height: 1.625;
-    background: var(--brand-bg-sidebar);
-  }
+.admin-governance__note {
+  background: var(--brand-bg-sidebar);
 }
 </style>

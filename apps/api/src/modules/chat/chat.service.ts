@@ -1,22 +1,25 @@
+import type { CryptoConfig } from '../../config/auth.config'
 import type {
   ChatMessageDto,
   ChatModelItemDto,
-  ChatProviderConfigDto,
-  ChatProviderLookupDto,
+  ChatRuntimeConfigDto,
   ChatSessionDetailDto,
   ChatSessionSummaryDto,
 } from './chat.dto'
 import {
   BadGatewayException,
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import {
   ChatSessionMessageRole,
   Prisma,
 } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
+import { decryptAes256Gcm, isEncryptedValue } from '../../utils/crypto'
 
 const DEFAULT_CHAT_SESSION_TITLE = '新对话'
 const TRAILING_SLASHES_RE = /\/+$/
@@ -55,7 +58,7 @@ interface RequestChatCompletionParams {
   userId: string
   sessionId: string
   content: string
-  provider: ChatProviderConfigDto
+  model: string
   systemPrompt?: string | null
 }
 
@@ -65,11 +68,22 @@ interface ChatCompletionContext {
   nextAssistantOrder: number
 }
 
+interface SystemChatProvider {
+  baseUrl: string
+  apiKey: string
+}
+
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name)
+  private readonly encryptionKey: string
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    configService: ConfigService,
+  ) {
+    this.encryptionKey = configService.getOrThrow<CryptoConfig>('crypto').encryptionKey
+  }
 
   async getSessions(userId: string): Promise<ChatSessionSummaryDto[]> {
     const sessions = await this.prisma.chatSession.findMany({
@@ -113,19 +127,32 @@ export class ChatService {
     }
   }
 
-  async getModels(
-    userId: string,
-    provider: ChatProviderLookupDto,
-  ): Promise<ChatModelItemDto[]> {
-    const normalizedProvider = this.normalizeProviderLookup(provider)
+  async getRuntimeConfig(): Promise<ChatRuntimeConfigDto> {
+    const config = await this.prisma.systemAiConfig.findFirst({
+      orderBy: { updatedAt: 'desc' },
+    })
+    const baseUrl = config?.baseUrl?.trim() || null
+    const apiKey = this.decryptStoredApiKey(config?.apiKey ?? null)?.trim() || null
 
-    this.logger.log(`chat model list requested: user=${userId} baseUrl=${normalizedProvider.baseUrl}`)
+    return {
+      enabled: config?.enabled ?? false,
+      ready: Boolean(baseUrl && apiKey),
+      providerLabel: baseUrl ? this.resolveProviderLabel(baseUrl) : null,
+    }
+  }
+
+  async getModels(userId: string): Promise<ChatModelItemDto[]> {
+    const provider = await this.getSystemProviderOrThrow({
+      requireEnabled: false,
+    })
+
+    this.logger.log(`chat model list requested: user=${userId} baseUrl=${provider.baseUrl}`)
 
     const response = await this.fetchProvider(
-      this.buildProviderUrl(normalizedProvider.baseUrl, 'models'),
+      this.buildProviderUrl(provider.baseUrl, 'models'),
       {
         method: 'GET',
-        headers: this.buildProviderHeaders(normalizedProvider.apiKey),
+        headers: this.buildProviderHeaders(provider.apiKey),
         signal: AbortSignal.timeout(10_000),
       },
       '获取模型列表失败',
@@ -145,9 +172,17 @@ export class ChatService {
 
   async requestChatCompletion(params: RequestChatCompletionParams): Promise<ChatCompletionContext> {
     const normalizedContent = params.content.trim()
-    const normalizedProvider = this.normalizeProviderConfig(params.provider)
+    const normalizedModel = params.model.trim()
     const normalizedSystemPrompt = params.systemPrompt?.trim() || null
+
+    if (!normalizedModel) {
+      throw new BadRequestException('请先选择模型')
+    }
+
     const session = await this.findOwnedSessionDetailOrThrow(params.userId, params.sessionId)
+    const provider = await this.getSystemProviderOrThrow({
+      requireEnabled: true,
+    })
     const nextUserOrder = (session.messages.at(-1)?.order ?? -1) + 1
     const nextAssistantOrder = nextUserOrder + 1
     const nextTitle = session.messages.length === 0
@@ -173,19 +208,19 @@ export class ChatService {
     ])
 
     this.logger.log(
-      `chat completion requested: user=${params.userId} session=${session.id} model=${normalizedProvider.model} baseUrl=${normalizedProvider.baseUrl} messages=${session.messages.length + 1}`,
+      `chat completion requested: user=${params.userId} session=${session.id} model=${normalizedModel} baseUrl=${provider.baseUrl} messages=${session.messages.length + 1}`,
     )
 
     const providerResponse = await this.fetchProvider(
-      this.buildProviderUrl(normalizedProvider.baseUrl, 'chat/completions'),
+      this.buildProviderUrl(provider.baseUrl, 'chat/completions'),
       {
         method: 'POST',
         headers: {
-          ...this.buildProviderHeaders(normalizedProvider.apiKey),
+          ...this.buildProviderHeaders(provider.apiKey),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: normalizedProvider.model,
+          model: normalizedModel,
           messages: [
             ...(normalizedSystemPrompt
               ? [{ role: 'system', content: normalizedSystemPrompt }]
@@ -327,17 +362,28 @@ export class ChatService {
     return session
   }
 
-  private normalizeProviderLookup(provider: ChatProviderLookupDto): ChatProviderLookupDto {
-    return {
-      baseUrl: provider.baseUrl.trim(),
-      apiKey: provider.apiKey.trim(),
-    }
-  }
+  private async getSystemProviderOrThrow(options: { requireEnabled: boolean }): Promise<SystemChatProvider> {
+    const config = await this.prisma.systemAiConfig.findFirst({
+      orderBy: { updatedAt: 'desc' },
+    })
+    const baseUrl = config?.baseUrl?.trim() || ''
+    const apiKey = this.decryptStoredApiKey(config?.apiKey ?? null)?.trim() || ''
 
-  private normalizeProviderConfig(provider: ChatProviderConfigDto): ChatProviderConfigDto {
+    if (!baseUrl) {
+      throw new BadRequestException('管理员尚未配置 AI 服务地址')
+    }
+
+    if (!apiKey) {
+      throw new BadRequestException('管理员尚未保存 AI 服务密钥')
+    }
+
+    if (options.requireEnabled && !(config?.enabled ?? false)) {
+      throw new BadRequestException('AI 服务暂未开启')
+    }
+
     return {
-      ...this.normalizeProviderLookup(provider),
-      model: provider.model.trim(),
+      baseUrl,
+      apiKey,
     }
   }
 
@@ -350,6 +396,27 @@ export class ChatService {
 
   private buildProviderUrl(baseUrl: string, path: string) {
     return `${baseUrl.replace(TRAILING_SLASHES_RE, '')}/${path.replace(LEADING_SLASHES_RE, '')}`
+  }
+
+  private decryptStoredApiKey(storedApiKey: string | null | undefined): string | null {
+    if (!storedApiKey) {
+      return null
+    }
+
+    if (!isEncryptedValue(storedApiKey)) {
+      return storedApiKey
+    }
+
+    return decryptAes256Gcm(storedApiKey, this.encryptionKey)
+  }
+
+  private resolveProviderLabel(baseUrl: string) {
+    try {
+      return new URL(baseUrl).host
+    }
+    catch {
+      return baseUrl
+    }
   }
 
   private async fetchProvider(

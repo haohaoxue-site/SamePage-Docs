@@ -60,7 +60,7 @@ function getStatusStateClass(status: SystemAdminUserStatus) {
         <template #default="{ row }">
           <div class="flex flex-col gap-0.5">
             <span class="text-xs text-main">拥有 {{ row.ownedDocumentCount }} 篇</span>
-            <span class="text-[10px] text-secondary">获赠 {{ row.sharedDocumentCount }} 篇</span>
+            <span class="text-xs text-secondary">获赠 {{ row.sharedDocumentCount }} 篇</span>
           </div>
         </template>
       </ElTableColumn>

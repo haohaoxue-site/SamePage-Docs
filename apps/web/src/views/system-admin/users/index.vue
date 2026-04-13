@@ -105,8 +105,8 @@ function formatDate(value: string | null) {
 </script>
 
 <template>
-  <div v-loading="isLoading" class="admin-users">
-    <section class="admin-users__metrics">
+  <div v-loading="isLoading" class="admin-users flex flex-col gap-6 py-6">
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-3">
       <ConsoleMetricCard
         v-for="card in summaryCards"
         :key="card.label"
@@ -120,136 +120,132 @@ function formatDate(value: string | null) {
 
     <ElAlert v-if="errorMessage" :title="errorMessage" type="error" show-icon :closable="false" class="rounded-xl" />
 
-    <template v-else>
-      <div class="admin-users__content">
-        <ElCard shadow="never" class="border-border-a80">
-          <div class="admin-users__governance">
-            <div class="admin-users__governance-block">
-              <div class="admin-users__section-header">
+    <div v-else class="flex flex-col gap-6">
+      <ElCard shadow="never" class="border-border-a80">
+        <div class="admin-users__governance">
+          <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 class="m-0 text-base font-bold text-main">
+                  注册治理
+                </h2>
+                <p class="mt-1.5 text-xs leading-6 text-secondary">
+                  切换后立即生效，只影响新注册，不影响已有账号继续登录。
+                </p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3">
+              <label
+                v-for="item in registrationSwitches"
+                :key="item.key"
+                class="admin-users__switch-card"
+              >
                 <div>
-                  <h2 class="admin-users__section-title">
-                    注册治理
-                  </h2>
-                  <p class="admin-users__section-description">
-                    切换后立即生效，只影响新注册，不影响已有账号继续登录。
+                  <span class="block text-sm font-semibold text-main">{{ item.label }}</span>
+                  <p class="mt-1 text-xs leading-6 text-secondary">
+                    {{ item.description }}
                   </p>
                 </div>
-              </div>
-
-              <div class="admin-users__switches">
-                <label
-                  v-for="item in registrationSwitches"
-                  :key="item.key"
-                  class="admin-users__switch-card"
-                >
-                  <div>
-                    <span class="admin-users__switch-label">{{ item.label }}</span>
-                    <p class="admin-users__switch-description">
-                      {{ item.description }}
-                    </p>
-                  </div>
-                  <div class="admin-users__switch-action">
-                    <ElTooltip
-                      v-if="shouldShowEmailServiceHint(item.key)"
-                      placement="top"
-                      effect="light"
-                      :show-after="150"
+                <div class="flex shrink-0 items-center gap-2.5">
+                  <ElTooltip
+                    v-if="shouldShowEmailServiceHint(item.key)"
+                    placement="top"
+                    effect="light"
+                    :show-after="150"
+                  >
+                    <template #content>
+                      <div class="admin-users__switch-hint">
+                        <p class="admin-users__switch-hint-text">
+                          未启用发件服务，开启邮箱密码注册前请先前往邮件配置启用发件服务。
+                        </p>
+                        <RouterLink to="/admin/email" class="admin-users__switch-hint-link">
+                          前往发件配置
+                        </RouterLink>
+                      </div>
+                    </template>
+                    <button
+                      type="button"
+                      class="admin-users__switch-hint-trigger"
+                      aria-label="查看发件服务提示"
+                      @click.stop.prevent
+                      @mousedown.stop.prevent
                     >
-                      <template #content>
-                        <div class="admin-users__switch-hint">
-                          <p class="admin-users__switch-hint-text">
-                            未启用发件服务，开启邮箱密码注册前请先前往邮件配置启用发件服务。
-                          </p>
-                          <RouterLink to="/admin/email" class="admin-users__switch-hint-link">
-                            前往发件配置
-                          </RouterLink>
-                        </div>
-                      </template>
-                      <button
-                        type="button"
-                        class="admin-users__switch-hint-trigger"
-                        aria-label="查看发件服务提示"
-                        @click.stop.prevent
-                        @mousedown.stop.prevent
-                      >
-                        <SvgIcon category="ui" icon="info" size="1rem" />
-                      </button>
-                    </ElTooltip>
-                    <ElSwitch
-                      :model-value="governance[item.key]"
-                      :disabled="isGovernanceSwitchDisabled(item.key)"
-                      :loading="savingGovernanceFields[item.key]"
-                      @change="handleGovernanceSwitchChange(item.key, $event)"
-                    />
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div class="admin-users__governance-block admin-users__governance-block--summary">
-              <h2 class="admin-users__section-title">
-                系统管理员引导状态
-              </h2>
-              <dl class="admin-users__admin-summary">
-                <div class="admin-users__admin-summary-row">
-                  <dt>管理员邮箱</dt>
-                  <dd>{{ governance.systemAdminEmail }}</dd>
+                      <SvgIcon category="ui" icon="info" size="1rem" />
+                    </button>
+                  </ElTooltip>
+                  <ElSwitch
+                    :model-value="governance[item.key]"
+                    :disabled="isGovernanceSwitchDisabled(item.key)"
+                    :loading="savingGovernanceFields[item.key]"
+                    @change="handleGovernanceSwitchChange(item.key, $event)"
+                  />
                 </div>
-                <div class="admin-users__admin-summary-row">
-                  <dt>显示名称</dt>
-                  <dd>{{ governance.systemAdminDisplayName || 'System Admin' }}</dd>
-                </div>
-                <div class="admin-users__admin-summary-row">
-                  <dt>当前状态</dt>
-                  <dd>{{ systemAdminStatusText }}</dd>
-                </div>
-                <div class="admin-users__admin-summary-row">
-                  <dt>最近登录</dt>
-                  <dd>{{ formatDate(governance.systemAdminLastLoginAt) }}</dd>
-                </div>
-                <div class="admin-users__admin-summary-row">
-                  <dt>最近改密</dt>
-                  <dd>{{ formatDate(governance.systemAdminPasswordUpdatedAt) }}</dd>
-                </div>
-              </dl>
+              </label>
             </div>
           </div>
-        </ElCard>
 
-        <SystemAdminUserTable
-          :updating-user-id="updatingUserId"
-          :users="users"
-          @toggle-status="toggleUserStatus"
-        />
-      </div>
-    </template>
+          <div class="admin-users__governance-block--summary rounded-xl p-4">
+            <h2 class="m-0 text-base font-bold text-main">
+              系统管理员引导状态
+            </h2>
+            <dl class="mt-4 flex flex-col gap-3.5">
+              <div class="flex flex-col gap-1">
+                <dt class="text-xs text-secondary">
+                  管理员邮箱
+                </dt>
+                <dd class="m-0 text-sm font-semibold text-main">
+                  {{ governance.systemAdminEmail }}
+                </dd>
+              </div>
+              <div class="flex flex-col gap-1">
+                <dt class="text-xs text-secondary">
+                  显示名称
+                </dt>
+                <dd class="m-0 text-sm font-semibold text-main">
+                  {{ governance.systemAdminDisplayName || 'System Admin' }}
+                </dd>
+              </div>
+              <div class="flex flex-col gap-1">
+                <dt class="text-xs text-secondary">
+                  当前状态
+                </dt>
+                <dd class="m-0 text-sm font-semibold text-main">
+                  {{ systemAdminStatusText }}
+                </dd>
+              </div>
+              <div class="flex flex-col gap-1">
+                <dt class="text-xs text-secondary">
+                  最近登录
+                </dt>
+                <dd class="m-0 text-sm font-semibold text-main">
+                  {{ formatDate(governance.systemAdminLastLoginAt) }}
+                </dd>
+              </div>
+              <div class="flex flex-col gap-1">
+                <dt class="text-xs text-secondary">
+                  最近改密
+                </dt>
+                <dd class="m-0 text-sm font-semibold text-main">
+                  {{ formatDate(governance.systemAdminPasswordUpdatedAt) }}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </ElCard>
+
+      <SystemAdminUserTable
+        :updating-user-id="updatingUserId"
+        :users="users"
+        @toggle-status="toggleUserStatus"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped lang="scss">
 .admin-users {
-  padding-block: 1.5rem;
-
-  > * + * {
-    margin-top: 1.5rem;
-  }
-
-  &__metrics {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-
-    @media (min-width: 768px) {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-
-  &__content {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
   &__governance {
     display: grid;
     grid-template-columns: 1fr;
@@ -260,48 +256,8 @@ function formatDate(value: string | null) {
     }
   }
 
-  &__governance-block {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-
-    &--summary {
-      border-radius: 1rem;
-      padding: 1rem;
-      background: color-mix(in srgb, var(--brand-fill-lighter) 85%, transparent);
-    }
-  }
-
-  &__section-header {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-
-    @media (min-width: 768px) {
-      flex-direction: row;
-      align-items: flex-start;
-      justify-content: space-between;
-    }
-  }
-
-  &__section-title {
-    margin: 0;
-    color: var(--brand-text-primary);
-    font-size: 1rem;
-    font-weight: 700;
-  }
-
-  &__section-description {
-    margin: 0.375rem 0 0;
-    color: var(--brand-text-secondary);
-    font-size: 0.75rem;
-    line-height: 1.6;
-  }
-
-  &__switches {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
+  &__governance-block--summary {
+    background: color-mix(in srgb, var(--brand-fill-lighter) 85%, transparent);
   }
 
   &__switch-card {
@@ -313,27 +269,6 @@ function formatDate(value: string | null) {
     border-radius: 0.875rem;
     padding: 1rem;
     background: var(--brand-bg-surface);
-  }
-
-  &__switch-action {
-    display: flex;
-    align-items: center;
-    gap: 0.625rem;
-    flex-shrink: 0;
-  }
-
-  &__switch-label {
-    display: block;
-    color: var(--brand-text-primary);
-    font-size: 0.875rem;
-    font-weight: 600;
-  }
-
-  &__switch-description {
-    margin: 0.25rem 0 0;
-    color: var(--brand-text-secondary);
-    font-size: 0.75rem;
-    line-height: 1.6;
   }
 
   &__switch-hint {
@@ -381,31 +316,6 @@ function formatDate(value: string | null) {
     &:focus-visible {
       outline: 2px solid color-mix(in srgb, var(--brand-primary) 35%, transparent);
       outline-offset: 2px;
-    }
-  }
-
-  &__admin-summary {
-    display: flex;
-    flex-direction: column;
-    gap: 0.875rem;
-    margin: 0;
-  }
-
-  &__admin-summary-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-
-    dt {
-      color: var(--brand-text-secondary);
-      font-size: 0.75rem;
-    }
-
-    dd {
-      margin: 0;
-      color: var(--brand-text-primary);
-      font-size: 0.875rem;
-      font-weight: 600;
     }
   }
 }

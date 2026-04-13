@@ -149,16 +149,15 @@ function formatMetadata(metadata: Record<string, unknown> | null) {
     align-items: center;
     gap: 0.25rem;
     color: var(--brand-text-secondary);
-    font-size: 10px;
+    font-size: 0.75rem;
   }
 
   .admin-audit-log-list__target-id {
     padding: 0.125rem 0.375rem;
     border-radius: 0.25rem;
     color: var(--brand-text-secondary);
-    font-size: 9px;
-    font-family: var(--el-font-family);
-    font-style: italic;
+    font-size: 0.75rem;
+    font-family: var(--el-font-family-monospace, var(--el-font-family));
     background: var(--brand-border-base);
   }
 }

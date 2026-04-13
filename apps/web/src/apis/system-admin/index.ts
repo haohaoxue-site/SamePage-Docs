@@ -8,6 +8,7 @@ import type {
   SystemAuthGovernanceDto,
   SystemEmailConfigDto,
   SystemEmailServiceStatusDto,
+  TestSystemEmailConfigDto,
   TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAdminUserStatusDto,
@@ -97,10 +98,13 @@ export function updateSystemEmailServiceStatus(
   })
 }
 
-export function testSystemEmailConfig(): Promise<TestSystemEmailConfigResponseDto> {
+export function testSystemEmailConfig(
+  data: TestSystemEmailConfigDto,
+): Promise<TestSystemEmailConfigResponseDto> {
   return axios.request({
     method: 'post',
     url: '/system-admin/email-config/test',
+    data,
   })
 }
 

@@ -1,12 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { Type } from 'class-transformer'
 import {
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
-  IsUrl,
   MaxLength,
-  ValidateNested,
 } from 'class-validator'
 
 export class ChatMessageDto {
@@ -46,32 +45,6 @@ export class ChatSessionDetailDto extends ChatSessionSummaryDto {
   messages!: ChatMessageDto[]
 }
 
-export class ChatProviderLookupDto {
-  @ApiProperty()
-  @IsString()
-  @IsUrl({ require_tld: false }, { message: 'baseUrl 必须是合法 URL' })
-  baseUrl!: string
-
-  @ApiProperty()
-  @IsString()
-  @MaxLength(512)
-  apiKey!: string
-}
-
-export class ChatProviderConfigDto extends ChatProviderLookupDto {
-  @ApiProperty()
-  @IsString()
-  @MaxLength(100)
-  model!: string
-}
-
-export class GetChatModelsRequestDto {
-  @ApiProperty({ type: () => ChatProviderLookupDto })
-  @ValidateNested()
-  @Type(() => ChatProviderLookupDto)
-  provider!: ChatProviderLookupDto
-}
-
 export class ChatModelItemDto {
   @ApiProperty()
   id!: string
@@ -85,6 +58,19 @@ export class ChatModelListResponseDto {
   models!: ChatModelItemDto[]
 }
 
+export class ChatRuntimeConfigDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean
+
+  @ApiProperty()
+  @IsBoolean()
+  ready!: boolean
+
+  @ApiProperty({ nullable: true })
+  providerLabel!: string | null
+}
+
 export class CreateChatCompletionRequestDto {
   @ApiProperty()
   @IsString()
@@ -95,10 +81,11 @@ export class CreateChatCompletionRequestDto {
   @MaxLength(40_000)
   content!: string
 
-  @ApiProperty({ type: () => ChatProviderConfigDto })
-  @ValidateNested()
-  @Type(() => ChatProviderConfigDto)
-  provider!: ChatProviderConfigDto
+  @ApiProperty()
+  @Type(() => String)
+  @IsString()
+  @MaxLength(100)
+  model!: string
 
   @ApiProperty({ required: false, nullable: true })
   @IsOptional()

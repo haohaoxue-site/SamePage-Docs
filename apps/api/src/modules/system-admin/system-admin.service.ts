@@ -9,6 +9,7 @@ import type {
   SystemAuthGovernanceDto,
   SystemEmailConfigDto,
   SystemEmailServiceStatusDto,
+  TestSystemEmailConfigDto,
   TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAiConfigDto,
@@ -75,7 +76,7 @@ export class SystemAdminService {
       ...docStats,
       aiConfigEnabled: aiConfig?.enabled ?? false,
       systemAiBaseUrl: aiConfig?.baseUrl ?? null,
-      systemAiDefaultModel: aiConfig?.defaultModel ?? null,
+      systemAiDefaultModel: null,
     }
   }
 
@@ -279,26 +280,18 @@ export class SystemAdminService {
     return result
   }
 
-  async testEmailConfig(actorUserId: string): Promise<TestSystemEmailConfigResponseDto> {
-    const actor = await this.prisma.user.findUnique({
-      where: { id: actorUserId },
-      select: {
-        email: true,
-      },
-    })
-
-    if (!actor?.email) {
-      throw new BadRequestException('当前管理员未绑定邮箱，无法接收测试邮件')
-    }
-
-    const result = await this.systemEmailService.sendTestEmail(actor.email)
+  async testEmailConfig(
+    actorUserId: string,
+    payload: TestSystemEmailConfigDto,
+  ): Promise<TestSystemEmailConfigResponseDto> {
+    const result = await this.systemEmailService.sendTestEmail(payload.email)
 
     await this.createAuditLog(actorUserId, {
       action: 'system_email_config.tested',
       targetType: 'system_email_config',
       targetId: 'default',
       metadata: {
-        recipientEmail: actor.email,
+        recipientEmail: payload.email,
       },
     })
 
@@ -313,9 +306,7 @@ export class SystemAdminService {
     if (!config) {
       return {
         id: null,
-        provider: 'openai-compatible',
         baseUrl: null,
-        defaultModel: null,
         hasApiKey: false,
         maskedApiKey: null,
         updatedAt: null,
@@ -327,9 +318,7 @@ export class SystemAdminService {
 
     return {
       id: config.id,
-      provider: config.provider,
       baseUrl: config.baseUrl,
-      defaultModel: config.defaultModel,
       hasApiKey: Boolean(decryptedApiKey),
       maskedApiKey: maskApiKey(decryptedApiKey),
       updatedAt: config.updatedAt,
@@ -360,7 +349,6 @@ export class SystemAdminService {
     const normalizedBaseUrl = payload.baseUrl?.trim()
       || existing?.baseUrl
       || DEFAULT_SYSTEM_AI_BASE_URL
-    const normalizedDefaultModel = payload.defaultModel?.trim() || existing?.defaultModel || null
 
     const existingPlainApiKey = this.decryptApiKey(existing?.apiKey ?? null)
     const nextPlainApiKey = payload.clearApiKey
@@ -372,7 +360,6 @@ export class SystemAdminService {
     if (existing?.enabled) {
       this.assertAiServiceReady({
         baseUrl: normalizedBaseUrl,
-        defaultModel: normalizedDefaultModel,
         apiKey: nextPlainApiKey,
       })
     }
@@ -381,7 +368,7 @@ export class SystemAdminService {
       enabled: existing?.enabled ?? false,
       provider: 'openai-compatible',
       baseUrl: normalizedBaseUrl,
-      defaultModel: normalizedDefaultModel,
+      defaultModel: null,
       apiKey: nextPlainApiKey ? encryptAes256Gcm(nextPlainApiKey, this.encryptionKey) : null,
       updatedByUserId: actorUserId,
     }
@@ -404,7 +391,6 @@ export class SystemAdminService {
       targetId: existing?.id ?? null,
       metadata: {
         baseUrl: normalizedBaseUrl,
-        defaultModel: normalizedDefaultModel,
         hasApiKey: Boolean(nextPlainApiKey),
         clearApiKey: payload.clearApiKey ?? false,
       },
@@ -424,7 +410,6 @@ export class SystemAdminService {
     if (payload.enabled) {
       this.assertAiServiceReady({
         baseUrl: existing?.baseUrl ?? DEFAULT_SYSTEM_AI_BASE_URL,
-        defaultModel: existing?.defaultModel ?? null,
         apiKey: this.decryptApiKey(existing?.apiKey ?? null),
       })
     }
@@ -527,11 +512,10 @@ export class SystemAdminService {
 
   private assertAiServiceReady(input: {
     baseUrl: string | null
-    defaultModel: string | null
     apiKey: string | null
   }) {
-    if (!input.baseUrl?.trim() || !input.defaultModel?.trim()) {
-      throw new BadRequestException('启用 AI 服务前请先保存完整的 AI 配置')
+    if (!input.baseUrl?.trim()) {
+      throw new BadRequestException('启用 AI 服务前请先保存 API 地址')
     }
 
     if (!input.apiKey?.trim()) {

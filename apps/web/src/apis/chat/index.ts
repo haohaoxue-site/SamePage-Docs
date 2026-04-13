@@ -1,4 +1,9 @@
-import type { ChatProviderConfig, ChatProviderLookup, ChatSessionDetail, ChatSessionSummary, GetChatModelsResponseDto } from './typing'
+import type {
+  ChatRuntimeConfig,
+  ChatSessionDetail,
+  ChatSessionSummary,
+  GetChatModelsResponseDto,
+} from './typing'
 import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import { useAuthStore } from '@/stores/auth'
 import { axios } from '@/utils/axios'
@@ -36,19 +41,23 @@ export function deleteChatSession(sessionId: string): Promise<null> {
   })
 }
 
-export async function getChatModels(
-  provider: ChatProviderLookup,
-): Promise<GetChatModelsResponseDto> {
+export function getChatRuntimeConfig(): Promise<ChatRuntimeConfig> {
   return axios.request({
-    method: 'post',
+    method: 'get',
+    url: '/chat/config',
+  })
+}
+
+export function getChatModels(): Promise<GetChatModelsResponseDto> {
+  return axios.request({
+    method: 'get',
     url: '/chat/models',
-    data: { provider },
   })
 }
 
 export async function streamChatCompletion(
   sessionId: string,
-  provider: ChatProviderConfig,
+  model: string,
   content: string,
   onChunk: (content: string) => void,
 ): Promise<void> {
@@ -63,7 +72,7 @@ export async function streamChatCompletion(
     body: JSON.stringify({
       sessionId,
       content,
-      provider,
+      model,
     }),
   })
 

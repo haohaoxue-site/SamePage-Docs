@@ -3,8 +3,8 @@ import type { ChatModelItem } from '@haohaoxue/samepage-domain'
 export type {
   ChatMessage,
   ChatModelItem,
-  ChatProviderConfig,
-  ChatProviderLookup,
+  ChatModelSelection,
+  ChatRuntimeConfig,
   ChatSessionDetail,
   ChatSessionSummary,
 } from '@haohaoxue/samepage-domain'

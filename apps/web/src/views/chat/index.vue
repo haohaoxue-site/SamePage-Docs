@@ -10,10 +10,11 @@ import { useChatWorkspace } from './composables/useChatWorkspace'
 const {
   dialogVisible,
   draft,
+  inputPlaceholder,
   modelOptions,
   isLoadingModels,
   isConfigured,
-  providerConfig,
+  selectedModel,
   currentModelLabel,
   currentProviderLabel,
   openDialog,
@@ -30,7 +31,7 @@ const {
   selectSession,
   deleteSession,
   sendMessage,
-} = useChatWorkspace(providerConfig)
+} = useChatWorkspace(selectedModel)
 
 function getModelBadgeStateClass() {
   return isConfigured.value ? 'configured' : 'idle'
@@ -85,7 +86,7 @@ function getModelBadgeStateClass() {
 
         <ChatInputBox
           :disabled="isStreaming || !isConfigured"
-          :placeholder="isConfigured ? '输入消息...' : '请先完成 AI 提供商配置'"
+          :placeholder="inputPlaceholder"
           @send="sendMessage"
         />
       </div>

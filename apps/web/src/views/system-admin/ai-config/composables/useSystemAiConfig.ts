@@ -24,12 +24,12 @@ export function useSystemAiConfig() {
   const isUpdatingServiceStatus = shallowRef(false)
   const form = reactive({
     baseUrl: '',
-    defaultModel: '',
     apiKey: '',
-    clearApiKey: false,
   })
 
   const configStatusLabel = computed(() => currentServiceStatus.value?.enabled ? '已启用' : '未启用')
+  const hasSavedApiKey = computed(() => currentConfig.value?.hasApiKey ?? false)
+  const isEditingApiKey = shallowRef(false)
 
   const validateBaseUrl: RuleValidator = (_rule, value, callback) => {
     const normalizedValue = typeof value === 'string' ? value.trim() : ''
@@ -56,31 +56,9 @@ export function useSystemAiConfig() {
     callback()
   }
 
-  const validateDefaultModel: RuleValidator = (_rule, value, callback) => {
-    const normalizedValue = typeof value === 'string' ? value.trim() : ''
-
-    if (!(currentServiceStatus.value?.enabled ?? false) && !normalizedValue) {
-      callback()
-      return
-    }
-
-    if (!normalizedValue) {
-      callback(new Error('请输入默认模型'))
-      return
-    }
-
-    if (normalizedValue.length > 100) {
-      callback(new Error('默认模型名称长度不能超过 100 位'))
-      return
-    }
-
-    callback()
-  }
-
   const validateApiKey: RuleValidator = (_rule, value, callback) => {
     const normalizedValue = typeof value === 'string' ? value.trim() : ''
-    const hasExistingKey = currentConfig.value?.hasApiKey ?? false
-    const shouldRequireApiKey = (currentServiceStatus.value?.enabled ?? false) && (!hasExistingKey || form.clearApiKey)
+    const shouldRequireApiKey = (currentServiceStatus.value?.enabled ?? false) && !hasSavedApiKey.value
 
     if (!normalizedValue && !shouldRequireApiKey) {
       callback()
@@ -102,7 +80,6 @@ export function useSystemAiConfig() {
 
   const formRules: FormRules<typeof form> = {
     baseUrl: [{ validator: validateBaseUrl }],
-    defaultModel: [{ validator: validateDefaultModel }],
     apiKey: [{ validator: validateApiKey }],
   }
 
@@ -118,9 +95,7 @@ export function useSystemAiConfig() {
       currentConfig.value = config
       currentServiceStatus.value = serviceStatus
       form.baseUrl = config.baseUrl || ''
-      form.defaultModel = config.defaultModel || ''
-      form.apiKey = ''
-      form.clearApiKey = false
+      resetApiKeyDraft()
     }
     catch (error) {
       errorMessage.value = getRequestErrorDisplayMessage(error, '加载 AI 配置失败')
@@ -143,14 +118,10 @@ export function useSystemAiConfig() {
     try {
       currentConfig.value = await updateSystemAiConfig({
         baseUrl: form.baseUrl || undefined,
-        defaultModel: form.defaultModel || undefined,
         apiKey: form.apiKey || undefined,
-        clearApiKey: form.clearApiKey || undefined,
       })
       form.baseUrl = currentConfig.value.baseUrl || ''
-      form.defaultModel = currentConfig.value.defaultModel || ''
-      form.apiKey = ''
-      form.clearApiKey = false
+      resetApiKeyDraft()
       ElMessage.success('AI 配置已保存')
     }
     catch (error) {
@@ -205,16 +176,33 @@ export function useSystemAiConfig() {
     errorMessage,
     form,
     formRules,
+    hasSavedApiKey,
+    isEditingApiKey,
     isLoading,
     isSaving,
     isUpdatingServiceStatus,
+    keepSavedApiKey,
     saveConfig,
+    startApiKeyEdit,
     updateServiceStatus,
   }
 
   function normalizeForm() {
     form.baseUrl = form.baseUrl.trim()
-    form.defaultModel = form.defaultModel.trim()
     form.apiKey = form.apiKey.trim()
+  }
+
+  function startApiKeyEdit() {
+    form.apiKey = ''
+    isEditingApiKey.value = true
+  }
+
+  function keepSavedApiKey() {
+    resetApiKeyDraft()
+  }
+
+  function resetApiKeyDraft() {
+    form.apiKey = ''
+    isEditingApiKey.value = false
   }
 }

@@ -16,12 +16,7 @@ export interface ChatSessionDetail extends ChatSessionSummary {
   messages: ChatMessage[]
 }
 
-export interface ChatProviderLookup {
-  baseUrl: string
-  apiKey: string
-}
-
-export interface ChatProviderConfig extends ChatProviderLookup {
+export interface ChatModelSelection {
   model: string
 }
 
@@ -30,9 +25,15 @@ export interface ChatModelItem {
   ownedBy: string | null
 }
 
+export interface ChatRuntimeConfig {
+  enabled: boolean
+  ready: boolean
+  providerLabel: string | null
+}
+
 export interface CreateChatCompletionRequest {
   sessionId: string
   content: string
-  provider: ChatProviderConfig
+  model: string
   systemPrompt?: string | null
 }

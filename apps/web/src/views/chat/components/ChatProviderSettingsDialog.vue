@@ -4,13 +4,13 @@ import type {
   ChatProviderSettingsDialogEmits,
   ChatProviderSettingsDialogProps,
 } from '../typing'
-import type { ChatProviderConfig } from '@/apis/chat'
+import type { ChatModelSelection } from '@/apis/chat'
 import { useTemplateRef } from 'vue'
 
 defineProps<ChatProviderSettingsDialogProps>()
 const emits = defineEmits<ChatProviderSettingsDialogEmits>()
 const visible = defineModel<boolean>({ required: true })
-const form = defineModel<ChatProviderConfig>('form', { required: true })
+const form = defineModel<ChatModelSelection>('form', { required: true })
 const providerFormRef = useTemplateRef<FormInstance>('providerFormRef')
 
 type RuleValidator = NonNullable<FormItemRule['validator']>
@@ -30,56 +30,17 @@ function createRequiredValidator(message: string): RuleValidator {
   }
 }
 
-const urlValidator: RuleValidator = (_rule, value, callback) => {
-  const normalizedValue = resolveTrimmedValue(value)
-
-  if (!normalizedValue) {
-    callback(new Error('请输入 API 地址'))
-    return
-  }
-
-  try {
-    const parsedUrl = new URL(normalizedValue)
-    void parsedUrl
-  }
-  catch {
-    callback(new Error('请输入合法的 API 地址'))
-    return
-  }
-
-  callback()
-}
-
-const formRules: FormRules<ChatProviderConfig> = {
-  baseUrl: [{
-    validator: urlValidator,
-  }],
-  apiKey: [{
-    validator: createRequiredValidator('请输入 API Key'),
-  }],
+const formRules: FormRules<ChatModelSelection> = {
   model: [{
-    validator: createRequiredValidator('请选择或输入模型'),
+    validator: createRequiredValidator('请选择模型'),
   }],
 }
 
-async function handleRefreshModels() {
-  form.value.baseUrl = form.value.baseUrl.trim()
-  form.value.apiKey = form.value.apiKey.trim()
-
-  const isValid = providerFormRef.value
-    ? await providerFormRef.value.validateField(['baseUrl', 'apiKey']).catch(() => false)
-    : false
-
-  if (!isValid) {
-    return
-  }
-
+function handleRefreshModels() {
   emits('refreshModels')
 }
 
 async function handleSave() {
-  form.value.baseUrl = form.value.baseUrl.trim()
-  form.value.apiKey = form.value.apiKey.trim()
   form.value.model = form.value.model.trim()
 
   const isValid = providerFormRef.value
@@ -97,47 +58,24 @@ async function handleSave() {
 <template>
   <ElDialog
     v-model="visible"
-    title="配置 AI 提供商"
-    width="580"
+    title="选择模型"
+    width="520"
     align-center
   >
     <div class="chat-provider-settings">
-      <div class="chat-provider-settings__intro">
-        <div class="chat-provider-settings__intro-title">
-          OpenAI Compatible 配置
-        </div>
-        <div class="chat-provider-settings__intro-description">
-          Cherry Studio 一类客户端通常会调用 <span class="font-mono text-main">/models</span> 接口获取模型列表，这里也沿用同样方式。
-        </div>
-      </div>
+      <p class="chat-provider-settings__description">
+        可用模型会在打开弹窗时自动刷新，必要时也可以手动刷新一次。
+      </p>
 
       <ElForm ref="providerFormRef" :model="form" :rules="formRules" label-position="top" class="chat-provider-settings__form">
-        <ElFormItem label="API 地址" prop="baseUrl">
-          <ElInput
-            v-model="form.baseUrl"
-            placeholder="https://api.openai.com/v1"
-          />
-        </ElFormItem>
-
-        <ElFormItem label="API Key" prop="apiKey">
-          <ElInput
-            v-model="form.apiKey"
-            type="password"
-            show-password
-            placeholder="sk-..."
-          />
-        </ElFormItem>
-
         <ElFormItem label="模型" prop="model">
           <div class="chat-provider-settings__model-row">
             <ElSelect
               v-model="form.model"
               class="chat-provider-settings__model-select"
               filterable
-              allow-create
-              default-first-option
               clearable
-              placeholder="先拉取模型，或直接输入模型名"
+              placeholder="请选择模型"
             >
               <ElOption
                 v-for="model in models"
@@ -151,7 +89,7 @@ async function handleSave() {
               :loading="isLoadingModels"
               @click="handleRefreshModels"
             >
-              拉取模型
+              刷新
             </ElButton>
           </div>
         </ElFormItem>
@@ -177,21 +115,8 @@ async function handleSave() {
     margin-top: 1.25rem;
   }
 
-  .chat-provider-settings__intro {
-    padding: 0.75rem 1rem;
-    border: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
-    border-radius: 1rem;
-    background: var(--brand-fill-lighter);
-  }
-
-  .chat-provider-settings__intro-title {
-    color: var(--brand-text-primary);
-    font-size: 0.875rem;
-    font-weight: 600;
-  }
-
-  .chat-provider-settings__intro-description {
-    margin-top: 0.25rem;
+  .chat-provider-settings__description {
+    margin: 0;
     color: var(--brand-text-secondary);
     font-size: 0.75rem;
     line-height: 1.25rem;

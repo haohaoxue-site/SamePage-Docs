@@ -10,6 +10,7 @@ export type {
   SystemEmailConfigDto,
   SystemEmailProvider,
   SystemEmailServiceStatusDto,
+  TestSystemEmailConfigDto,
   TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAdminUserStatusDto,

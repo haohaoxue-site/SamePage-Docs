@@ -19,10 +19,10 @@ import { CurrentUser } from '../../decorators/current-user.decorator'
 import { ApiRequestResponse } from '../../utils/swagger'
 import {
   ChatModelListResponseDto,
+  ChatRuntimeConfigDto,
   ChatSessionDetailDto,
   ChatSessionSummaryDto,
   CreateChatCompletionRequestDto,
-  GetChatModelsRequestDto,
 } from './chat.dto'
 import { ChatService } from './chat.service'
 
@@ -73,15 +73,21 @@ export class ChatController {
     return null
   }
 
-  @ApiOperation({ summary: '获取 AI 提供商模型列表' })
+  @ApiOperation({ summary: '获取当前聊天服务状态' })
+  @ApiRequestResponse(ChatRuntimeConfigDto)
+  @Get('config')
+  async getRuntimeConfig(): Promise<ChatRuntimeConfigDto> {
+    return this.chatService.getRuntimeConfig()
+  }
+
+  @ApiOperation({ summary: '获取聊天模型列表' })
   @ApiRequestResponse(ChatModelListResponseDto)
-  @Post('models')
+  @Get('models')
   async getModels(
     @CurrentUser() authUser: AuthUserContext,
-    @Body() payload: GetChatModelsRequestDto,
   ): Promise<ChatModelListResponseDto> {
     return {
-      models: await this.chatService.getModels(authUser.id, payload.provider),
+      models: await this.chatService.getModels(authUser.id),
     }
   }
 
@@ -96,7 +102,7 @@ export class ChatController {
       userId: authUser.id,
       sessionId: payload.sessionId,
       content: payload.content,
-      provider: payload.provider,
+      model: payload.model,
       systemPrompt: payload.systemPrompt,
     })
 

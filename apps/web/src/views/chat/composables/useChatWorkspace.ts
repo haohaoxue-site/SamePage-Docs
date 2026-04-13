@@ -1,6 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
 import type {
-  ChatProviderConfig,
   ChatSessionDetail,
   ChatSessionSummary,
 } from '@/apis/chat'
@@ -26,7 +25,7 @@ export interface ChatSession extends ChatSessionSummary {}
  */
 export interface ActiveChatSession extends ChatSessionDetail {}
 
-export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderConfig | null>) {
+export function useChatWorkspace(model: MaybeRefOrGetter<string | null>) {
   const sessions = shallowRef<ChatSession[]>([])
   const activeSessionId = shallowRef<string | null>(null)
   const activeSession = shallowRef<ActiveChatSession | null>(null)
@@ -128,9 +127,9 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
       return
     }
 
-    const provider = toValue(providerConfig)
-    if (!provider) {
-      ElMessage.warning('请先配置 API 地址、Key 和模型')
+    const selectedModel = toValue(model)
+    if (!selectedModel) {
+      ElMessage.warning('请先选择模型')
       return
     }
 
@@ -184,7 +183,7 @@ export function useChatWorkspace(providerConfig: MaybeRefOrGetter<ChatProviderCo
     try {
       await streamChatCompletion(
         session.id,
-        provider,
+        selectedModel,
         normalizedContent,
         (chunk) => {
           streamingContent.value += chunk

@@ -8,6 +8,7 @@ import { DocumentStatus, UserStatus } from '@prisma/client'
 import { Transform } from 'class-transformer'
 import {
   IsBoolean,
+  IsEmail,
   IsEnum,
   IsIn,
   IsOptional,
@@ -237,6 +238,7 @@ export class UpdateSystemEmailConfigDto {
   fromName!: string
 
   @ApiProperty()
+  @IsEmail({}, { message: '请输入有效的发件邮箱' })
   @IsString()
   @MaxLength(120)
   @Transform(({ value }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
@@ -249,6 +251,14 @@ export class UpdateSystemEmailServiceStatusDto {
   enabled!: boolean
 }
 
+export class TestSystemEmailConfigDto {
+  @ApiProperty()
+  @IsEmail({}, { message: '请输入有效的收件邮箱' })
+  @MaxLength(120)
+  @Transform(({ value }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
+  email!: string
+}
+
 export class TestSystemEmailConfigResponseDto {
   @ApiProperty()
   sent!: boolean
@@ -258,14 +268,8 @@ export class SystemAiConfigDto {
   @ApiProperty({ nullable: true })
   id!: string | null
 
-  @ApiProperty()
-  provider!: string
-
   @ApiProperty({ nullable: true })
   baseUrl!: string | null
-
-  @ApiProperty({ nullable: true })
-  defaultModel!: string | null
 
   @ApiProperty()
   hasApiKey!: boolean
@@ -297,13 +301,6 @@ export class UpdateSystemAiConfigDto {
   @IsString()
   @IsUrl({ require_tld: false }, { message: 'baseUrl 必须是合法 URL' })
   baseUrl?: string
-
-  @ApiProperty({ nullable: true })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
-  defaultModel?: string
 
   @ApiProperty({ nullable: true })
   @IsOptional()

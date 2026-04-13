@@ -49,10 +49,10 @@ function getMessageRoleClass(role: ChatMessageListProps['messages'][number]['rol
           />
         </div>
         <div class="text-lg text-secondary">
-          {{ isConfigured ? '有什么可以帮助你的？' : '先配置 AI 提供商' }}
+          {{ isConfigured ? '有什么可以帮助你的？' : '还不能开始对话' }}
         </div>
         <div class="mt-1 text-sm text-secondary-a60">
-          {{ isConfigured ? '输入消息开始对话' : '点击右上角配置 API 地址、Key 和模型' }}
+          {{ isConfigured ? '输入消息开始对话' : '请先选择模型，或等待 AI 服务准备完成' }}
         </div>
       </div>
     </div>

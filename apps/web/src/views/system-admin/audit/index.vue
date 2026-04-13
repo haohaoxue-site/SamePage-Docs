@@ -35,8 +35,8 @@ onMounted(loadLogs)
 </script>
 
 <template>
-  <div v-loading="isLoading" class="admin-audit-view">
-    <section class="admin-audit-view__metrics">
+  <div v-loading="isLoading" class="admin-audit-view flex flex-col gap-6 py-6">
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-3">
       <ConsoleMetricCard
         v-for="card in summaryCards"
         :key="card.label"
@@ -50,36 +50,6 @@ onMounted(loadLogs)
 
     <ElAlert v-if="errorMessage" :title="errorMessage" type="error" show-icon :closable="false" class="rounded-xl" />
 
-    <template v-else>
-      <div class="admin-audit-view__content">
-        <AdminAuditLogList :logs="logs" />
-      </div>
-    </template>
+    <AdminAuditLogList v-else :logs="logs" />
   </div>
 </template>
-
-<style scoped lang="scss">
-.admin-audit-view {
-  padding-block: 1.5rem;
-
-  > * + * {
-    margin-top: 1.5rem;
-  }
-
-  .admin-audit-view__metrics {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-
-    @media (min-width: 768px) {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-
-  .admin-audit-view__content {
-    > * + * {
-      margin-top: 1.5rem;
-    }
-  }
-}
-</style>
