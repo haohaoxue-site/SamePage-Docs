@@ -7,6 +7,8 @@ export default async function setupAuth(router: Router) {
   const authStore = useAuthStore()
   const userStore = useUserStore()
 
+  authStore.installRouter(router)
+
   if (!authStore.accessToken) {
     authStore.clearSession()
     resetAdminRoutes(router)

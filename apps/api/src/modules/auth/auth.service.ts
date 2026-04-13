@@ -12,7 +12,7 @@ import type {
 import { Buffer } from 'node:buffer'
 import { createHash, createSecretKey, randomBytes, randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
-import { AUTH_METHOD, AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
+import { AUTH_ERROR_CODE, AUTH_METHOD, AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
 import { formatAuthMethod } from '@haohaoxue/samepage-shared'
 import {
   BadRequestException,
@@ -32,6 +32,7 @@ import { resolveAuthMethod, resolveAuthMethods } from '../../utils/auth-methods'
 import { hashPassword, verifyPassword } from '../../utils/password'
 import { RbacService } from '../rbac/rbac.service'
 import { REFRESH_TOKEN_COOKIE_NAME } from './auth.constants'
+import { authUnauthorized } from './auth.errors'
 import { OAuthProviderService } from './providers/oauth-provider.service'
 import { SystemAuthService } from './system-auth.service'
 
@@ -386,7 +387,7 @@ export class AuthService {
     const refreshToken = this.extractRefreshTokenFromCookie(request)
 
     if (!refreshToken) {
-      throw new UnauthorizedException('Refresh token not found')
+      throw authUnauthorized(AUTH_ERROR_CODE.REFRESH_TOKEN_MISSING, '刷新凭证不存在')
     }
 
     const refreshTokenHash = this.hash(refreshToken)
@@ -399,7 +400,7 @@ export class AuthService {
     })
 
     if (!tokenRecord || tokenRecord.revokedAt || tokenRecord.expiresAt.getTime() <= Date.now()) {
-      throw new UnauthorizedException('Refresh token invalid')
+      throw authUnauthorized(AUTH_ERROR_CODE.REFRESH_TOKEN_INVALID, '登录状态已失效')
     }
 
     const rotatedSession = await this.rotateRefreshSession(tokenRecord, request)
@@ -800,7 +801,7 @@ export class AuthService {
     })
 
     if (!user || user.status !== UserStatus.ACTIVE) {
-      throw new UnauthorizedException('User is inactive')
+      throw authUnauthorized(AUTH_ERROR_CODE.SESSION_USER_INACTIVE, '当前账号不可用')
     }
 
     const roleAndPermissions = await this.rbacService.getUserRoleAndPermissions(userId)
@@ -839,7 +840,7 @@ export class AuthService {
     })
 
     if (!user) {
-      throw new UnauthorizedException('User not found')
+      throw authUnauthorized(AUTH_ERROR_CODE.SESSION_USER_INACTIVE, '当前账号不可用')
     }
 
     return {

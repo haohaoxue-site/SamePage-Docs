@@ -7,6 +7,9 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpException,
+  HttpStatus,
   Param,
   Post,
   Req,
@@ -139,18 +142,28 @@ export class AuthController {
   @ApiOperation({ summary: '刷新访问令牌' })
   @ApiRequestResponse(TokenExchangeResponseDto)
   @Public()
+  @HttpCode(HttpStatus.OK)
   @Post('refresh')
   async refresh(
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) response: FastifyReply,
   ): Promise<TokenExchangeResponseDto> {
-    const result = await this.authService.refreshTokens(request)
-    return this.applyTokenExchange(response, result)
+    try {
+      const result = await this.authService.refreshTokens(request)
+      return this.applyTokenExchange(response, result)
+    }
+    catch (error) {
+      if (error instanceof HttpException && error.getStatus() === HttpStatus.UNAUTHORIZED) {
+        response.header('set-cookie', this.authService.buildLogoutCookieHeader())
+      }
+      throw error
+    }
   }
 
   @ApiOperation({ summary: '登出并撤销当前会话' })
   @ApiRequestResponse(LogoutResponseDto)
   @Public()
+  @HttpCode(HttpStatus.OK)
   @Post('logout')
   async logout(
     @Req() request: FastifyRequest,

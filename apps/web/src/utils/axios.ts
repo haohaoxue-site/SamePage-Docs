@@ -1,17 +1,13 @@
 import type { RequestResponse } from '@haohaoxue/samepage-domain'
-import type { TokenExchangeResponseDto } from '@/apis/auth/typing'
-import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
+import { AUTH_ERROR_CODE, SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import rawAxios, { AxiosHeaders } from 'axios'
 import { useAuthStore } from '@/stores/auth'
-import { useUserStore } from '@/stores/user'
 import { createRequestErrorFromResponseEnvelope, toRequestError } from '@/utils/request-error'
 
 const http = rawAxios.create({
   baseURL: SERVER_PATH,
   timeout: 6000 * 60,
 })
-
-let refreshPromise: Promise<TokenExchangeResponseDto | null> | null = null
 
 http.interceptors.request.use((config) => {
   if (config.withCookieAuth) {
@@ -46,17 +42,22 @@ http.interceptors.response.use(
     const data = error.response?.data
     const status = error.response?.status
     const originalRequest = error.config
+    let attemptedRefresh = false
 
     if (
       status === 401
       && originalRequest
       && !originalRequest._retry
-      && !originalRequest.withCookieAuth
+      && !isRefreshRequest(originalRequest.url)
       && useAuthStore().accessToken
+      && data?.code === AUTH_ERROR_CODE.ACCESS_TOKEN_EXPIRED
     ) {
+      attemptedRefresh = true
       originalRequest._retry = true
 
-      const refreshedSession = await refreshAccessTokenOnce()
+      const refreshedSession = await useAuthStore().refreshSessionSilently({
+        redirectToLogin: true,
+      })
 
       if (refreshedSession?.accessToken) {
         const headers = AxiosHeaders.from(originalRequest.headers)
@@ -66,8 +67,14 @@ http.interceptors.response.use(
       }
     }
 
-    if (status === 401) {
-      useAuthStore().clearSession()
+    if (
+      status === 401
+      && !attemptedRefresh
+      && useAuthStore().isAuthenticated
+      && !isRefreshRequest(originalRequest?.url)
+    ) {
+      await useAuthStore().handleSessionExpired()
+      await useAuthStore().navigateToLogin()
     }
 
     if (data != null) {
@@ -86,46 +93,10 @@ http.interceptors.response.use(
 
 export { http as axios }
 
-async function refreshAccessTokenOnce() {
-  if (refreshPromise) {
-    return refreshPromise
+function isRefreshRequest(url?: string) {
+  if (!url) {
+    return false
   }
 
-  refreshPromise = rawAxios
-    .create({
-      baseURL: SERVER_PATH,
-      timeout: 6000 * 60,
-      withCredentials: true,
-    })
-    .request<RequestResponse<TokenExchangeResponseDto>>({
-      method: 'post',
-      url: '/auth/refresh',
-    })
-    .then((response) => {
-      const responseData = response.data
-
-      if (
-        !responseData
-        || (responseData.code !== 200 && responseData.code !== 201)
-        || !responseData.data?.accessToken
-        || !responseData.data.user
-      ) {
-        useAuthStore().clearSession()
-        return null
-      }
-
-      const authStore = useAuthStore()
-      authStore.accessToken = responseData.data.accessToken
-      useUserStore().setCurrentUser(responseData.data.user)
-      return responseData.data
-    })
-    .catch(() => {
-      useAuthStore().clearSession()
-      return null
-    })
-    .finally(() => {
-      refreshPromise = null
-    })
-
-  return refreshPromise
+  return url.endsWith('/auth/refresh')
 }

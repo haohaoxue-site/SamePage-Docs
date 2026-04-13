@@ -3,13 +3,15 @@ import type { JwtConfig } from '../config/auth.config'
 import type { AccessTokenPayload, AuthUserContext } from '../modules/auth/auth.interface'
 import { Buffer } from 'node:buffer'
 import { createSecretKey } from 'node:crypto'
-import { Injectable, UnauthorizedException } from '@nestjs/common'
+import { AUTH_ERROR_CODE } from '@haohaoxue/samepage-contracts'
+import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Reflector } from '@nestjs/core'
 import { UserStatus } from '@prisma/client'
 import { jwtVerify } from 'jose'
 import { PrismaService } from '../database/prisma.service'
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator'
+import { authUnauthorized } from '../modules/auth/auth.errors'
 import { RbacService } from '../modules/rbac/rbac.service'
 
 @Injectable()
@@ -45,19 +47,19 @@ export class AccessTokenGuard implements CanActivate {
     const authorizationHeader = request.headers.authorization
 
     if (!authorizationHeader?.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Missing access token')
+      throw authUnauthorized(AUTH_ERROR_CODE.ACCESS_TOKEN_MISSING, '缺少访问凭证')
     }
 
     const accessToken = authorizationHeader.slice('Bearer '.length).trim()
 
     if (!accessToken) {
-      throw new UnauthorizedException('Invalid access token')
+      throw authUnauthorized(AUTH_ERROR_CODE.ACCESS_TOKEN_INVALID, '访问凭证无效')
     }
 
     const payload = await this.verifyToken(accessToken)
 
     if (payload.tokenType !== 'access' || !payload.sub) {
-      throw new UnauthorizedException('Invalid access token payload')
+      throw authUnauthorized(AUTH_ERROR_CODE.ACCESS_TOKEN_INVALID, '访问凭证无效')
     }
 
     const user = await this.prisma.user.findUnique({
@@ -69,7 +71,7 @@ export class AccessTokenGuard implements CanActivate {
     })
 
     if (!user || user.status !== UserStatus.ACTIVE) {
-      throw new UnauthorizedException('User is inactive')
+      throw authUnauthorized(AUTH_ERROR_CODE.SESSION_USER_INACTIVE, '当前账号不可用')
     }
 
     await this.rbacService.syncBootstrapRolesForUser(user.id)
@@ -96,8 +98,12 @@ export class AccessTokenGuard implements CanActivate {
       )
       return payload
     }
-    catch {
-      throw new UnauthorizedException('Access token verification failed')
+    catch (error) {
+      if (error instanceof Error && error.name === 'JWTExpired') {
+        throw authUnauthorized(AUTH_ERROR_CODE.ACCESS_TOKEN_EXPIRED, '登录状态已过期')
+      }
+
+      throw authUnauthorized(AUTH_ERROR_CODE.ACCESS_TOKEN_INVALID, '访问凭证校验失败')
     }
   }
 }
