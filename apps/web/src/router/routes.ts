@@ -1,35 +1,30 @@
 import type { RouteRecordRaw } from 'vue-router'
-import type { WorkspaceNavigationItem, WorkspaceNavigationMeta } from './typing'
+import type { AdminRouteName, WorkspaceNavigationItem, WorkspaceNavigationMeta } from './typing'
 import { AUTH_CALLBACK_PATH } from '@haohaoxue/samepage-contracts'
 import { SvgIconCategory } from '@/components/svg-icon/typing'
-import AdminShellContainer from '@/layouts/containers/admin-shell.vue'
-import WorkspaceContainer from '@/layouts/containers/workspace.vue'
-import AuthCallbackView from '@/views/auth/callback/index.vue'
-import ChangePasswordView from '@/views/auth/change-password/index.vue'
-import LoginView from '@/views/auth/login/index.vue'
-import PasswordRegisterVerifyView from '@/views/auth/register-verify/index.vue'
-import PasswordRegisterRequestView from '@/views/auth/register/index.vue'
-import ChatView from '@/views/chat/index.vue'
-import DocsView from '@/views/docs/index.vue'
-import HomeView from '@/views/home/index.vue'
-import KnowledgeView from '@/views/knowledge/index.vue'
-import AdminAiConfigView from '@/views/system-admin/ai-config/index.vue'
-import AdminAuditView from '@/views/system-admin/audit/index.vue'
-import AdminEmailView from '@/views/system-admin/email/index.vue'
-import AdminGovernanceView from '@/views/system-admin/governance/index.vue'
-import AdminOverviewView from '@/views/system-admin/overview/index.vue'
-import AdminUsersView from '@/views/system-admin/users/index.vue'
-import UserSettingsView from '@/views/user/index.vue'
 import { adminNavigationItems } from './navigation'
 
+const AdminShellContainer = () => import('@/layouts/containers/admin-shell.vue')
+const WorkspaceContainer = () => import('@/layouts/containers/workspace.vue')
+const AuthCallbackView = () => import('@/views/auth/callback/index.vue')
+const ChangePasswordView = () => import('@/views/auth/change-password/index.vue')
+const LoginView = () => import('@/views/auth/login/index.vue')
+const PasswordRegisterVerifyView = () => import('@/views/auth/register-verify/index.vue')
+const PasswordRegisterRequestView = () => import('@/views/auth/register/index.vue')
+const ChatView = () => import('@/views/chat/index.vue')
+const DocsView = () => import('@/views/docs/index.vue')
+const HomeView = () => import('@/views/home/index.vue')
+const KnowledgeView = () => import('@/views/knowledge/index.vue')
+const UserSettingsView = () => import('@/views/user/index.vue')
+
 const adminRouteComponents = {
-  'admin-overview': AdminOverviewView,
-  'admin-users': AdminUsersView,
-  'admin-email': AdminEmailView,
-  'admin-governance': AdminGovernanceView,
-  'admin-ai-config': AdminAiConfigView,
-  'admin-audit': AdminAuditView,
-} as const
+  'admin-overview': () => import('@/views/system-admin/overview/index.vue'),
+  'admin-users': () => import('@/views/system-admin/users/index.vue'),
+  'admin-email': () => import('@/views/system-admin/email/index.vue'),
+  'admin-governance': () => import('@/views/system-admin/governance/index.vue'),
+  'admin-ai-config': () => import('@/views/system-admin/ai-config/index.vue'),
+  'admin-audit': () => import('@/views/system-admin/audit/index.vue'),
+} satisfies Record<AdminRouteName, RouteRecordRaw['component']>
 
 export const publicRoutes: RouteRecordRaw[] = [
   {

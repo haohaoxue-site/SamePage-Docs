@@ -14,6 +14,20 @@ const elementPlusResolver = ElementPlusResolver({
   importStyle: false,
 })
 
+function createManualChunk(id: string) {
+  if (id.includes('/element-plus/') || id.includes('/@element-plus/')) {
+    return 'element-plus'
+  }
+
+  if (id.includes('/vue-router/') || id.includes('/pinia/') || id.includes('/vue/')) {
+    return 'vue-core'
+  }
+
+  if (id.includes('/@vueuse/')) {
+    return 'vueuse'
+  }
+}
+
 export default defineConfig(({ mode }) => {
   loadEnv(mode, process.cwd(), '')
 
@@ -44,6 +58,14 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           xfwd: true,
           ws: true,
+        },
+      },
+    },
+    build: {
+      target: 'esnext',
+      rolldownOptions: {
+        output: {
+          manualChunks: createManualChunk,
         },
       },
     },

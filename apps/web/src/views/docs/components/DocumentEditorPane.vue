@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { DocumentEditorPaneEmits, DocumentEditorPaneProps } from '../typing'
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { SvgIconCategory } from '@/components/svg-icon/typing'
-import { TiptapEditor } from '@/components/tiptap-editor'
 
 type EmptyActionEvent = 'createDocument' | 'openFallbackDocument' | 'retryLoad'
 
@@ -24,6 +23,7 @@ interface EmptyState {
 const props = defineProps<DocumentEditorPaneProps>()
 
 const emits = defineEmits<DocumentEditorPaneEmits>()
+const TiptapEditor = defineAsyncComponent(() => import('@/components/tiptap-editor/TiptapEditor.vue'))
 
 const emptyState = computed<EmptyState>(() => {
   if (props.paneState === 'loading') {
