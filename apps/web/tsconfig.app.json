@@ -6,7 +6,7 @@
       "@/*": ["./src/*"]
     },
 
-    "types": ["vite/client", "vitest/globals"],
+    "types": ["vite/client"],
     /* Linting */
     "strict": true,
     "noFallthroughCasesInSwitch": true,
@@ -19,7 +19,6 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.vue",
-    "__tests__/**/*.ts",
     "auto-imports.d.ts",
     "components.d.ts"
   ]

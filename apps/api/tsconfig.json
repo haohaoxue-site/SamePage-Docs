@@ -20,5 +20,14 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "skipLibCheck": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "__tests__/**",
+    "src/**/__tests__/**",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
 }

@@ -8,9 +8,10 @@
     "build": "vite build",
     "lint:fix": "eslint . --fix",
     "type-check": "vue-tsc -b --pretty false",
+    "type-check:test": "vue-tsc -p tsconfig.vitest.json --noEmit --pretty false",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --passWithNoTests"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

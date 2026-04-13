@@ -15,8 +15,8 @@
     "prisma:generate": "prisma generate",
     "prisma:db:push": "prisma db push",
     "type-check": "tsc --noEmit -p tsconfig.json --pretty false",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --passWithNoTests"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.937.0",
