@@ -1,5 +1,6 @@
 import type {
   CreateDocumentRequest,
+  CreateDocumentResponse,
   DocumentBase,
   DocumentCollectionId,
   DocumentDetail,
@@ -7,10 +8,17 @@ import type {
   DocumentRecent,
   DocumentSpaceScope,
   DocumentTreeGroup,
+  TiptapJsonContent,
   UpdateDocumentRequest,
 } from '@haohaoxue/samepage-domain'
-import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
-import { resolveOwnedDocumentCollectionId } from '@haohaoxue/samepage-shared'
+import { DOCUMENT_COLLECTION, TIPTAP_SCHEMA_VERSION } from '@haohaoxue/samepage-contracts'
+import {
+  deserializeDocumentContent,
+  hasDocumentContent,
+  resolveOwnedDocumentCollectionId,
+  serializeDocumentContent,
+  summarizeDocumentContent,
+} from '@haohaoxue/samepage-shared'
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import {
   DocumentMemberRole,
@@ -18,7 +26,6 @@ import {
   Prisma,
 } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
-import { stripHtmlTags, summarizeHtml } from '../../utils/html'
 
 const RECENT_DOCUMENT_LIMIT = 8
 
@@ -59,9 +66,9 @@ interface TreeContext {
 export class DocumentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createDocument(userId: string, payload: CreateDocumentRequest): Promise<DocumentDetail> {
+  async createDocument(userId: string, payload: CreateDocumentRequest): Promise<CreateDocumentResponse> {
     const normalizedParentId = payload.parentId ?? null
-    const normalizedContent = payload.content ?? ''
+    const normalizedContent = payload.content ?? []
     let scope: DocumentSpaceScope = 'PERSONAL'
 
     if (normalizedParentId) {
@@ -95,18 +102,18 @@ export class DocumentsService {
         parentId: normalizedParentId,
         spaceScope: scope,
         title: payload.title,
-        content: normalizedContent,
-        summary: summarizeHtml(normalizedContent),
+        content: serializeDocumentContent(normalizedContent),
+        summary: summarizeDocumentContent(normalizedContent),
         order: (lastSibling?.order ?? -1) + 1,
       },
-      select: documentSelect,
+      select: {
+        id: true,
+      },
     })
 
-    return toDocumentDetail(
-      document,
-      resolveOwnedDocumentCollectionId(scope),
-      false,
-    )
+    return {
+      id: document.id,
+    }
   }
 
   async getDocumentTree(userId: string): Promise<DocumentTreeGroup[]> {
@@ -145,7 +152,7 @@ export class DocumentsService {
     return Array.from(visibleDocumentIds)
       .map(id => context.documentsById.get(id))
       .filter((document): document is PersistedDocument => Boolean(document))
-      .filter(document => hasDocumentContent(document.content))
+      .filter(document => hasDocumentContent(readDocumentContent(document)))
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
       .slice(0, RECENT_DOCUMENT_LIMIT)
       .map(document => toDocumentRecent(document, context, userId))
@@ -178,8 +185,8 @@ export class DocumentsService {
       where: { id },
       data: {
         title: payload.title,
-        content: payload.content,
-        summary: summarizeHtml(payload.content),
+        content: serializeDocumentContent(payload.content),
+        summary: summarizeDocumentContent(payload.content),
       },
       select: documentSelect,
     }).catch((error) => {
@@ -315,7 +322,7 @@ export class DocumentsService {
       ...toDocumentBase(document),
       parentId: document.parentId,
       hasChildren: nextChildren.length > 0,
-      hasContent: hasDocumentContent(document.content),
+      hasContent: hasDocumentContent(readDocumentContent(document)),
       children: nextChildren,
     }
   }
@@ -496,17 +503,20 @@ function toDocumentDetail(
   collection: DocumentCollectionId,
   hasChildren: boolean,
 ): DocumentDetail {
+  const content = readDocumentContent(document)
+
   return {
     ...toDocumentBase(document),
     parentId: document.parentId,
-    content: document.content,
+    schemaVersion: TIPTAP_SCHEMA_VERSION,
+    content,
     hasChildren,
-    hasContent: hasDocumentContent(document.content),
+    hasContent: hasDocumentContent(content),
     scope: document.spaceScope,
     collection,
   }
 }
 
-function hasDocumentContent(content: string) {
-  return stripHtmlTags(content).trim().length > 0
+function readDocumentContent(document: Pick<PersistedDocument, 'content'>): TiptapJsonContent {
+  return deserializeDocumentContent(document.content)
 }

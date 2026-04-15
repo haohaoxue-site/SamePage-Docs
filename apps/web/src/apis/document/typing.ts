@@ -1,5 +1,6 @@
 import type {
   CreateDocumentRequest,
+  CreateDocumentResponse,
   DocumentDetail,
   DocumentRecent,
   DocumentTreeGroup,
@@ -29,7 +30,7 @@ export type CreateDocumentDto = CreateDocumentRequest
 /**
  * Web 端创建文档响应 DTO。
  */
-export type CreateDocumentResponseDto = DocumentDetail
+export type CreateDocumentResponseDto = CreateDocumentResponse
 
 /**
  * Web 端更新文档请求 DTO。

@@ -1,62 +1,26 @@
 <script setup lang="ts">
-import type { TiptapEditorEmits, TiptapEditorProps } from './typing'
-import Color from '@tiptap/extension-color'
-import Highlight from '@tiptap/extension-highlight'
-import Image from '@tiptap/extension-image'
-import Placeholder from '@tiptap/extension-placeholder'
-import { Table } from '@tiptap/extension-table'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
-import TableRow from '@tiptap/extension-table-row'
-import TaskItem from '@tiptap/extension-task-item'
-import TaskList from '@tiptap/extension-task-list'
-import { TextStyle } from '@tiptap/extension-text-style'
-import StarterKit from '@tiptap/starter-kit'
+import type { TiptapEditorContent, TiptapEditorEmits, TiptapEditorProps } from './typing'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { onBeforeUnmount, watch } from 'vue'
 import BubbleToolbar from './bubble-menu/BubbleToolbar.vue'
-import { ResetMarksOnPlainEnter } from './extensions/ResetMarksOnPlainEnter'
+import { unwrapTiptapContent, wrapTiptapContent } from './utils'
 
-const props = defineProps<TiptapEditorProps>()
+const props = withDefaults(defineProps<TiptapEditorProps>(), {
+  showBubbleToolbar: false,
+})
 const emits = defineEmits<TiptapEditorEmits>()
 
 const editor = useEditor({
-  content: props.content,
-  extensions: [
-    StarterKit.configure({
-      heading: {
-        levels: [1, 2, 3],
-      },
-      link: {
-        openOnClick: false,
-      },
-    }),
-    Placeholder.configure({
-      placeholder: '输入 / 唤起命令，或者直接开始写作。',
-    }),
-    TextStyle,
-    Color,
-    Highlight.configure({ multicolor: true }),
-    TaskList,
-    TaskItem.configure({
-      nested: true,
-    }),
-    Table.configure({
-      resizable: true,
-    }),
-    TableRow,
-    TableHeader,
-    TableCell,
-    Image.configure({
-      inline: true,
-    }),
-    ResetMarksOnPlainEnter,
-  ],
+  content: wrapTiptapContent(props.content),
+  extensions: props.extensions,
+  enableContentCheck: true,
   editorProps: {
     attributes: {
-      class: 'editor-surface__content',
+      class: 'tiptap-editor__prosemirror',
     },
+    handleKeyDown: props.handleKeyDown,
   },
+  onContentError: handleContentError,
   onUpdate: emitUpdatedContent,
 })
 
@@ -65,21 +29,31 @@ function emitUpdatedContent() {
     return
   }
 
-  emits('update:content', editor.value.getHTML())
+  emits('update:content', unwrapTiptapContent(editor.value.getJSON()))
 }
 
-function syncEditorContent(content: string) {
+function handleContentError(options: { error: Error }) {
+  emits('contentError', options.error)
+}
+
+function isSameContent(content: TiptapEditorContent) {
+  if (!editor.value) {
+    return false
+  }
+
+  return JSON.stringify(unwrapTiptapContent(editor.value.getJSON())) === JSON.stringify(content)
+}
+
+function syncEditorContent(content: TiptapEditorContent) {
   if (!editor.value) {
     return
   }
 
-  const currentContent = editor.value.getHTML()
-
-  if (currentContent === content) {
+  if (isSameContent(content)) {
     return
   }
 
-  editor.value.commands.setContent(content, {
+  editor.value.commands.setContent(wrapTiptapContent(content), {
     emitUpdate: false,
   })
 }
@@ -102,7 +76,7 @@ defineExpose({
 
 <template>
   <section class="tiptap-editor">
-    <BubbleToolbar v-if="editor" :editor="editor" />
+    <BubbleToolbar v-if="editor && props.showBubbleToolbar" :editor="editor" />
     <EditorContent v-if="editor" :editor="editor" class="tiptap-editor__content" />
   </section>
 </template>

@@ -149,9 +149,8 @@ components.d.ts
 .agents
 .claude
 .codex
-.playwright-cli
+.playwright
 AGENTS.md
 CLAUDE.md
 skills-lock.json
 todos/
-docs/

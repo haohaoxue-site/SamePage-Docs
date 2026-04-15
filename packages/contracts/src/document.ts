@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { TiptapJsonContentPayloadSchema, TiptapSchemaVersionSchema } from './tiptap'
 
 export const DOCUMENT_COLLECTION = {
   PERSONAL: 'personal',
@@ -23,6 +24,16 @@ export const DOCUMENT_SAVE_STATE = {
   DIRTY: 'dirty',
   SAVING: 'saving',
   SAVED: 'saved',
+  ERROR: 'error',
+} as const
+
+export const DOCUMENT_PANE_STATE = {
+  READY: 'ready',
+  LOADING: 'loading',
+  EMPTY: 'empty',
+  UNSELECTED: 'unselected',
+  NOT_FOUND: 'not-found',
+  FORBIDDEN: 'forbidden',
   ERROR: 'error',
 } as const
 
@@ -61,11 +72,13 @@ export const DocumentRecentSchema = z.object({
   updatedBy: z.string().nullable(),
 })
 
-export const DocumentItemSchema: z.ZodType<DocumentItemRaw> = DocumentBaseSchema.extend({
+export const DocumentItemSchema = DocumentBaseSchema.extend({
   parentId: z.string().nullable(),
   hasChildren: z.boolean(),
   hasContent: z.boolean(),
-  children: z.lazy(() => DocumentItemSchema.array()),
+  get children() {
+    return z.array(DocumentItemSchema)
+  },
 })
 
 export const DocumentTreeGroupSchema = z.object({
@@ -75,7 +88,8 @@ export const DocumentTreeGroupSchema = z.object({
 
 export const DocumentDetailSchema = DocumentBaseSchema.extend({
   parentId: z.string().nullable(),
-  content: z.string(),
+  schemaVersion: TiptapSchemaVersionSchema,
+  content: TiptapJsonContentPayloadSchema,
   hasChildren: z.boolean(),
   hasContent: z.boolean(),
   scope: DocumentSpaceScopeSchema,
@@ -84,21 +98,13 @@ export const DocumentDetailSchema = DocumentBaseSchema.extend({
 
 export const CreateDocumentSchema = z.object({
   title: z.string().trim().min(1),
-  content: z.string().optional(),
+  schemaVersion: TiptapSchemaVersionSchema,
+  content: TiptapJsonContentPayloadSchema.optional(),
   parentId: z.string().trim().nullable().optional(),
 })
 
 export const UpdateDocumentSchema = z.object({
   title: z.string().trim().min(1),
-  content: z.string(),
+  schemaVersion: TiptapSchemaVersionSchema,
+  content: TiptapJsonContentPayloadSchema,
 })
-
-/**
- * 文档树原始节点结构。
- */
-interface DocumentItemRaw extends z.infer<typeof DocumentBaseSchema> {
-  parentId: string | null
-  hasChildren: boolean
-  hasContent: boolean
-  children: DocumentItemRaw[]
-}

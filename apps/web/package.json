@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
     "lint:fix": "eslint . --fix",
     "type-check": "vue-tsc -b --pretty false",
@@ -38,6 +38,7 @@
     "axios": "^1.15.0",
     "dayjs": "^1.11.20",
     "element-plus": "^2.13.7",
+    "nanoid": "^5.1.7",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "sass-embedded": "^1.99.0",

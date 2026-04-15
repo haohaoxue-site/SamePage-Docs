@@ -61,7 +61,7 @@ export class SystemAuthService implements OnModuleInit {
 
     if (localCredential.createdPassword) {
       this.logger.log(`System admin initialized: ${systemAdminEmail}`)
-      this.logger.log(`System admin temporary password: ${localCredential.plainPassword}`)
+      this.logger.warn(`System admin temporary password: ${localCredential.plainPassword}`)
     }
 
     if (existingSystemAdminUserId && existingSystemAdminUserId !== user.id) {

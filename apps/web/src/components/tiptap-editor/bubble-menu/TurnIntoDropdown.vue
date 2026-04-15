@@ -1,80 +1,83 @@
 <script setup lang="ts">
+import type { TurnIntoBlockType } from '@haohaoxue/samepage-domain'
 import type { TurnIntoDropdownProps } from '../typing'
-import { computed, ref } from 'vue'
+import { computed, shallowRef } from 'vue'
+import { isTurnIntoBlockActive } from '../extensions/BlockCommands'
 
 const props = defineProps<TurnIntoDropdownProps>()
 
-const visible = ref(false)
+const visible = shallowRef(false)
 
+/** 菜单项 */
 interface TurnIntoItem {
   label: string
   icon: string
-  isActive: () => boolean
-  command: () => void
+  target: TurnIntoBlockType
+  isActive: boolean
 }
 
-const items = computed<TurnIntoItem[]>(() => {
-  const e = props.editor
-  return [
-    {
-      label: '正文',
-      icon: 'T',
-      isActive: () => e.isActive('paragraph') && !e.isActive('bulletList') && !e.isActive('orderedList') && !e.isActive('codeBlock') && !e.isActive('blockquote'),
-      command: () => e.chain().focus().setParagraph().run(),
-    },
-    {
-      label: '标题 1',
-      icon: 'H1',
-      isActive: () => e.isActive('heading', { level: 1 }),
-      command: () => e.chain().focus().toggleHeading({ level: 1 }).run(),
-    },
-    {
-      label: '标题 2',
-      icon: 'H2',
-      isActive: () => e.isActive('heading', { level: 2 }),
-      command: () => e.chain().focus().toggleHeading({ level: 2 }).run(),
-    },
-    {
-      label: '标题 3',
-      icon: 'H3',
-      isActive: () => e.isActive('heading', { level: 3 }),
-      command: () => e.chain().focus().toggleHeading({ level: 3 }).run(),
-    },
-    {
-      label: '无序列表',
-      icon: 'list-ul',
-      isActive: () => e.isActive('bulletList'),
-      command: () => e.chain().focus().toggleBulletList().run(),
-    },
-    {
-      label: '有序列表',
-      icon: 'list-ol',
-      isActive: () => e.isActive('orderedList'),
-      command: () => e.chain().focus().toggleOrderedList().run(),
-    },
-    {
-      label: '代码块',
-      icon: 'code',
-      isActive: () => e.isActive('codeBlock'),
-      command: () => e.chain().focus().toggleCodeBlock().run(),
-    },
-    {
-      label: '引用',
-      icon: 'quote',
-      isActive: () => e.isActive('blockquote'),
-      command: () => e.chain().focus().toggleBlockquote().run(),
-    },
-    {
-      label: '任务列表',
-      icon: 'task',
-      isActive: () => e.isActive('taskList'),
-      command: () => e.chain().focus().toggleTaskList().run(),
-    },
-  ]
-})
+const turnIntoItems = [
+  {
+    label: '正文',
+    icon: 'T',
+    target: 'paragraph',
+  },
+  {
+    label: '标题 1',
+    icon: 'H1',
+    target: 'heading-1',
+  },
+  {
+    label: '标题 2',
+    icon: 'H2',
+    target: 'heading-2',
+  },
+  {
+    label: '标题 3',
+    icon: 'H3',
+    target: 'heading-3',
+  },
+  {
+    label: '无序列表',
+    icon: 'list-ul',
+    target: 'bulletList',
+  },
+  {
+    label: '有序列表',
+    icon: 'list-ol',
+    target: 'orderedList',
+  },
+  {
+    label: '代码块',
+    icon: 'code',
+    target: 'codeBlock',
+  },
+  {
+    label: '引用',
+    icon: 'quote',
+    target: 'blockquote',
+  },
+  {
+    label: '分割线',
+    icon: 'divider',
+    target: 'divider',
+  },
+  {
+    label: '任务列表',
+    icon: 'task',
+    target: 'taskList',
+  },
+] satisfies Array<Pick<TurnIntoItem, 'label' | 'icon' | 'target'>>
+
+const items = computed<TurnIntoItem[]>(() =>
+  turnIntoItems.map(item => ({
+    ...item,
+    isActive: isTurnIntoBlockActive(props.editor, item.target),
+  })),
+)
 
 function handleSelect(item: TurnIntoItem) {
-  item.command()
+  props.editor.chain().focus().turnIntoBlock(item.target).run()
   visible.value = false
 }
 </script>
@@ -100,7 +103,7 @@ function handleSelect(item: TurnIntoItem) {
         v-for="item in items"
         :key="item.label"
         class="turn-into-menu__item"
-        :class="{ 'is-active': item.isActive() }"
+        :class="{ 'is-active': item.isActive }"
         @mousedown.prevent
         @click="handleSelect(item)"
       >
@@ -117,6 +120,9 @@ function handleSelect(item: TurnIntoItem) {
           <template v-else-if="item.icon === 'quote'">
             <SvgIcon category="ui" icon="quotes" />
           </template>
+          <template v-else-if="item.icon === 'divider'">
+            <span class="turn-into-menu__divider-icon" />
+          </template>
           <template v-else-if="item.icon === 'task'">
             <SvgIcon category="ui" icon="task" />
           </template>
@@ -125,7 +131,7 @@ function handleSelect(item: TurnIntoItem) {
           </template>
         </span>
         <span class="turn-into-menu__label">{{ item.label }}</span>
-        <SvgIcon v-if="item.isActive()" category="ui" icon="check" size="0.875rem" class="turn-into-menu__check" />
+        <SvgIcon v-if="item.isActive" category="ui" icon="check" size="0.875rem" class="turn-into-menu__check" />
       </div>
     </div>
   </ElPopover>
@@ -159,6 +165,14 @@ function handleSelect(item: TurnIntoItem) {
     height: 24px;
     flex-shrink: 0;
     font-size: 16px;
+  }
+
+  &__divider-icon {
+    display: block;
+    width: 14px;
+    height: 1.5px;
+    border-radius: 999px;
+    background-color: currentColor;
   }
 
   &__label {

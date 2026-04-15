@@ -2,16 +2,25 @@ import type {
   DocumentCollectionId,
   DocumentDetail,
   DocumentItem,
+  DocumentPaneState,
+  DocumentTitleContent,
   DocumentTreeGroup,
+  TiptapJsonContent,
 } from '@haohaoxue/samepage-domain'
 
-export type DocumentPaneState = 'ready' | 'loading' | 'empty' | 'unselected' | 'not-found' | 'forbidden' | 'error'
+/**
+ * 文档页本地编辑态。
+ */
+export interface ActiveDocumentDetail extends Omit<DocumentDetail, 'title' | 'content'> {
+  title: DocumentTitleContent
+  body: TiptapJsonContent
+}
 
 /**
  * 文档编辑区域属性。
  */
 export interface DocumentEditorPaneProps {
-  document: DocumentDetail | null
+  document: ActiveDocumentDetail | null
   isLoading: boolean
   paneState: DocumentPaneState
   hasFallbackDocument: boolean
@@ -21,8 +30,43 @@ export interface DocumentEditorPaneProps {
  * 文档编辑区域事件。
  */
 export interface DocumentEditorPaneEmits {
-  updateTitle: [title: string]
-  updateContent: [content: string]
+  updateTitle: [title: DocumentTitleContent]
+  updateContent: [content: TiptapJsonContent]
+  createDocument: []
+  openFallbackDocument: []
+  retryLoad: []
+}
+
+/**
+ * 文档编辑区属性。
+ */
+export interface DocumentEditorProps {
+  document: ActiveDocumentDetail
+}
+
+/**
+ * 文档编辑区事件。
+ */
+export interface DocumentEditorEmits {
+  updateTitle: [title: DocumentTitleContent]
+  updateContent: [content: TiptapJsonContent]
+  contentError: [error: Error]
+}
+
+/**
+ * 文档编辑回退态属性。
+ */
+export interface DocumentEditorFallbackProps {
+  paneState: DocumentPaneState
+  isLoading: boolean
+  hasFallbackDocument: boolean
+  contentError: Error | null
+}
+
+/**
+ * 文档编辑回退态事件。
+ */
+export interface DocumentEditorFallbackEmits {
   createDocument: []
   openFallbackDocument: []
   retryLoad: []

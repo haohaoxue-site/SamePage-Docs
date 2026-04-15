@@ -1,4 +1,4 @@
-.editor-surface__content {
+.tiptap-editor__prosemirror {
   box-sizing: border-box;
   min-height: max(100%, 500px);
   background: transparent;
@@ -227,7 +227,7 @@
 }
 
 html.dark {
-  .editor-surface__content {
+  .tiptap-editor__prosemirror {
     background: transparent;
     border: none;
     box-shadow: none;

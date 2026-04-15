@@ -1,5 +1,7 @@
+import type { TurnIntoBlockType } from '@haohaoxue/samepage-domain'
 import type { WorkspaceNavigationMeta } from '@/router/typing'
 import 'axios'
+import '@tiptap/core'
 import 'vue-router'
 
 declare module 'axios' {
@@ -21,5 +23,20 @@ declare module 'vue-router' {
     allowWhenPasswordChangeRequired?: boolean
     /** 工作区侧栏导航元数据 */
     workspaceNav?: WorkspaceNavigationMeta
+  }
+}
+
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    samepageBlockCommands: {
+      turnIntoBlock: (target: TurnIntoBlockType) => ReturnType
+      indentBlock: () => ReturnType
+      outdentBlock: () => ReturnType
+      moveBlockUp: () => ReturnType
+      moveBlockDown: () => ReturnType
+      insertBlock: () => ReturnType
+      deleteBlock: () => ReturnType
+      duplicateBlock: () => ReturnType
+    }
   }
 }

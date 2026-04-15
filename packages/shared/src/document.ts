@@ -2,7 +2,10 @@ import type {
   DocumentCollectionId,
   DocumentSaveState,
   DocumentSpaceScope,
+  DocumentTitleContent,
   OwnedDocumentCollectionId,
+  TiptapJsonContent,
+  TiptapJsonNode,
 } from '@haohaoxue/samepage-domain'
 import {
   DOCUMENT_COLLECTION_LABELS,
@@ -25,6 +28,61 @@ export function formatDocumentCollectionLabel(collectionId: DocumentCollectionId
 
 export function formatDocumentLocation(collectionId: DocumentCollectionId, ancestorTitles: string[]): string {
   return [formatDocumentCollectionLabel(collectionId), ...ancestorTitles].join('/')
+}
+
+export function createDocumentTitleContent(title: string): DocumentTitleContent {
+  const normalizedTitle = normalizeDocumentTitleText(title)
+
+  if (!normalizedTitle) {
+    return []
+  }
+
+  return [
+    {
+      type: 'text',
+      text: normalizedTitle,
+    },
+  ]
+}
+
+export function getDocumentTitlePlainText(content: DocumentTitleContent): string {
+  return normalizeDocumentTitleText(content.map(node => node.text).join(''))
+}
+
+export function serializeDocumentContent(content: TiptapJsonContent): string {
+  return JSON.stringify(content)
+}
+
+export function deserializeDocumentContent(content: string): TiptapJsonContent {
+  if (!content.trim()) {
+    return []
+  }
+
+  return JSON.parse(content) as TiptapJsonContent
+}
+
+export function getDocumentPlainText(content: TiptapJsonContent): string {
+  const textParts: string[] = []
+
+  for (const node of content) {
+    walkTiptapNode(node, textParts)
+  }
+
+  return textParts.join(' ').replace(/\s+/g, ' ').trim()
+}
+
+export function summarizeDocumentContent(
+  content: TiptapJsonContent,
+  maxLength = 120,
+  fallback = '暂无摘要',
+): string {
+  const plainText = getDocumentPlainText(content)
+
+  return plainText.slice(0, maxLength) || fallback
+}
+
+export function hasDocumentContent(content: TiptapJsonContent): boolean {
+  return getDocumentPlainText(content).length > 0
 }
 
 export function getDocumentSaveStateLabel(options: {
@@ -57,4 +115,34 @@ export function getDocumentSaveStateLabel(options: {
   }
 
   return `上次更新于 ${options.lastUpdatedFromNow}`
+}
+
+function walkTiptapNode(node: TiptapJsonNode | undefined, textParts: string[]) {
+  if (!node) {
+    return
+  }
+
+  if (typeof node.text === 'string' && node.text.trim()) {
+    textParts.push(node.text)
+  }
+
+  const childNodes = node.content
+
+  if (!Array.isArray(childNodes)) {
+    return
+  }
+
+  for (const child of childNodes) {
+    if (isTiptapJsonNode(child)) {
+      walkTiptapNode(child, textParts)
+    }
+  }
+}
+
+function isTiptapJsonNode(value: unknown): value is TiptapJsonNode {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function normalizeDocumentTitleText(title: string) {
+  return title.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim()
 }

@@ -1,13 +1,24 @@
-import type { CreateDocumentRequest, DocumentDetail, DocumentRecent, DocumentTreeGroup, UpdateDocumentRequest } from '@haohaoxue/samepage-domain'
+import type {
+  CreateDocumentRequest,
+  CreateDocumentResponse,
+  DocumentDetail,
+  DocumentRecent,
+  DocumentTreeGroup,
+  UpdateDocumentRequest,
+} from '@haohaoxue/samepage-domain'
 import type { AuthUserContext } from '../auth/auth.interface'
 import { CreateDocumentSchema, UpdateDocumentSchema } from '@haohaoxue/samepage-contracts'
-import { zodToApiSchema } from '@haohaoxue/samepage-shared'
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common'
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { CurrentUser } from '../../decorators/current-user.decorator'
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe'
 import { ApiRequestResponse } from '../../utils/swagger'
 import { DocumentsService } from './documents.service'
+import {
+  createDocumentRequestApiSchema,
+  createDocumentResponseApiSchema,
+  updateDocumentRequestApiSchema,
+} from './documents.swagger'
 
 @ApiTags('documents')
 @Controller('documents')
@@ -15,13 +26,13 @@ export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
   @ApiOperation({ summary: '创建文档' })
-  @ApiBody({ schema: zodToApiSchema(CreateDocumentSchema) })
-  @ApiRequestResponse({ type: 'object' })
+  @ApiBody({ schema: createDocumentRequestApiSchema })
+  @ApiRequestResponse(createDocumentResponseApiSchema)
   @Post()
   async createDocument(
     @CurrentUser() authUser: AuthUserContext,
     @Body(new ZodValidationPipe(CreateDocumentSchema)) payload: CreateDocumentRequest,
-  ): Promise<DocumentDetail> {
+  ): Promise<CreateDocumentResponse> {
     return this.documentsService.createDocument(authUser.id, payload)
   }
 
@@ -50,7 +61,7 @@ export class DocumentsController {
   }
 
   @ApiOperation({ summary: '更新文档' })
-  @ApiBody({ schema: zodToApiSchema(UpdateDocumentSchema) })
+  @ApiBody({ schema: updateDocumentRequestApiSchema })
   @ApiRequestResponse({ type: 'object' })
   @Patch(':id')
   async updateDocument(
