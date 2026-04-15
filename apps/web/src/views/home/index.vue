@@ -4,7 +4,7 @@ import HomeSchedulePanel from './components/HomeSchedulePanel.vue'
 import HomeWelcomePanel from './components/HomeWelcomePanel.vue'
 import HomeWidgetSettingsPopover from './components/HomeWidgetSettingsPopover.vue'
 import RecentDocumentList from './components/RecentDocumentList.vue'
-import { useHomeView } from './composables/useHomeView'
+import { useHome } from './composables/useHome'
 
 const {
   overview,
@@ -14,7 +14,7 @@ const {
   visibleWidgets,
   visibleWidgetSet,
   toggleWidget,
-} = useHomeView()
+} = useHome()
 </script>
 
 <template>

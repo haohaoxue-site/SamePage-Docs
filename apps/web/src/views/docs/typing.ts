@@ -1,18 +1,23 @@
 import type {
   DocumentCollectionId,
-  DocumentDetail,
   DocumentItem,
   DocumentPaneState,
-  DocumentTitleContent,
+  DocumentRecord,
+  DocumentRevision,
+  DocumentSnapshot,
   DocumentTreeGroup,
   TiptapJsonContent,
+  TiptapSchemaVersion,
 } from '@haohaoxue/samepage-domain'
 
 /**
  * 文档页本地编辑态。
  */
-export interface ActiveDocumentDetail extends Omit<DocumentDetail, 'title' | 'content'> {
-  title: DocumentTitleContent
+export interface ActiveDocumentDetail extends Omit<DocumentRecord, 'latestSnapshotId'> {
+  latestSnapshotId: string
+  headRevision: DocumentRevision
+  schemaVersion: TiptapSchemaVersion
+  title: TiptapJsonContent
   body: TiptapJsonContent
 }
 
@@ -30,7 +35,7 @@ export interface DocumentEditorPaneProps {
  * 文档编辑区域事件。
  */
 export interface DocumentEditorPaneEmits {
-  updateTitle: [title: DocumentTitleContent]
+  updateTitle: [title: TiptapJsonContent]
   updateContent: [content: TiptapJsonContent]
   createDocument: []
   openFallbackDocument: []
@@ -48,7 +53,7 @@ export interface DocumentEditorProps {
  * 文档编辑区事件。
  */
 export interface DocumentEditorEmits {
-  updateTitle: [title: DocumentTitleContent]
+  updateTitle: [title: TiptapJsonContent]
   updateContent: [content: TiptapJsonContent]
   contentError: [error: Error]
 }
@@ -70,6 +75,57 @@ export interface DocumentEditorFallbackEmits {
   createDocument: []
   openFallbackDocument: []
   retryLoad: []
+}
+
+/**
+ * 文档历史面板属性。
+ */
+export interface DocumentHistoryPanelProps {
+  document: ActiveDocumentDetail | null
+  snapshots: DocumentSnapshot[]
+  isLoading: boolean
+  isRestoring: boolean
+}
+
+/**
+ * 文档历史面板事件。
+ */
+export interface DocumentHistoryPanelEmits {
+  restore: [snapshotId: string]
+}
+
+/**
+ * 文档历史条目。
+ */
+export interface DocumentHistoryEntry {
+  snapshotId: string
+  snapshot: DocumentSnapshot
+  timeLabel: string
+  summary: string | null
+  userDisplayName: string
+  changeCount: number
+  isCurrentSnapshot: boolean
+  isCurrentContent: boolean
+}
+
+/**
+ * 文档历史分组。
+ */
+export interface DocumentHistoryGroup {
+  id: string
+  label: string
+  entries: DocumentHistoryEntry[]
+  collapsible: boolean
+  defaultExpanded: boolean
+}
+
+/**
+ * 文档历史分段。
+ */
+export interface DocumentHistorySection {
+  id: string
+  label: string
+  groups: DocumentHistoryGroup[]
 }
 
 /**

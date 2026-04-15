@@ -4,38 +4,30 @@ import ChatInputBox from './components/ChatInputBox.vue'
 import ChatMessageList from './components/ChatMessageList.vue'
 import ChatProviderSettingsDialog from './components/ChatProviderSettingsDialog.vue'
 import ChatSessionSidebar from './components/ChatSessionSidebar.vue'
-import { useChatProviderSettings } from './composables/useChatProviderSettings'
-import { useChatWorkspace } from './composables/useChatWorkspace'
+import { useChat } from './composables/useChat'
 
 const {
+  activeSession,
+  activeSessionId,
+  createSession,
+  currentModelLabel,
+  currentProviderLabel,
+  deleteSession,
   dialogVisible,
   draft,
   inputPlaceholder,
-  modelOptions,
   isLoadingModels,
   isConfigured,
-  selectedModel,
-  currentModelLabel,
-  currentProviderLabel,
+  isStreaming,
+  modelBadgeStateClass,
+  modelOptions,
   openDialog,
   refreshModels,
   saveSettings,
-} = useChatProviderSettings()
-
-const {
   sessions,
-  activeSession,
-  activeSessionId,
-  isStreaming,
-  createSession,
   selectSession,
-  deleteSession,
   sendMessage,
-} = useChatWorkspace(selectedModel)
-
-function getModelBadgeStateClass() {
-  return isConfigured.value ? 'configured' : 'idle'
-}
+} = useChat()
 </script>
 
 <template>
@@ -52,7 +44,7 @@ function getModelBadgeStateClass() {
         </div>
 
         <div class="chat-view-context__actions">
-          <div class="chat-view-context__model-badge" :class="getModelBadgeStateClass()">
+          <div class="chat-view-context__model-badge" :class="modelBadgeStateClass">
             <SvgIcon category="ai" icon="ai-spark" size="1rem" class="chat-view-context__model-icon" />
             <span class="max-w-52 truncate">{{ currentModelLabel }}</span>
           </div>

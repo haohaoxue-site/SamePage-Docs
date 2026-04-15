@@ -2,10 +2,11 @@
 import type { FormInstance } from 'element-plus'
 import { useTemplateRef } from 'vue'
 import AuthEntryShell from '../components/AuthEntryShell.vue'
-import { useLoginView } from './composables/useLoginView'
+import { useLogin } from './composables/useLogin'
 
 const passwordFormRef = useTemplateRef<FormInstance>('passwordFormRef')
 const {
+  handleSubmitPasswordLogin,
   hasOauthProviders,
   isLoadingCapabilities,
   isPasswordSubmitting,
@@ -15,12 +16,9 @@ const {
   passwordFormRules,
   providers,
   startLogin,
-  submitPasswordLogin,
-} = useLoginView()
-
-async function handleSubmitPasswordLogin() {
-  await submitPasswordLogin(passwordFormRef.value)
-}
+} = useLogin({
+  passwordFormRef,
+})
 </script>
 
 <template>

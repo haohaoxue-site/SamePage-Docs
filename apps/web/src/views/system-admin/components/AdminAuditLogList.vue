@@ -1,24 +1,15 @@
 <script setup lang="ts">
 import type { AdminAuditLogListProps } from '../typing'
-import { formatDateTime } from '@/utils/dayjs'
+import { useAdminAuditLogList } from '../composables/useAdminAuditLogList'
 
-defineProps<AdminAuditLogListProps>()
-
-function formatMetadata(metadata: Record<string, unknown> | null) {
-  if (!metadata) {
-    return '无附加信息'
-  }
-
-  return Object.entries(metadata)
-    .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(' / ')
-}
+const props = defineProps<AdminAuditLogListProps>()
+const { formatDateTime, formatMetadata } = useAdminAuditLogList()
 </script>
 
 <template>
   <div class="admin-audit-log-list">
     <ElCard
-      v-for="log in logs"
+      v-for="log in props.logs"
       :key="log.id"
       shadow="never"
       body-class="admin-audit-log-list__card-body"
@@ -57,7 +48,7 @@ function formatMetadata(metadata: Record<string, unknown> | null) {
       </div>
     </ElCard>
 
-    <ElEmpty v-if="logs.length === 0" description="暂无审计记录" />
+    <ElEmpty v-if="props.logs.length === 0" description="暂无审计记录" />
   </div>
 </template>
 

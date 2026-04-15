@@ -7,9 +7,7 @@ export interface ChatSessionSummary {
   id: string
   title: string
   createdAt: string
-  createdBy: string | null
   updatedAt: string
-  updatedBy: string | null
 }
 
 export interface ChatSessionDetail extends ChatSessionSummary {

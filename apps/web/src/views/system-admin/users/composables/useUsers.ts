@@ -5,13 +5,15 @@ import type {
   UpdateSystemAuthGovernanceDto,
 } from '@/apis/system-admin'
 import { ElMessage } from 'element-plus'
-import { reactive, shallowRef } from 'vue'
+import { computed, onMounted, reactive, shallowRef } from 'vue'
 import {
   getSystemAdminUsers,
   getSystemAuthGovernance,
   updateSystemAdminUserStatus,
   updateSystemAuthGovernance,
 } from '@/apis/system-admin'
+import { SvgIconCategory } from '@/components/svg-icon/typing'
+import { formatDateTime } from '@/utils/dayjs'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 export type RegistrationGovernanceField = keyof UpdateSystemAuthGovernanceDto
@@ -22,7 +24,27 @@ const governanceFieldLabels: Record<RegistrationGovernanceField, string> = {
   allowLinuxDoRegistration: 'LinuxDo 注册',
 }
 
-export function useAdminUsers() {
+const registrationSwitches = [
+  {
+    key: 'allowPasswordRegistration',
+    label: '邮箱密码注册',
+    description: '控制新的邮箱密码账号是否允许注册。',
+  },
+  {
+    key: 'allowGithubRegistration',
+    label: 'GitHub 注册',
+    description: '控制新的 GitHub 账号是否允许首次创建用户。',
+  },
+  {
+    key: 'allowLinuxDoRegistration',
+    label: 'LinuxDo 注册',
+    description: '控制新的 LinuxDo 账号是否允许首次创建用户。',
+  },
+] as const
+
+type RegistrationSwitchKey = (typeof registrationSwitches)[number]['key']
+
+export function useUsers() {
   const users = shallowRef<SystemAdminUserItemDto[]>([])
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
@@ -43,6 +65,36 @@ export function useAdminUsers() {
     systemAdminLastLoginAt: null,
     systemAdminPasswordUpdatedAt: null,
   })
+  const summaryCards = computed(() => {
+    const activeUsers = users.value.filter(user => user.status === 'ACTIVE').length
+    const disabledUsers = users.value.length - activeUsers
+    const systemAdmins = users.value.filter(user => user.isSystemAdmin).length
+
+    return [
+      {
+        label: '用户总数',
+        value: users.value.length,
+        detail: `正常 ${activeUsers}，禁用 ${disabledUsers}`,
+        iconCategory: SvgIconCategory.UI,
+        icon: 'user-group',
+      },
+      {
+        label: '管理员',
+        value: systemAdmins,
+        detail: '具备系统后台访问权限',
+        iconCategory: SvgIconCategory.UI,
+        icon: 'user-admin',
+      },
+      {
+        label: '文档交互',
+        value: users.value.reduce((sum, user) => sum + user.sharedDocumentCount, 0),
+        detail: '全平台共享文档总数',
+        iconCategory: SvgIconCategory.UI,
+        icon: 'share',
+      },
+    ]
+  })
+  const systemAdminStatusText = computed(() => governance.systemAdminMustChangePassword ? '首次密码待修改' : '已完成首次改密')
 
   async function loadData() {
     isLoading.value = true
@@ -119,12 +171,52 @@ export function useAdminUsers() {
     }
   }
 
+  function shouldShowEmailServiceHint(key: RegistrationSwitchKey) {
+    return key === 'allowPasswordRegistration' && !governance.emailServiceEnabled
+  }
+
+  function isGovernanceSwitchDisabled(key: RegistrationSwitchKey) {
+    if (key === 'allowPasswordRegistration' && !governance.emailServiceEnabled) {
+      return true
+    }
+
+    return savingGovernanceFields[key]
+  }
+
+  function handleGovernanceSwitchChange(
+    key: RegistrationSwitchKey,
+    value: string | number | boolean,
+  ) {
+    if (typeof value !== 'boolean') {
+      return
+    }
+
+    void updateGovernanceOption(key, value)
+  }
+
+  function formatDate(value: string | null) {
+    if (!value) {
+      return '暂无'
+    }
+
+    return formatDateTime(value)
+  }
+
+  onMounted(loadData)
+
   return {
     errorMessage,
+    formatDate,
     governance,
+    handleGovernanceSwitchChange,
     isLoading,
+    isGovernanceSwitchDisabled,
     loadData,
+    registrationSwitches,
     savingGovernanceFields,
+    shouldShowEmailServiceHint,
+    summaryCards,
+    systemAdminStatusText,
     toggleUserStatus,
     updateGovernanceOption,
     updatingUserId,

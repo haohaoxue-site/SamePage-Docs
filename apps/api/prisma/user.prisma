@@ -23,15 +23,13 @@ model User {
   avatarStorageKey       String?
   status                 UserStatus                  @default(ACTIVE)
   lastLoginAt            DateTime?
-  createdAt              DateTime                    @default(now())
-  updatedAt              DateTime                    @updatedAt
-  deletedAt              DateTime?
   oauthAccounts          OauthAccount[]
   refreshTokens          AuthRefreshToken[]
   loginCodes             AuthLoginCode[]
   userRoles              UserRole[]
   localCredential        LocalCredential?
   ownedDocuments         Document[]                  @relation("DocumentOwner")
+  createdDocumentSnapshots DocumentSnapshot[]        @relation("DocumentSnapshotCreator")
   documentMemberships    DocumentMember[]
   chatSessions           ChatSession[]
   adminAuditLogs         AdminAuditLog[]             @relation("AdminAuditLogActor")
@@ -42,14 +40,17 @@ model User {
   emailVerificationCodes UserEmailVerificationCode[]
   initiatedOauthStates   AuthOauthState[]            @relation("AuthOauthStateInitiator")
   updatedEmailConfigs    SystemEmailConfig[]         @relation("SystemEmailConfigUpdater")
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  deletedAt              DateTime?
 }
 
 model UserPreference {
   userId               String                   @id
   languagePreference   UserLanguagePreference   @default(AUTO)
   appearancePreference UserAppearancePreference @default(AUTO)
+  user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
   deletedAt            DateTime?
-  user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

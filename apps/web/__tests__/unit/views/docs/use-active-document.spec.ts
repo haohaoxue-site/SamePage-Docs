@@ -1,19 +1,38 @@
-import type { DocumentDetail, TiptapJsonContent } from '@haohaoxue/samepage-domain'
-import { DOCUMENT_SAVE_STATE, TIPTAP_BLOCK_ID_PREFIX, TIPTAP_SCHEMA_VERSION } from '@haohaoxue/samepage-contracts'
+import type { TiptapJsonContent } from '@haohaoxue/samepage-domain'
+import type {
+  CreateDocumentSnapshotResponseDto,
+  DocumentHeadDto,
+  DocumentSnapshotDto,
+} from '@/apis/document'
+import {
+  DOCUMENT_PANE_STATE,
+  DOCUMENT_SAVE_STATE,
+  DOCUMENT_SNAPSHOT_SOURCE,
+  TIPTAP_SCHEMA_VERSION,
+} from '@haohaoxue/samepage-contracts'
 import { createDocumentTitleContent } from '@haohaoxue/samepage-shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { computed, effectScope, shallowRef } from 'vue'
-import { getDocumentById, updateDocument } from '@/apis/document'
+import {
+  createDocumentSnapshot,
+  getDocumentHead,
+  getDocumentSnapshots,
+  restoreDocumentSnapshot,
+} from '@/apis/document'
 import { useActiveDocument } from '@/views/docs/composables/useActiveDocument'
 
 vi.mock('@/apis/document', () => ({
-  getDocumentById: vi.fn(),
-  updateDocument: vi.fn(),
+  createDocumentSnapshot: vi.fn(),
+  getDocumentHead: vi.fn(),
+  getDocumentSnapshots: vi.fn(),
+  restoreDocumentSnapshot: vi.fn(),
 }))
 
 vi.mock('element-plus', () => ({
   ElMessage: {
     error: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
   },
 }))
 
@@ -29,22 +48,73 @@ function createBodyContent(text: string): TiptapJsonContent {
   ]
 }
 
-function createDocument(overrides: Partial<DocumentDetail> = {}): DocumentDetail {
+function createDocumentHead(overrides: Partial<DocumentHeadDto> = {}): DocumentHeadDto {
   return {
-    id: 'doc-1',
-    title: '原始标题',
-    summary: '测试摘要',
+    document: {
+      id: 'doc-1',
+      ownerId: 'user-1',
+      parentId: null,
+      latestSnapshotId: 'snapshot-1',
+      order: 0,
+      spaceScope: 'PERSONAL',
+      status: 'ACTIVE',
+      summary: '测试摘要',
+      createdAt: '2026-04-14T00:00:00.000Z',
+      updatedAt: '2026-04-14T00:00:00.000Z',
+    },
+    latestSnapshot: {
+      id: 'snapshot-1',
+      documentId: 'doc-1',
+      revision: 1,
+      schemaVersion: TIPTAP_SCHEMA_VERSION,
+      title: createDocumentTitleContent('原始标题'),
+      body: createBodyContent('初始正文'),
+      source: DOCUMENT_SNAPSHOT_SOURCE.AUTOSAVE,
+      restoredFromSnapshotId: null,
+      createdAt: '2026-04-14T00:00:00.000Z',
+      createdBy: null,
+      createdByUser: null,
+    },
+    headRevision: 1,
+    ...overrides,
+  }
+}
+
+function createSnapshotResponse(
+  overrides: Partial<CreateDocumentSnapshotResponseDto> = {},
+): CreateDocumentSnapshotResponseDto {
+  return {
+    snapshot: {
+      id: 'snapshot-2',
+      documentId: 'doc-1',
+      revision: 2,
+      schemaVersion: TIPTAP_SCHEMA_VERSION,
+      title: createDocumentTitleContent('新的标题'),
+      body: createBodyContent('保存后的正文'),
+      source: DOCUMENT_SNAPSHOT_SOURCE.AUTOSAVE,
+      restoredFromSnapshotId: null,
+      createdAt: '2026-04-14T00:00:01.000Z',
+      createdBy: null,
+      createdByUser: null,
+    },
+    headRevision: 2,
+    ...overrides,
+  }
+}
+
+function createSnapshot(overrides: Partial<DocumentSnapshotDto> = {}): DocumentSnapshotDto {
+  return {
+    id: 'snapshot-1',
+    documentId: 'doc-1',
+    revision: 1,
+    schemaVersion: TIPTAP_SCHEMA_VERSION,
+    title: createDocumentTitleContent('原始标题'),
+    body: createBodyContent('初始正文'),
+    source: DOCUMENT_SNAPSHOT_SOURCE.AUTOSAVE,
+    restoredFromSnapshotId: null,
     createdAt: '2026-04-14T00:00:00.000Z',
     createdBy: null,
-    updatedAt: '2026-04-14T00:00:00.000Z',
-    updatedBy: null,
-    parentId: null,
-    schemaVersion: TIPTAP_SCHEMA_VERSION,
-    content: createBodyContent('初始正文'),
-    hasChildren: false,
-    hasContent: true,
-    scope: 'PERSONAL',
-    collection: 'personal',
+    createdByUser: null,
     ...overrides,
   }
 }
@@ -57,23 +127,50 @@ describe('useActiveDocument', () => {
     globalThis.clearTimeout = originalClearTimeout
   })
 
-  it('把文档页 owner state 收口为 title: DocumentTitleContent + body: JSONContent，并在保存时把标题映射回纯文本', async () => {
+  it('把文档页 owner state 收口为 DocumentHead，并在保存时走 createDocumentSnapshot + baseRevision', async () => {
     vi.useFakeTimers()
 
-    const getDocumentByIdMock = vi.mocked(getDocumentById)
-    const updateDocumentMock = vi.mocked(updateDocument)
+    const getDocumentHeadMock = vi.mocked(getDocumentHead)
+    const getDocumentSnapshotsMock = vi.mocked(getDocumentSnapshots)
+    const createDocumentSnapshotMock = vi.mocked(createDocumentSnapshot)
     const initialBody = createBodyContent('初始正文')
     const nextBody = createBodyContent('保存后的正文')
     const nextTitle = createDocumentTitleContent('新的标题')
 
-    getDocumentByIdMock.mockResolvedValue(createDocument({
-      title: '原始标题',
-      content: initialBody,
+    getDocumentHeadMock.mockResolvedValue(createDocumentHead({
+      latestSnapshot: {
+        id: 'snapshot-1',
+        documentId: 'doc-1',
+        revision: 1,
+        schemaVersion: TIPTAP_SCHEMA_VERSION,
+        title: createDocumentTitleContent('原始标题'),
+        body: initialBody,
+        source: DOCUMENT_SNAPSHOT_SOURCE.AUTOSAVE,
+        restoredFromSnapshotId: null,
+        createdAt: '2026-04-14T00:00:00.000Z',
+        createdBy: null,
+        createdByUser: null,
+      },
+      headRevision: 1,
     }))
-    updateDocumentMock.mockImplementation(async (_, payload) => createDocument({
-      title: payload.title,
-      content: payload.content,
-      updatedAt: '2026-04-14T00:00:01.000Z',
+    getDocumentSnapshotsMock.mockResolvedValue([
+      createSnapshot(),
+    ])
+    createDocumentSnapshotMock.mockResolvedValue(createSnapshotResponse({
+      snapshot: {
+        id: 'snapshot-2',
+        documentId: 'doc-1',
+        revision: 2,
+        schemaVersion: TIPTAP_SCHEMA_VERSION,
+        title: nextTitle,
+        body: nextBody,
+        source: DOCUMENT_SNAPSHOT_SOURCE.AUTOSAVE,
+        restoredFromSnapshotId: null,
+        createdAt: '2026-04-14T00:00:01.000Z',
+        createdBy: null,
+        createdByUser: null,
+      },
+      headRevision: 2,
     }))
 
     const activeDocumentId = shallowRef('doc-1')
@@ -98,6 +195,7 @@ describe('useActiveDocument', () => {
 
     expect(documentState.currentDocument.value?.title).toEqual(createDocumentTitleContent('原始标题'))
     expectDocumentBody(documentState.currentDocument.value?.body, '初始正文')
+    expect(documentState.snapshots.value).toHaveLength(1)
 
     documentState.updateDocumentTitle(nextTitle)
     documentState.updateDocumentContent(nextBody)
@@ -110,18 +208,12 @@ describe('useActiveDocument', () => {
     await vi.advanceTimersByTimeAsync(1200)
 
     await vi.waitFor(() => {
-      expect(updateDocumentMock).toHaveBeenCalledWith('doc-1', {
-        title: '新的标题',
+      expect(createDocumentSnapshotMock).toHaveBeenCalledWith('doc-1', {
+        baseRevision: 1,
         schemaVersion: TIPTAP_SCHEMA_VERSION,
-        content: [
-          expect.objectContaining({
-            type: 'paragraph',
-            attrs: expect.objectContaining({
-              id: expect.stringMatching(new RegExp(`^${TIPTAP_BLOCK_ID_PREFIX}`)),
-            }),
-            content: [{ type: 'text', text: '保存后的正文' }],
-          }),
-        ],
+        source: DOCUMENT_SNAPSHOT_SOURCE.AUTOSAVE,
+        title: nextTitle,
+        body: nextBody,
       })
     })
 
@@ -131,6 +223,203 @@ describe('useActiveDocument', () => {
 
     expect(documentState.currentDocument.value?.title).toEqual(nextTitle)
     expectDocumentBody(documentState.currentDocument.value?.body, '保存后的正文')
+    expect(documentState.currentDocument.value?.headRevision).toBe(2)
+    expect(documentState.snapshots.value.map(snapshot => snapshot.id)).toEqual(['snapshot-2', 'snapshot-1'])
+
+    scope.stop()
+  })
+
+  it('保存冲突时进入错误态并给出明确提示', async () => {
+    vi.useFakeTimers()
+
+    const getDocumentHeadMock = vi.mocked(getDocumentHead)
+    const getDocumentSnapshotsMock = vi.mocked(getDocumentSnapshots)
+    const createDocumentSnapshotMock = vi.mocked(createDocumentSnapshot)
+
+    getDocumentHeadMock.mockResolvedValue(createDocumentHead())
+    getDocumentSnapshotsMock.mockResolvedValue([createSnapshot()])
+    createDocumentSnapshotMock.mockRejectedValue(Object.assign(new Error('conflict'), {
+      status: 409,
+    }))
+
+    const activeDocumentId = shallowRef('doc-1')
+    const scope = effectScope()
+    const activeDocument = scope.run(() => useActiveDocument({
+      activeDocumentId: computed(() => activeDocumentId.value),
+      ensureExpandedPath: vi.fn(),
+      patchDocumentItem: vi.fn(),
+      rememberLastOpenedDocument: vi.fn(),
+    }))
+
+    const documentState = activeDocument!
+
+    await vi.waitFor(() => {
+      expect(documentState.currentDocument.value).not.toBeNull()
+    })
+
+    documentState.updateDocumentContent(createBodyContent('发生冲突的正文'))
+    await vi.advanceTimersByTimeAsync(1200)
+
+    await vi.waitFor(() => {
+      expect(documentState.saveState.value).toBe(DOCUMENT_SAVE_STATE.ERROR)
+    })
+
+    const { ElMessage } = await import('element-plus')
+    expect(ElMessage.error).toHaveBeenCalledWith('文档版本已变化，请刷新后重试')
+
+    scope.stop()
+  })
+
+  it('restore 后刷新当前 head 并更新 headRevision', async () => {
+    const getDocumentHeadMock = vi.mocked(getDocumentHead)
+    const getDocumentSnapshotsMock = vi.mocked(getDocumentSnapshots)
+    const restoreDocumentSnapshotMock = vi.mocked(restoreDocumentSnapshot)
+
+    getDocumentHeadMock.mockResolvedValue(createDocumentHead())
+    getDocumentSnapshotsMock.mockResolvedValue([
+      createSnapshot(),
+      createSnapshot({
+        id: 'snapshot-0',
+        revision: 0,
+        title: createDocumentTitleContent('更早版本'),
+        body: createBodyContent('更早正文'),
+        createdAt: '2026-04-13T23:59:00.000Z',
+      }),
+    ])
+    restoreDocumentSnapshotMock.mockResolvedValue(createSnapshotResponse({
+      snapshot: {
+        id: 'snapshot-2',
+        documentId: 'doc-1',
+        revision: 2,
+        schemaVersion: TIPTAP_SCHEMA_VERSION,
+        title: createDocumentTitleContent('更早版本'),
+        body: createBodyContent('更早正文'),
+        source: DOCUMENT_SNAPSHOT_SOURCE.RESTORE,
+        restoredFromSnapshotId: 'snapshot-0',
+        createdAt: '2026-04-14T00:00:02.000Z',
+        createdBy: null,
+        createdByUser: null,
+      },
+      headRevision: 2,
+    }))
+
+    const activeDocumentId = shallowRef('doc-1')
+    const patchDocumentItem = vi.fn()
+    const scope = effectScope()
+    const activeDocument = scope.run(() => useActiveDocument({
+      activeDocumentId: computed(() => activeDocumentId.value),
+      ensureExpandedPath: vi.fn(),
+      patchDocumentItem,
+      rememberLastOpenedDocument: vi.fn(),
+    }))
+
+    const documentState = activeDocument!
+
+    await vi.waitFor(() => {
+      expect(documentState.currentDocument.value).not.toBeNull()
+    })
+
+    await documentState.restoreSnapshot('snapshot-0')
+
+    expect(restoreDocumentSnapshotMock).toHaveBeenCalledWith('doc-1', {
+      baseRevision: 1,
+      snapshotId: 'snapshot-0',
+    })
+    expect(documentState.currentDocument.value?.headRevision).toBe(2)
+    expect(documentState.currentDocument.value?.latestSnapshotId).toBe('snapshot-2')
+    expect(documentState.currentDocument.value?.title).toEqual(createDocumentTitleContent('更早版本'))
+    expectDocumentBody(documentState.currentDocument.value?.body, '更早正文')
+    expect(documentState.snapshots.value.map(snapshot => snapshot.id)).toEqual(['snapshot-2', 'snapshot-1', 'snapshot-0'])
+    expect(patchDocumentItem).toHaveBeenCalledWith('doc-1', expect.objectContaining({
+      title: '更早版本',
+    }))
+
+    scope.stop()
+  })
+
+  it('restore 到当前内容时不追加历史并给出明确提示', async () => {
+    const getDocumentHeadMock = vi.mocked(getDocumentHead)
+    const getDocumentSnapshotsMock = vi.mocked(getDocumentSnapshots)
+    const restoreDocumentSnapshotMock = vi.mocked(restoreDocumentSnapshot)
+
+    getDocumentHeadMock.mockResolvedValue(createDocumentHead())
+    getDocumentSnapshotsMock.mockResolvedValue([
+      createSnapshot(),
+      createSnapshot({
+        id: 'snapshot-0',
+        revision: 0,
+        title: createDocumentTitleContent('原始标题'),
+        body: createBodyContent('初始正文'),
+        createdAt: '2026-04-13T23:59:00.000Z',
+      }),
+    ])
+    restoreDocumentSnapshotMock.mockResolvedValue(createSnapshotResponse({
+      snapshot: {
+        ...createSnapshot(),
+        id: 'snapshot-1',
+      },
+      headRevision: 1,
+    }))
+
+    const activeDocumentId = shallowRef('doc-1')
+    const patchDocumentItem = vi.fn()
+    const scope = effectScope()
+    const activeDocument = scope.run(() => useActiveDocument({
+      activeDocumentId: computed(() => activeDocumentId.value),
+      ensureExpandedPath: vi.fn(),
+      patchDocumentItem,
+      rememberLastOpenedDocument: vi.fn(),
+    }))
+
+    const documentState = activeDocument!
+
+    await vi.waitFor(() => {
+      expect(documentState.currentDocument.value).not.toBeNull()
+    })
+
+    await documentState.restoreSnapshot('snapshot-0')
+
+    const { ElMessage } = await import('element-plus')
+
+    expect(documentState.currentDocument.value?.headRevision).toBe(1)
+    expect(documentState.snapshots.value.map(snapshot => snapshot.id)).toEqual(['snapshot-1', 'snapshot-0'])
+    expect(patchDocumentItem).toHaveBeenCalledWith('doc-1', expect.objectContaining({
+      title: '原始标题',
+    }))
+    expect(ElMessage.info).toHaveBeenCalledWith('该历史记录已是当前内容')
+
+    scope.stop()
+  })
+
+  it('加载到非兼容 schema 时阻断编辑并标记为不支持状态', async () => {
+    const getDocumentHeadMock = vi.mocked(getDocumentHead)
+    const getDocumentSnapshotsMock = vi.mocked(getDocumentSnapshots)
+
+    getDocumentHeadMock.mockResolvedValue(createDocumentHead({
+      latestSnapshot: {
+        ...createDocumentHead().latestSnapshot,
+        schemaVersion: 999 as never,
+      },
+    }))
+    getDocumentSnapshotsMock.mockResolvedValue([createSnapshot()])
+
+    const activeDocumentId = shallowRef('doc-1')
+    const scope = effectScope()
+    const activeDocument = scope.run(() => useActiveDocument({
+      activeDocumentId: computed(() => activeDocumentId.value),
+      ensureExpandedPath: vi.fn(),
+      patchDocumentItem: vi.fn(),
+      rememberLastOpenedDocument: vi.fn(),
+    }))
+
+    const documentState = activeDocument!
+
+    await vi.waitFor(() => {
+      expect(documentState.documentErrorState.value).toBe(DOCUMENT_PANE_STATE.UNSUPPORTED_SCHEMA)
+    })
+
+    expect(documentState.currentDocument.value).toBeNull()
+    expect(documentState.snapshots.value).toEqual([])
 
     scope.stop()
   })
@@ -140,9 +429,6 @@ function expectDocumentBody(body: TiptapJsonContent | undefined, text: string) {
   expect(body).toEqual([
     {
       type: 'paragraph',
-      attrs: {
-        id: expect.stringMatching(new RegExp(`^${TIPTAP_BLOCK_ID_PREFIX}`)),
-      },
       content: [{ type: 'text', text }],
     },
   ])

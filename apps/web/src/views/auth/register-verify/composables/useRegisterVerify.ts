@@ -1,4 +1,5 @@
-import type { FormRules } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import type { ShallowRef } from 'vue'
 import { computed, onMounted, reactive, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useFormSubmit } from '@/composables/useFormSubmit'
@@ -16,7 +17,7 @@ import {
 
 const EMAIL_VERIFICATION_CODE_RE = /^\d{6}$/
 
-export function usePasswordRegisterVerifyView() {
+export function useRegisterVerify(options: { registerFormRef: ShallowRef<FormInstance | null> }) {
   const route = useRoute()
   const router = useRouter()
   const authStore = useAuthStore()
@@ -48,6 +49,13 @@ export function usePasswordRegisterVerifyView() {
 
   const routeEmail = computed(() => typeof route.query.email === 'string' ? route.query.email.trim() : '')
   const isReady = computed(() => Boolean(form.email) && !errorMessage.value)
+  const pageDescription = computed(() => {
+    if (errorMessage.value) {
+      return '注册信息无效，请重新填写邮箱后获取验证码。'
+    }
+
+    return '输入验证码并设置密码后即可完成注册。'
+  })
 
   function initEmail() {
     if (!routeEmail.value || !isValidEmail(routeEmail.value)) {
@@ -80,12 +88,18 @@ export function usePasswordRegisterVerifyView() {
     initEmail()
   })
 
+  async function handleSubmitRegistration() {
+    await submitRegistration(options.registerFormRef.value)
+  }
+
   return {
     errorMessage,
     form,
     formRules,
+    handleSubmitRegistration,
     isReady,
     isSubmitting,
+    pageDescription,
     statusLabel,
     submitRegistration,
   }

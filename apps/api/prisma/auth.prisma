@@ -25,10 +25,10 @@ model OauthAccount {
   providerEmail         String?
   providerEmailVerified Boolean?
   rawProfile            Json?
+  user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
   deletedAt             DateTime?
-  user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerUserId])
   @@index([userId])
@@ -44,10 +44,10 @@ model AuthOauthState {
   redirectUri     String
   expiresAt       DateTime
   consumedAt      DateTime?
+  initiatorUser   User?            @relation("AuthOauthStateInitiator", fields: [initiatorUserId], references: [id], onDelete: SetNull)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   deletedAt       DateTime?
-  initiatorUser   User?            @relation("AuthOauthStateInitiator", fields: [initiatorUserId], references: [id], onDelete: SetNull)
 
   @@index([provider, expiresAt])
   @@index([initiatorUserId, purpose])
@@ -63,12 +63,12 @@ model AuthRefreshToken {
   revokedAt    DateTime?
   createdIp    String?
   userAgent    String?
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  deletedAt    DateTime?
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   replacedBy   AuthRefreshToken?  @relation("RefreshTokenRotation", fields: [replacedById], references: [id])
   rotatedFrom  AuthRefreshToken[] @relation("RefreshTokenRotation")
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  deletedAt    DateTime?
 
   @@index([userId])
   @@index([familyId])
@@ -82,10 +82,10 @@ model AuthLoginCode {
   redirectUri String
   expiresAt   DateTime
   consumedAt  DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
 }
@@ -96,10 +96,10 @@ model LocalCredential {
   mustChangePassword Boolean   @default(false)
   emailVerifiedAt    DateTime?
   passwordUpdatedAt  DateTime?
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AuthEmailVerificationToken {
@@ -127,10 +127,10 @@ model UserEmailVerificationCode {
   sendCount    Int                          @default(1)
   attemptCount Int                          @default(0)
   lastSentAt   DateTime                     @default(now())
+  user         User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt    DateTime                     @default(now())
   updatedAt    DateTime                     @updatedAt
   deletedAt    DateTime?
-  user         User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, purpose, expiresAt])
   @@index([email, purpose, expiresAt])

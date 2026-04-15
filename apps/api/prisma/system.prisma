@@ -10,14 +10,14 @@ model SystemAuthConfig {
   allowLinuxDoRegistration  Boolean   @default(true)
   systemAdminUserId         String?   @unique
   systemAdminEmail          String    @unique
-  updatedByUserId           String?
+  updatedBy                 String?
+  systemAdminUser           User?     @relation("SystemAuthConfigSystemAdmin", fields: [systemAdminUserId], references: [id], onDelete: SetNull)
+  updatedByUser             User?     @relation("SystemAuthConfigUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
   deletedAt                 DateTime?
-  systemAdminUser           User?     @relation("SystemAuthConfigSystemAdmin", fields: [systemAdminUserId], references: [id], onDelete: SetNull)
-  updatedByUser             User?     @relation("SystemAuthConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
-  @@index([updatedByUserId])
+  @@index([updatedBy])
 }
 
 model SystemEmailConfig {
@@ -31,13 +31,13 @@ model SystemEmailConfig {
   smtpPasswordEncrypted String?
   fromName              String
   fromEmail             String
-  updatedByUserId       String?
+  updatedBy             String?
+  updatedByUser         User?               @relation("SystemEmailConfigUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   deletedAt             DateTime?
-  updatedByUser         User?               @relation("SystemEmailConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
-  @@index([updatedByUserId])
+  @@index([updatedBy])
 }
 
 model SystemAiConfig {
@@ -47,13 +47,13 @@ model SystemAiConfig {
   baseUrl         String
   apiKey          String?
   defaultModel    String?
-  updatedByUserId String?
+  updatedBy       String?
+  updatedByUser   User?     @relation("SystemAiConfigUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
-  updatedByUser   User?     @relation("SystemAiConfigUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
-  @@index([updatedByUserId])
+  @@index([updatedBy])
 }
 
 model AdminAuditLog {
@@ -63,10 +63,10 @@ model AdminAuditLog {
   targetType  String
   targetId    String?
   metadata    Json?
+  actorUser   User      @relation("AdminAuditLogActor", fields: [actorUserId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
-  actorUser   User      @relation("AdminAuditLogActor", fields: [actorUserId], references: [id], onDelete: Cascade)
 
   @@index([actorUserId, createdAt])
   @@index([targetType, targetId])

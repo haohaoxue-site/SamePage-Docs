@@ -1,4 +1,5 @@
 import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
+import type { Ref } from 'vue'
 import type {
   SystemEmailConfigDto,
   SystemEmailProvider,
@@ -49,7 +50,10 @@ const providerMeta = {
   disabled: boolean
 }>
 
-export function useAdminEmailConfig() {
+export function useEmail(options: {
+  emailConfigFormRef: Ref<FormInstance | null>
+  testEmailFormRef: Ref<FormInstance | null>
+}) {
   type RuleValidator = NonNullable<FormItemRule['validator']>
 
   const userStore = useUserStore()
@@ -81,6 +85,7 @@ export function useAdminEmailConfig() {
   })))
 
   const configStatusLabel = computed(() => currentServiceStatus.value?.enabled ? '已启用' : '未启用')
+  const configStatusStateClass = computed(() => currentServiceStatus.value?.enabled ? 'enabled' : 'disabled')
   const currentProviderTitle = computed(() => formatSystemEmailProvider(currentConfig.value?.provider ?? form.provider))
   const defaultTestRecipientEmail = computed(() => userStore.currentUser?.email?.trim().toLowerCase() ?? '')
   const hasSavedPassword = computed(() => currentConfig.value?.hasPassword ?? false)
@@ -223,6 +228,7 @@ export function useAdminEmailConfig() {
       enabled: nextEnabled,
       updatedAt: previousStatus?.updatedAt ?? null,
       updatedBy: previousStatus?.updatedBy ?? null,
+      updatedByUser: previousStatus?.updatedByUser ?? null,
     }
     isUpdatingServiceStatus.value = true
 
@@ -238,6 +244,7 @@ export function useAdminEmailConfig() {
           ...currentConfig.value,
           updatedAt: nextStatus.updatedAt,
           updatedBy: nextStatus.updatedBy,
+          updatedByUser: nextStatus.updatedByUser,
         }
       }
 
@@ -259,6 +266,36 @@ export function useAdminEmailConfig() {
 
   function closeTestDialog() {
     isTestDialogVisible.value = false
+  }
+
+  function handleServiceStatusChange(value: string | number | boolean) {
+    if (typeof value !== 'boolean') {
+      return
+    }
+
+    void updateServiceStatus(value)
+  }
+
+  async function handleSaveConfig() {
+    await saveConfig(options.emailConfigFormRef.value)
+  }
+
+  async function handleSendTestEmail() {
+    await testConfig(options.testEmailFormRef.value)
+  }
+
+  function clearPasswordValidation() {
+    options.emailConfigFormRef.value?.clearValidate('smtpPassword')
+  }
+
+  function handleStartPasswordEdit() {
+    startPasswordEdit()
+    clearPasswordValidation()
+  }
+
+  function handleKeepSavedPassword() {
+    keepSavedPassword()
+    clearPasswordValidation()
   }
 
   async function testConfig(formRef: FormInstance | null | undefined) {
@@ -311,12 +348,18 @@ export function useAdminEmailConfig() {
 
   return {
     configStatusLabel,
+    configStatusStateClass,
     currentConfig,
     currentProviderTitle,
     currentServiceStatus,
     errorMessage,
     form,
     formRules,
+    handleKeepSavedPassword,
+    handleSaveConfig,
+    handleSendTestEmail,
+    handleServiceStatusChange,
+    handleStartPasswordEdit,
     hasSavedPassword,
     isEditingPassword,
     isLoading,

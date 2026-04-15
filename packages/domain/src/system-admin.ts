@@ -1,6 +1,6 @@
 import type { SYSTEM_EMAIL_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
 import type { AuthMethodName } from './auth'
-import type { UserStatus } from './user'
+import type { AuditUserSummary, UserStatus } from './user'
 
 export type SystemAdminUserStatus = UserStatus
 export type SystemEmailProvider = (typeof SYSTEM_EMAIL_PROVIDER_VALUES)[number]
@@ -29,7 +29,6 @@ export interface SystemAdminUserItemDto {
   ownedDocumentCount: number
   sharedDocumentCount: number
   createdAt: string
-  createdBy: string | null
   lastLoginAt: string | null
 }
 
@@ -72,12 +71,14 @@ export interface SystemEmailConfigDto {
   hasPassword: boolean
   updatedAt: string | null
   updatedBy: string | null
+  updatedByUser: AuditUserSummary | null
 }
 
 export interface SystemEmailServiceStatusDto {
   enabled: boolean
   updatedAt: string | null
   updatedBy: string | null
+  updatedByUser: AuditUserSummary | null
 }
 
 export interface UpdateSystemEmailConfigDto {
@@ -114,12 +115,14 @@ export interface SystemAiConfigDto {
   maskedApiKey: string | null
   updatedAt: string | null
   updatedBy: string | null
+  updatedByUser: AuditUserSummary | null
 }
 
 export interface SystemAiServiceStatusDto {
   enabled: boolean
   updatedAt: string | null
   updatedBy: string | null
+  updatedByUser: AuditUserSummary | null
 }
 
 export interface UpdateSystemAiConfigDto {
@@ -142,7 +145,6 @@ export interface SystemAdminAuditLogItemDto {
   actorAvatarUrl: string | null
   metadata: Record<string, unknown> | null
   createdAt: string
-  createdBy: string | null
 }
 
 export interface GovernanceSummaryDto {

@@ -1,8 +1,10 @@
-import type { FormRules } from 'element-plus'
-import { reactive } from 'vue'
+import type { FormInstance, FormRules } from 'element-plus'
+import type { Ref } from 'vue'
+import { computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFormSubmit } from '@/composables/useFormSubmit'
 import { useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
 import { completeAuthNavigation } from '../../utils/navigation'
 import {
   createConfirmPasswordRules,
@@ -11,9 +13,12 @@ import {
   isValidPassword,
 } from '../../utils/rules'
 
-export function useChangePasswordView() {
+export function useChangePassword(options: {
+  changePasswordFormRef: Ref<FormInstance | null>
+}) {
   const router = useRouter()
   const authStore = useAuthStore()
+  const userStore = useUserStore()
   const form = reactive({
     currentPassword: '',
     newPassword: '',
@@ -39,10 +44,22 @@ export function useChangePasswordView() {
     onSuccess: () => completeAuthNavigation(router, authStore),
   })
 
+  const requiresPasswordChange = computed(() => userStore.requiresPasswordChange)
+  const pageDescription = computed(() =>
+    requiresPasswordChange.value ? '首次登录需要先设置新密码。' : '输入当前密码并设置新密码。',
+  )
+
+  async function handleSubmitChangePassword() {
+    await submitChangePassword(options.changePasswordFormRef.value)
+  }
+
   return {
     form,
     formRules,
+    handleSubmitChangePassword,
     isSubmitting,
+    pageDescription,
+    requiresPasswordChange,
     submitChangePassword,
   }
 }

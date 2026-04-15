@@ -3,7 +3,7 @@ import { TIPTAP_BLOCK_ID_PREFIX } from '@haohaoxue/samepage-contracts'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { normalizeBlockIds } from '@/components/tiptap-editor/helpers/blockId'
+import { createBlockId } from '@/components/tiptap-editor/helpers/blockId'
 import { createBodyExtensions, createTitleExtensions } from '@/components/tiptap-editor/helpers/createExtensions'
 import TiptapEditor from '@/components/tiptap-editor/TiptapEditor.vue'
 
@@ -67,7 +67,12 @@ const complexBodyContent = [
 ] satisfies JSONContent[]
 
 const emptyContent = [] satisfies JSONContent[]
-const seededParagraphContent = normalizeBlockIds([{ type: 'paragraph' }] satisfies JSONContent[])
+const seededParagraphContent = [{
+  type: 'paragraph',
+  attrs: {
+    id: createBlockId('paragraph'),
+  },
+}] satisfies JSONContent[]
 
 async function getEditor(wrapper: ReturnType<typeof mount>) {
   await vi.waitFor(() => {
@@ -94,40 +99,6 @@ function collectBlockNodes(editor: Editor) {
   return nodes
 }
 
-function collectContentBlockNodes(content: JSONContent[]) {
-  const nodes: Array<{ type: string, id?: string | null }> = []
-
-  for (const node of content) {
-    walkContentNodes(node, nodes)
-  }
-
-  return nodes
-}
-
-function walkContentNodes(
-  content: JSONContent | undefined,
-  nodes: Array<{ type: string, id?: string | null }>,
-) {
-  if (!content) {
-    return
-  }
-
-  if (content.type && content.type !== 'doc' && Array.isArray(content.content)) {
-    nodes.push({
-      type: content.type,
-      id: typeof content.attrs?.id === 'string' ? content.attrs.id : null,
-    })
-  }
-
-  if (!Array.isArray(content.content)) {
-    return
-  }
-
-  for (const child of content.content) {
-    walkContentNodes(child, nodes)
-  }
-}
-
 async function waitForPrefixedBodyBlockIds(editor: Editor) {
   await vi.waitFor(() => {
     const blockNodes = collectBlockNodes(editor)
@@ -142,17 +113,25 @@ async function waitForPrefixedBodyBlockIds(editor: Editor) {
 }
 
 describe('blockId', () => {
-  it('正文归一化后仅 block-level 节点携带带前缀的唯一 id，且 title schema 不注入该 attrs', async () => {
-    const normalizedBodyContent = normalizeBlockIds(complexBodyContent)
+  it('正文编辑器为 block-level 节点注入带前缀的唯一 id，且 title schema 不注入该 attrs', async () => {
     const titleWrapper = mount(TiptapEditor, {
       props: {
         content: emptyContent,
         extensions: createTitleExtensions(),
       },
     })
+    const bodyWrapper = mount(TiptapEditor, {
+      props: {
+        content: complexBodyContent,
+        extensions: createBodyExtensions(),
+      },
+    })
 
     const titleEditor = await getEditor(titleWrapper)
-    const bodyBlocks = collectContentBlockNodes(normalizedBodyContent)
+    const bodyEditor = await getEditor(bodyWrapper)
+    await waitForPrefixedBodyBlockIds(bodyEditor)
+
+    const bodyBlocks = collectBlockNodes(bodyEditor)
     const bodyIds = bodyBlocks.map(node => node.id)
 
     expect(bodyBlocks.map(node => node.type)).toEqual([
@@ -167,6 +146,7 @@ describe('blockId', () => {
       'blockquote',
       'paragraph',
       'codeBlock',
+      'paragraph',
     ])
     expect(bodyIds.every(id => typeof id === 'string' && id.startsWith(TIPTAP_BLOCK_ID_PREFIX))).toBe(true)
     expect(new Set(bodyIds).size).toBe(bodyIds.length)

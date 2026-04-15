@@ -1,31 +1,22 @@
 <script setup lang="ts">
 import type { FormInstance } from 'element-plus'
-import { computed, useTemplateRef } from 'vue'
+import { useTemplateRef } from 'vue'
 import AuthEntryShell from '../components/AuthEntryShell.vue'
-import { usePasswordRegisterVerifyView } from './composables/usePasswordRegisterVerifyView'
+import { useRegisterVerify } from './composables/useRegisterVerify'
 
 const registerFormRef = useTemplateRef<FormInstance>('registerFormRef')
 const {
   errorMessage,
   form,
   formRules,
+  handleSubmitRegistration,
   isReady,
   isSubmitting,
+  pageDescription,
   statusLabel,
-  submitRegistration,
-} = usePasswordRegisterVerifyView()
-
-const pageDescription = computed(() => {
-  if (errorMessage.value) {
-    return '注册信息无效，请重新填写邮箱后获取验证码。'
-  }
-
-  return '输入验证码并设置密码后即可完成注册。'
+} = useRegisterVerify({
+  registerFormRef,
 })
-
-async function handleSubmitRegistration() {
-  await submitRegistration(registerFormRef.value)
-}
 </script>
 
 <template>

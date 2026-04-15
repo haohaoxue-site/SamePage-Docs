@@ -1,141 +1,44 @@
 <script setup lang="ts">
-import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type { FormInstance } from 'element-plus'
 import type { UserAccountSectionEmits, UserAccountSectionProps } from '../typing'
-import { AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
-import { computed, reactive, useTemplateRef } from 'vue'
-import { AUTH_PROVIDER_UI_META } from '@/views/auth/utils/provider-ui'
-import {
-  createConfirmPasswordRules,
-  createEmailRules,
-  createPasswordRules,
-  isValidEmail,
-  isValidPassword,
-} from '@/views/auth/utils/rules'
+import { useTemplateRef } from 'vue'
+import { useUserAccountSection } from '../composables/useUserAccountSection'
 import UserSettingsSectionHeader from './UserSettingsSectionHeader.vue'
 
 const props = defineProps<UserAccountSectionProps>()
 const emit = defineEmits<UserAccountSectionEmits>()
-const EMAIL_CODE_RE = /^\d{6}$/
 const emailModel = defineModel<string>('email', { required: true })
 const codeModel = defineModel<string>('code', { required: true })
 const newPasswordModel = defineModel<string>('newPassword', { required: true })
 const confirmPasswordModel = defineModel<string>('confirmPassword', { required: true })
 const emailFormRef = useTemplateRef<FormInstance>('emailFormRef')
-const form = reactive({
-  email: emailModel,
+const {
+  clearEmailValidation,
+  emailButtonText,
+  emailFormRules,
+  form,
+  handleConfirmEmail,
+  handleDisconnect,
+  handleSendCode,
+  handleStartOauthBinding,
+  isConfirmEmailDisabled,
+  isSendCodeDisabled,
+  oauthRows,
+  requiresPasswordSetup,
+  sectionDescription,
+  showEmailStatus,
+} = useUserAccountSection({
   code: codeModel,
-  newPassword: newPasswordModel,
   confirmPassword: confirmPasswordModel,
+  email: emailModel,
+  emailFormRef,
+  newPassword: newPasswordModel,
+  onConfirmEmail: () => emit('confirmEmail'),
+  onDisconnectOauthBinding: provider => emit('disconnectOauthBinding', provider),
+  onSendCode: () => emit('sendCode'),
+  onStartOauthBinding: provider => emit('startOauthBinding', provider),
+  props,
 })
-
-const requiresPasswordSetup = computed(() => !props.account.hasPasswordAuth)
-const hasEmailAccountInfo = computed(() => Boolean(props.account.email) || props.account.hasPasswordAuth)
-const showEmailStatus = computed(() => props.emailBindingEnabled || hasEmailAccountInfo.value)
-const normalizedEmail = computed(() => form.email.trim())
-const normalizedCode = computed(() => form.code.trim())
-const sectionDescription = computed(() => {
-  if (props.emailBindingEnabled) {
-    return '管理邮箱、GitHub 与 LinuxDo 登录方式。解绑第三方账号前，系统会校验是否仍保留可用登录方式。'
-  }
-
-  if (hasEmailAccountInfo.value) {
-    return '查看邮箱与密码登录状态，并管理 GitHub 与 LinuxDo 登录方式。解绑第三方账号前，系统会校验是否仍保留可用登录方式。'
-  }
-
-  return '管理 GitHub 与 LinuxDo 登录方式。解绑第三方账号前，系统会校验是否仍保留可用登录方式。'
-})
-
-const emailFormRules = computed(() => ({
-  email: createEmailRules('邮箱'),
-  code: [
-    {
-      required: true,
-      message: '请输入 6 位验证码',
-    },
-    {
-      pattern: EMAIL_CODE_RE,
-      message: '验证码需为 6 位数字',
-    },
-  ],
-  newPassword: requiresPasswordSetup.value ? createPasswordRules('登录密码') : [],
-  confirmPassword: requiresPasswordSetup.value
-    ? createConfirmPasswordRules(() => form.newPassword, '确认登录密码')
-    : [],
-}))
-
-const oauthRows = computed(() => [
-  {
-    provider: AUTH_PROVIDER.GITHUB,
-    ...AUTH_PROVIDER_UI_META[AUTH_PROVIDER.GITHUB],
-    connected: props.account.github.connected,
-    username: props.account.github.username,
-    canDisconnect: props.canDisconnectGithub,
-  },
-  {
-    provider: AUTH_PROVIDER.LINUX_DO,
-    ...AUTH_PROVIDER_UI_META[AUTH_PROVIDER.LINUX_DO],
-    connected: props.account.linuxDo.connected,
-    username: props.account.linuxDo.username,
-    canDisconnect: props.canDisconnectLinuxDo,
-  },
-])
-
-const emailButtonText = computed(() => {
-  if (requiresPasswordSetup.value) {
-    return props.account.email ? '更新邮箱并保留密码登录' : '绑定邮箱并启用密码登录'
-  }
-
-  return props.account.email ? '更新邮箱' : '绑定邮箱'
-})
-const isEmailReady = computed(() => isValidEmail(normalizedEmail.value))
-const isCodeReady = computed(() => EMAIL_CODE_RE.test(normalizedCode.value))
-const isPasswordReady = computed(() => !requiresPasswordSetup.value || isValidPassword(form.newPassword))
-const isConfirmPasswordReady = computed(() =>
-  !requiresPasswordSetup.value
-  || (Boolean(form.confirmPassword) && form.confirmPassword === form.newPassword),
-)
-const isSendCodeDisabled = computed(() =>
-  props.isSendingCode || props.isBindingEmail || !isEmailReady.value,
-)
-const isConfirmEmailDisabled = computed(() =>
-  props.isBindingEmail
-  || props.isSendingCode
-  || !isEmailReady.value
-  || !isCodeReady.value
-  || !isPasswordReady.value
-  || !isConfirmPasswordReady.value,
-)
-
-async function handleConfirmEmail() {
-  const isValid = await emailFormRef.value?.validate().catch(() => false)
-
-  if (!isValid) {
-    return
-  }
-
-  emit('confirmEmail')
-}
-
-function handleStartOauthBinding(provider: AuthProviderName) {
-  emit('startOauthBinding', provider)
-}
-
-function handleSendCode() {
-  if (isSendCodeDisabled.value) {
-    return
-  }
-
-  emit('sendCode')
-}
-
-function handleDisconnect(provider: AuthProviderName) {
-  emit('disconnectOauthBinding', provider)
-}
-
-function clearEmailValidation() {
-  emailFormRef.value?.clearValidate()
-}
 
 defineExpose({
   clearEmailValidation,

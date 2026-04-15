@@ -2,22 +2,20 @@
 import type { FormInstance } from 'element-plus'
 import { useTemplateRef } from 'vue'
 import AuthEntryShell from '../components/AuthEntryShell.vue'
-import { usePasswordRegisterRequestView } from './composables/usePasswordRegisterRequestView'
+import { useRegister } from './composables/useRegister'
 
 const registerRequestFormRef = useTemplateRef<FormInstance>('registerRequestFormRef')
 const {
   form,
   formRules,
+  handleSubmitEmailVerificationRequest,
   isLoadingCapabilities,
   isSubmitting,
   loadErrorMessage,
   passwordRegistrationEnabled,
-  submitEmailVerificationRequest,
-} = usePasswordRegisterRequestView()
-
-async function handleSubmitEmailVerificationRequest() {
-  await submitEmailVerificationRequest(registerRequestFormRef.value)
-}
+} = useRegister({
+  registerRequestFormRef,
+})
 </script>
 
 <template>

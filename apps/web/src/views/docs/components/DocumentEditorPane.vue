@@ -1,48 +1,22 @@
 <script setup lang="ts">
 import type { DocumentEditorPaneEmits, DocumentEditorPaneProps } from '../typing'
-import { DOCUMENT_PANE_STATE } from '@haohaoxue/samepage-contracts'
-import { computed, shallowRef, watch } from 'vue'
+import { useDocumentEditorPane } from '../composables/useDocumentEditorPane'
 import DocumentEditor from './DocumentEditor.vue'
 import DocumentEditorFallback from './DocumentEditorFallback.vue'
 
 const props = defineProps<DocumentEditorPaneProps>()
 const emits = defineEmits<DocumentEditorPaneEmits>()
-
-const contentError = shallowRef<Error | null>(null)
-
-const shouldShowEditor = computed(() =>
-  Boolean(props.document)
-  && props.paneState === DOCUMENT_PANE_STATE.READY
-  && !contentError.value,
-)
-
-watch(
-  () => props.document
-    ? JSON.stringify({
-        title: props.document.title,
-        body: props.document.body,
-      })
-    : null,
-  () => {
-    contentError.value = null
-  },
-)
-
-function handleContentError(error: Error) {
-  contentError.value = error
-}
-
-function handleRetryLoad() {
-  contentError.value = null
-  emits('retryLoad')
-}
+const { contentError, handleContentError, handleRetryLoad, shouldShowEditor } = useDocumentEditorPane({
+  onRetryLoad: () => emits('retryLoad'),
+  props,
+})
 </script>
 
 <template>
   <section class="document-editor-pane">
     <DocumentEditor
-      v-if="shouldShowEditor && document"
-      :document="document"
+      v-if="shouldShowEditor && props.document"
+      :document="props.document"
       @update-title="emits('updateTitle', $event)"
       @update-content="emits('updateContent', $event)"
       @content-error="handleContentError"

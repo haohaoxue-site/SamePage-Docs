@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import type { AppearancePreference, LanguagePreference } from '@haohaoxue/samepage-domain'
 import type { UserPreferenceSectionProps } from '../typing'
-import { APPEARANCE_PREFERENCE_VALUES, LANGUAGE_PREFERENCE_VALUES } from '@haohaoxue/samepage-contracts'
-import { formatAppearancePreference, formatLanguagePreference } from '@haohaoxue/samepage-shared'
+import { useUserPreferenceSection } from '../composables/useUserPreferenceSection'
 import UserSettingsSectionHeader from './UserSettingsSectionHeader.vue'
 
 const props = defineProps<UserPreferenceSectionProps>()
 const language = defineModel<LanguagePreference>('language', { required: true })
 const appearance = defineModel<AppearancePreference>('appearance', { required: true })
+const {
+  appearanceOptions,
+  formatAppearancePreference,
+  formatLanguagePreference,
+  languageOptions,
+} = useUserPreferenceSection()
 </script>
 
 <template>
@@ -27,7 +32,7 @@ const appearance = defineModel<AppearancePreference>('appearance', { required: t
         class="user-preference-section__options"
       >
         <ElRadioButton
-          v-for="item in LANGUAGE_PREFERENCE_VALUES"
+          v-for="item in languageOptions"
           :key="item"
           :label="item"
           :value="item"
@@ -47,7 +52,7 @@ const appearance = defineModel<AppearancePreference>('appearance', { required: t
         class="user-preference-section__options"
       >
         <ElRadioButton
-          v-for="item in APPEARANCE_PREFERENCE_VALUES"
+          v-for="item in appearanceOptions"
           :key="item"
           :label="item"
           :value="item"

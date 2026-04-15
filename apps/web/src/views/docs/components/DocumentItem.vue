@@ -1,47 +1,27 @@
 <script setup lang="ts">
 import type { DocumentItemEmits, DocumentItemProps } from '../typing'
-import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
-import { computed } from 'vue'
+import { useDocumentItem } from '../composables/useDocumentItem'
 
 const props = defineProps<DocumentItemProps>()
-
 const emits = defineEmits<DocumentItemEmits>()
-
-const isActive = computed(() => props.activeDocumentId === props.item.id)
-const isExpanded = computed(() => props.expandedDocumentIds.has(props.item.id))
-const canManageDocument = computed(() => props.collectionId === DOCUMENT_COLLECTION.PERSONAL)
-
-function openDocument() {
-  emits('open', props.item.id)
-}
-
-function toggleItem() {
-  if (!props.item.hasChildren) {
-    return
-  }
-
-  emits('toggle', props.item.id)
-}
-
-function handleDeleteCommand() {
-  emits('deleteDocument', props.item.id)
-}
-
-function getItemStateClass() {
-  return isActive.value ? 'active' : 'idle'
-}
-
-function getActionsStateClass() {
-  return isActive.value ? 'visible' : 'hidden'
-}
-
-function getExpandIconName() {
-  return isExpanded.value ? 'chevron-down' : 'chevron-right'
-}
+const {
+  canManageDocument,
+  getActionsStateClass,
+  getExpandIconName,
+  getItemStateClass,
+  handleDeleteCommand,
+  isExpanded,
+  openDocument,
+  toggleItem,
+} = useDocumentItem(props, {
+  onDeleteDocument: documentId => emits('deleteDocument', documentId),
+  onOpen: documentId => emits('open', documentId),
+  onToggle: documentId => emits('toggle', documentId),
+})
 </script>
 
 <template>
-  <div class="document-tree-item" :style="{ paddingLeft: `${depth * 18}px` }">
+  <div class="document-tree-item" :style="{ paddingLeft: `${props.depth * 18}px` }">
     <div
       class="document-tree-item-surface"
       :class="getItemStateClass()"
@@ -73,7 +53,7 @@ function getExpandIconName() {
           text
           class="document-tree-item__icon-button"
           :class="getItemStateClass()"
-          :disabled="isActionPending"
+          :disabled="props.isActionPending"
           title="新建子文档"
           @click.stop="emits('createChild', props.item.id)"
         >
@@ -85,7 +65,7 @@ function getExpandIconName() {
             text
             class="document-tree-item__icon-button"
             :class="getItemStateClass()"
-            :disabled="isActionPending"
+            :disabled="props.isActionPending"
             title="更多操作"
             @click.stop
           >
@@ -109,7 +89,7 @@ function getExpandIconName() {
         :key="child.id"
         :item="child"
         :collection-id="props.collectionId"
-        :depth="depth + 1"
+        :depth="props.depth + 1"
         :active-document-id="props.activeDocumentId"
         :expanded-document-ids="props.expandedDocumentIds"
         :is-action-pending="props.isActionPending"

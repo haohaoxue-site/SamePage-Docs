@@ -1,26 +1,29 @@
 <script setup lang="ts">
 import type { FormInstance } from 'element-plus'
 import { useTemplateRef } from 'vue'
-import { useUserStore } from '@/stores/user'
 import AuthEntryShell from '../components/AuthEntryShell.vue'
-import { useChangePasswordView } from './composables/useChangePasswordView'
+import { useChangePassword } from './composables/useChangePassword'
 
-const userStore = useUserStore()
 const changePasswordFormRef = useTemplateRef<FormInstance>('changePasswordFormRef')
-const { form, formRules, isSubmitting, submitChangePassword } = useChangePasswordView()
-
-async function handleSubmitChangePassword() {
-  await submitChangePassword(changePasswordFormRef.value)
-}
+const {
+  form,
+  formRules,
+  handleSubmitChangePassword,
+  isSubmitting,
+  pageDescription,
+  requiresPasswordChange,
+} = useChangePassword({
+  changePasswordFormRef,
+})
 </script>
 
 <template>
   <AuthEntryShell
     title="修改密码"
-    :description="userStore.requiresPasswordChange ? '首次登录需要先设置新密码。' : '输入当前密码并设置新密码。'"
+    :description="pageDescription"
   >
     <ElAlert
-      v-if="userStore.requiresPasswordChange"
+      v-if="requiresPasswordChange"
       type="warning"
       show-icon
       :closable="false"

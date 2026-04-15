@@ -1,4 +1,4 @@
-import type { ChatSession } from './composables/useChatWorkspace'
+import type { ChatSession } from './composables/useChat'
 import type { ChatMessage, ChatModelOption } from '@/apis/chat'
 
 export interface ChatProviderSettingsDialogProps {

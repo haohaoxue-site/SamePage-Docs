@@ -1,19 +1,25 @@
 import type {
   CreateDocumentSchema,
+  CreateDocumentSnapshotResponseSchema,
+  CreateDocumentSnapshotSchema,
   DOCUMENT_PANE_STATE,
   DOCUMENT_SAVE_STATE,
   DocumentBaseSchema,
   DocumentCollectionIdSchema,
-  DocumentDetailSchema,
+  DocumentHeadSchema,
   DocumentItemSchema,
   DocumentRecentSchema,
+  DocumentRecordSchema,
+  DocumentRevisionSchema,
+  DocumentSnapshotSchema,
+  DocumentSnapshotSourceSchema,
   DocumentSpaceScopeSchema,
   DocumentStatusSchema,
   DocumentTreeGroupSchema,
-  UpdateDocumentSchema,
+  PatchDocumentMetaSchema,
+  RestoreDocumentSnapshotSchema,
 } from '@haohaoxue/samepage-contracts'
 import type { z } from 'zod'
-import type { TiptapJsonContent } from './tiptap'
 
 export type DocumentSpaceScope = z.infer<typeof DocumentSpaceScopeSchema>
 export type DocumentStatus = z.infer<typeof DocumentStatusSchema>
@@ -25,20 +31,11 @@ export type DocumentBase = z.infer<typeof DocumentBaseSchema>
 export type DocumentRecent = z.infer<typeof DocumentRecentSchema>
 export type DocumentItem = z.infer<typeof DocumentItemSchema>
 export type DocumentTreeGroup = z.infer<typeof DocumentTreeGroupSchema>
-
-/**
- * 标题文本节点。
- */
-export interface DocumentTitleTextNode {
-  type: 'text'
-  text: string
-}
-
-export type DocumentTitleContent = DocumentTitleTextNode[]
-
-export type DocumentDetail = Omit<z.infer<typeof DocumentDetailSchema>, 'content'> & {
-  content: TiptapJsonContent
-}
+export type DocumentRevision = z.infer<typeof DocumentRevisionSchema>
+export type DocumentSnapshotSource = z.infer<typeof DocumentSnapshotSourceSchema>
+export type DocumentRecord = z.infer<typeof DocumentRecordSchema>
+export type DocumentSnapshot = z.infer<typeof DocumentSnapshotSchema>
+export type DocumentHead = z.infer<typeof DocumentHeadSchema>
 
 /**
  * 创建文档响应。
@@ -47,9 +44,8 @@ export interface CreateDocumentResponse {
   id: string
 }
 
-export type CreateDocumentRequest = Omit<z.infer<typeof CreateDocumentSchema>, 'content'> & {
-  content?: TiptapJsonContent
-}
-export type UpdateDocumentRequest = Omit<z.infer<typeof UpdateDocumentSchema>, 'content'> & {
-  content: TiptapJsonContent
-}
+export type CreateDocumentRequest = z.infer<typeof CreateDocumentSchema>
+export type CreateDocumentSnapshotRequest = z.infer<typeof CreateDocumentSnapshotSchema>
+export type CreateDocumentSnapshotResponse = z.infer<typeof CreateDocumentSnapshotResponseSchema>
+export type RestoreDocumentSnapshotRequest = z.infer<typeof RestoreDocumentSnapshotSchema>
+export type PatchDocumentMetaRequest = z.infer<typeof PatchDocumentMetaSchema>

@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { FormInstance } from 'element-plus'
-import { computed, useTemplateRef } from 'vue'
+import { useTemplateRef } from 'vue'
 import { formatDateTime } from '@/utils/dayjs'
-import { useAdminEmailConfig } from './composables/useAdminEmailConfig'
+import { useEmail } from './composables/useEmail'
 
 const emailConfigFormRef = useTemplateRef<FormInstance>('emailConfigFormRef')
 const testEmailFormRef = useTemplateRef<FormInstance>('testEmailFormRef')
 const {
   configStatusLabel,
+  configStatusStateClass,
   closeTestDialog,
   currentConfig,
   currentProviderTitle,
@@ -15,6 +16,11 @@ const {
   errorMessage,
   form,
   formRules,
+  handleKeepSavedPassword,
+  handleSaveConfig,
+  handleSendTestEmail,
+  handleServiceStatusChange,
+  handleStartPasswordEdit,
   hasSavedPassword,
   isEditingPassword,
   isLoading,
@@ -22,49 +28,15 @@ const {
   isTestDialogVisible,
   isTesting,
   isUpdatingServiceStatus,
-  keepSavedPassword,
   openTestDialog,
   providerCards,
-  saveConfig,
   selectProvider,
-  startPasswordEdit,
   testEmailForm,
   testEmailFormRules,
-  testConfig,
-  updateServiceStatus,
-} = useAdminEmailConfig()
-
-const configStatusStateClass = computed(() => currentServiceStatus.value?.enabled ? 'enabled' : 'disabled')
-
-function handleServiceStatusChange(value: string | number | boolean) {
-  if (typeof value !== 'boolean') {
-    return
-  }
-
-  updateServiceStatus(value)
-}
-
-async function handleSaveConfig() {
-  await saveConfig(emailConfigFormRef.value)
-}
-
-async function handleSendTestEmail() {
-  await testConfig(testEmailFormRef.value)
-}
-
-function clearPasswordValidation() {
-  emailConfigFormRef.value?.clearValidate('smtpPassword')
-}
-
-function handleStartPasswordEdit() {
-  startPasswordEdit()
-  clearPasswordValidation()
-}
-
-function handleKeepSavedPassword() {
-  keepSavedPassword()
-  clearPasswordValidation()
-}
+} = useEmail({
+  emailConfigFormRef,
+  testEmailFormRef,
+})
 </script>
 
 <template>

@@ -50,6 +50,17 @@ export class SystemAdminOverviewDto {
   systemAiDefaultModel!: string | null
 }
 
+export class AuditUserSummaryDto {
+  @ApiProperty()
+  id!: string
+
+  @ApiProperty()
+  displayName!: string
+
+  @ApiProperty({ nullable: true })
+  avatarUrl!: string | null
+}
+
 export class SystemAdminUserItemDto {
   @ApiProperty()
   id!: string
@@ -80,9 +91,6 @@ export class SystemAdminUserItemDto {
 
   @ApiProperty()
   createdAt!: Date
-
-  @ApiProperty({ nullable: true })
-  createdBy!: string | null
 
   @ApiProperty({ nullable: true })
   lastLoginAt!: Date | null
@@ -181,6 +189,9 @@ export class SystemEmailConfigDto {
 
   @ApiProperty({ nullable: true })
   updatedBy!: string | null
+
+  @ApiProperty({ type: () => AuditUserSummaryDto, nullable: true })
+  updatedByUser!: AuditUserSummaryDto | null
 }
 
 export class SystemEmailServiceStatusDto {
@@ -192,6 +203,9 @@ export class SystemEmailServiceStatusDto {
 
   @ApiProperty({ nullable: true })
   updatedBy!: string | null
+
+  @ApiProperty({ type: () => AuditUserSummaryDto, nullable: true })
+  updatedByUser!: AuditUserSummaryDto | null
 }
 
 export class UpdateSystemEmailConfigDto {
@@ -282,6 +296,9 @@ export class SystemAiConfigDto {
 
   @ApiProperty({ nullable: true })
   updatedBy!: string | null
+
+  @ApiProperty({ type: () => AuditUserSummaryDto, nullable: true })
+  updatedByUser!: AuditUserSummaryDto | null
 }
 
 export class SystemAiServiceStatusDto {
@@ -293,6 +310,9 @@ export class SystemAiServiceStatusDto {
 
   @ApiProperty({ nullable: true })
   updatedBy!: string | null
+
+  @ApiProperty({ type: () => AuditUserSummaryDto, nullable: true })
+  updatedByUser!: AuditUserSummaryDto | null
 }
 
 export class UpdateSystemAiConfigDto {
@@ -348,9 +368,6 @@ export class SystemAdminAuditLogItemDto {
 
   @ApiProperty()
   createdAt!: Date
-
-  @ApiProperty({ nullable: true })
-  createdBy!: string | null
 }
 
 export class GovernanceSummaryDto {

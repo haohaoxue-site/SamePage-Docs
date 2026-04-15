@@ -3,34 +3,16 @@ import type {
   SystemAdminUserTableEmits,
   SystemAdminUserTableProps,
 } from '../typing'
-import type { SystemAdminUserStatus } from '@/apis/system-admin'
-import { formatAuthMethod } from '@haohaoxue/samepage-shared'
-import { formatDateTime } from '@/utils/dayjs'
+import { useSystemAdminUserTable } from '../composables/useSystemAdminUserTable'
 
-defineProps<SystemAdminUserTableProps>()
-
+const props = defineProps<SystemAdminUserTableProps>()
 const emits = defineEmits<SystemAdminUserTableEmits>()
-
-function resolveNextStatus(status: SystemAdminUserStatus): SystemAdminUserStatus {
-  return status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
-}
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return '暂无'
-  }
-
-  return formatDateTime(value)
-}
-
-function getStatusStateClass(status: SystemAdminUserStatus) {
-  return status === 'ACTIVE' ? 'active' : 'disabled'
-}
+const { formatAuthMethod, formatDate, getStatusStateClass, resolveNextStatus } = useSystemAdminUserTable()
 </script>
 
 <template>
   <ElCard shadow="never" body-class="!p-0" class="overflow-hidden border-border-a80">
-    <ElTable :data="users" class="admin-table admin-user-table">
+    <ElTable :data="props.users" class="admin-table admin-user-table">
       <ElTableColumn label="用户信息" min-width="240">
         <template #default="{ row }">
           <div class="admin-user-table__identity">
@@ -101,7 +83,7 @@ function getStatusStateClass(status: SystemAdminUserStatus) {
             <ElButton
               link
               :type="row.status === 'ACTIVE' ? 'danger' : 'success'"
-              :disabled="updatingUserId === row.id || row.isSystemAdmin"
+              :disabled="props.updatingUserId === row.id || row.isSystemAdmin"
               @click="emits('toggleStatus', row, resolveNextStatus(row.status))"
             >
               {{ row.isSystemAdmin ? '系统管理员' : row.status === 'ACTIVE' ? '禁用' : '激活' }}

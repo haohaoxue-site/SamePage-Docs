@@ -1,15 +1,16 @@
-import { onMounted, shallowRef } from 'vue'
+import { computed, onMounted, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 import { completeAuthNavigation } from '../../utils/navigation'
 
-export function useAuthCallbackView() {
+export function useCallback() {
   const route = useRoute()
   const router = useRouter()
   const authStore = useAuthStore()
   const statusLabel = shallowRef('正在完成登录...')
   const errorMessage = shallowRef('')
+  const pageDescription = computed(() => errorMessage.value ? '请返回登录页后重试。' : '正在处理第三方登录，请稍候。')
 
   async function handleCallback() {
     const redirectError = typeof route.query.error === 'string' ? route.query.error.trim() : ''
@@ -41,6 +42,7 @@ export function useAuthCallbackView() {
   onMounted(handleCallback)
 
   return {
+    pageDescription,
     statusLabel,
     errorMessage,
   }

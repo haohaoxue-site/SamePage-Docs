@@ -1,42 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { SvgIconCategory } from '@/components/svg-icon/typing'
 import ConsoleMetricCard from '../components/ConsoleMetricCard.vue'
-import { useAdminGovernance } from './composables/useAdminGovernance'
+import { useGovernance } from './composables/useGovernance'
 
-const { summary, errorMessage, isLoading, loadGovernanceSummary } = useAdminGovernance()
-
-const governanceCards = computed(() => {
-  if (!summary.value) {
-    return []
-  }
-
-  return [
-    {
-      label: '文档总量',
-      value: summary.value.totalDocuments,
-      detail: '平台文档总量',
-      iconCategory: SvgIconCategory.UI,
-      icon: 'flow',
-    },
-    {
-      label: '共享文档',
-      value: summary.value.sharedDocuments,
-      detail: '已共享文档数',
-      iconCategory: SvgIconCategory.UI,
-      icon: 'share',
-    },
-    {
-      label: '风控锁定',
-      value: summary.value.lockedDocuments,
-      detail: `当前处于 ${summary.value.lockedStatus} 状态`,
-      iconCategory: SvgIconCategory.UI,
-      icon: 'lock',
-    },
-  ]
-})
-
-onMounted(loadGovernanceSummary)
+const { summary, errorMessage, governanceCards, isLoading } = useGovernance()
 </script>
 
 <template>

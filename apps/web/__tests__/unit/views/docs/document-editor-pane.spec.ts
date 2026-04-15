@@ -1,7 +1,7 @@
 import type { TiptapJsonContent } from '@haohaoxue/samepage-domain'
 import type { JSONContent } from '@tiptap/core'
 import type { ActiveDocumentDetail } from '@/views/docs/typing'
-import { TIPTAP_SCHEMA_VERSION } from '@haohaoxue/samepage-contracts'
+import { DOCUMENT_PANE_STATE, TIPTAP_SCHEMA_VERSION } from '@haohaoxue/samepage-contracts'
 import { createDocumentTitleContent } from '@haohaoxue/samepage-shared'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
@@ -24,19 +24,19 @@ const validContent = [
 function createDocument(overrides: Partial<ActiveDocumentDetail> = {}): ActiveDocumentDetail {
   return {
     id: 'doc-1',
-    title: createDocumentTitleContent('测试文档'),
+    ownerId: 'user-1',
+    parentId: null,
+    latestSnapshotId: 'snapshot-1',
+    order: 0,
+    spaceScope: 'PERSONAL',
+    status: 'ACTIVE',
     summary: '测试摘要',
     createdAt: '2026-04-13T00:00:00.000Z',
-    createdBy: null,
     updatedAt: '2026-04-13T00:00:00.000Z',
-    updatedBy: null,
-    parentId: null,
+    headRevision: 1,
     schemaVersion: TIPTAP_SCHEMA_VERSION,
+    title: createDocumentTitleContent('测试文档'),
     body: invalidContent as TiptapJsonContent,
-    hasChildren: false,
-    hasContent: true,
-    scope: 'PERSONAL',
-    collection: 'personal',
     ...overrides,
   }
 }
@@ -113,5 +113,32 @@ describe('documentEditorPane', () => {
 
     expect(wrapper.find('.document-editor-pane__editor').exists()).toBe(false)
     expect(wrapper.text()).toContain('重新加载')
+  })
+
+  it('在 schema 不兼容时显示明确的阻断提示', () => {
+    const wrapper = mount(DocumentEditorPane, {
+      props: {
+        document: null,
+        isLoading: false,
+        paneState: DOCUMENT_PANE_STATE.UNSUPPORTED_SCHEMA,
+        hasFallbackDocument: true,
+      },
+      global: {
+        stubs: {
+          ElEmpty: defineComponent({
+            template: '<div class="el-empty-stub"><slot name="image" /><slot name="description" /><slot /></div>',
+          }),
+          ElButton: defineComponent({
+            template: '<button><slot /></button>',
+          }),
+          SvgIcon: defineComponent({
+            template: '<span class="svg-icon-stub" />',
+          }),
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('文档 schema 版本不受支持')
+    expect(wrapper.text()).toContain('打开可用文档')
   })
 })

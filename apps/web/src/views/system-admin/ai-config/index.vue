@@ -1,55 +1,30 @@
 <script setup lang="ts">
 import type { FormInstance } from 'element-plus'
-import { computed, useTemplateRef } from 'vue'
+import { useTemplateRef } from 'vue'
 import { formatDateTime } from '@/utils/dayjs'
-import { useSystemAiConfig } from './composables/useSystemAiConfig'
+import { useAiConfig } from './composables/useAiConfig'
 
 const systemAiConfigFormRef = useTemplateRef<FormInstance>('systemAiConfigFormRef')
 const {
   configStatusLabel,
+  configStatusStateClass,
   currentConfig,
   currentServiceStatus,
   errorMessage,
   form,
   formRules,
+  handleKeepSavedApiKey,
+  handleSaveConfig,
+  handleServiceStatusChange,
+  handleStartApiKeyEdit,
   hasSavedApiKey,
   isEditingApiKey,
   isLoading,
   isSaving,
   isUpdatingServiceStatus,
-  keepSavedApiKey,
-  saveConfig,
-  startApiKeyEdit,
-  updateServiceStatus,
-} = useSystemAiConfig()
-
-const configStatusStateClass = computed(() => currentServiceStatus.value?.enabled ? 'enabled' : 'disabled')
-
-function handleServiceStatusChange(value: string | number | boolean) {
-  if (typeof value !== 'boolean') {
-    return
-  }
-
-  updateServiceStatus(value)
-}
-
-async function handleSaveConfig() {
-  await saveConfig(systemAiConfigFormRef.value)
-}
-
-function clearApiKeyValidation() {
-  systemAiConfigFormRef.value?.clearValidate('apiKey')
-}
-
-function handleStartApiKeyEdit() {
-  startApiKeyEdit()
-  clearApiKeyValidation()
-}
-
-function handleKeepSavedApiKey() {
-  keepSavedApiKey()
-  clearApiKeyValidation()
-}
+} = useAiConfig({
+  systemAiConfigFormRef,
+})
 </script>
 
 <template>

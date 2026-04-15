@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import type { RecentDocumentListProps } from '../typing'
-import { formatDocumentLocation } from '@haohaoxue/samepage-shared'
-import { formatMonthDayTime } from '@/utils/dayjs'
+import { useRecentDocumentList } from '../composables/useRecentDocumentList'
 
 defineProps<RecentDocumentListProps>()
-
-function formatDocumentUpdatedAt(value: string) {
-  return formatMonthDayTime(value)
-}
+const { formatDocumentLocation, formatDocumentUpdatedAt } = useRecentDocumentList()
 </script>
 
 <template>

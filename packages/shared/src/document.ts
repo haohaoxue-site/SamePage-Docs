@@ -1,8 +1,8 @@
 import type {
   DocumentCollectionId,
   DocumentSaveState,
+  DocumentSnapshot,
   DocumentSpaceScope,
-  DocumentTitleContent,
   OwnedDocumentCollectionId,
   TiptapJsonContent,
   TiptapJsonNode,
@@ -30,7 +30,7 @@ export function formatDocumentLocation(collectionId: DocumentCollectionId, ances
   return [formatDocumentCollectionLabel(collectionId), ...ancestorTitles].join('/')
 }
 
-export function createDocumentTitleContent(title: string): DocumentTitleContent {
+export function createDocumentTitleContent(title: string): TiptapJsonContent {
   const normalizedTitle = normalizeDocumentTitleText(title)
 
   if (!normalizedTitle) {
@@ -45,20 +45,12 @@ export function createDocumentTitleContent(title: string): DocumentTitleContent 
   ]
 }
 
-export function getDocumentTitlePlainText(content: DocumentTitleContent): string {
+export function getDocumentTitlePlainText(content: TiptapJsonContent): string {
   return normalizeDocumentTitleText(content.map(node => node.text).join(''))
 }
 
-export function serializeDocumentContent(content: TiptapJsonContent): string {
-  return JSON.stringify(content)
-}
-
-export function deserializeDocumentContent(content: string): TiptapJsonContent {
-  if (!content.trim()) {
-    return []
-  }
-
-  return JSON.parse(content) as TiptapJsonContent
+export function getDocumentSnapshotTitlePlainText(snapshot: Pick<DocumentSnapshot, 'title'>): string {
+  return getDocumentTitlePlainText(snapshot.title)
 }
 
 export function getDocumentPlainText(content: TiptapJsonContent): string {
@@ -81,8 +73,25 @@ export function summarizeDocumentContent(
   return plainText.slice(0, maxLength) || fallback
 }
 
+export function getDocumentSnapshotSummary(
+  snapshot: Pick<DocumentSnapshot, 'body'>,
+  maxLength = 120,
+  fallback = '暂无摘要',
+): string {
+  return summarizeDocumentContent(snapshot.body, maxLength, fallback)
+}
+
 export function hasDocumentContent(content: TiptapJsonContent): boolean {
   return getDocumentPlainText(content).length > 0
+}
+
+export function isSameDocumentSnapshotContent(
+  left: Pick<DocumentSnapshot, 'schemaVersion' | 'title' | 'body'>,
+  right: Pick<DocumentSnapshot, 'schemaVersion' | 'title' | 'body'>,
+): boolean {
+  return left.schemaVersion === right.schemaVersion
+    && JSON.stringify(left.title) === JSON.stringify(right.title)
+    && JSON.stringify(left.body) === JSON.stringify(right.body)
 }
 
 export function getDocumentSaveStateLabel(options: {

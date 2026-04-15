@@ -1,4 +1,5 @@
 import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
+import type { Ref } from 'vue'
 import type {
   SystemAiConfigDto,
   SystemAiServiceStatusDto,
@@ -13,7 +14,9 @@ import {
 } from '@/apis/system-admin'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
-export function useSystemAiConfig() {
+export function useAiConfig(options: {
+  systemAiConfigFormRef: Ref<FormInstance | null>
+}) {
   type RuleValidator = NonNullable<FormItemRule['validator']>
 
   const currentConfig = shallowRef<SystemAiConfigDto | null>(null)
@@ -28,6 +31,7 @@ export function useSystemAiConfig() {
   })
 
   const configStatusLabel = computed(() => currentServiceStatus.value?.enabled ? '已启用' : '未启用')
+  const configStatusStateClass = computed(() => currentServiceStatus.value?.enabled ? 'enabled' : 'disabled')
   const hasSavedApiKey = computed(() => currentConfig.value?.hasApiKey ?? false)
   const isEditingApiKey = shallowRef(false)
 
@@ -138,6 +142,7 @@ export function useSystemAiConfig() {
       enabled: nextEnabled,
       updatedAt: previousStatus?.updatedAt ?? null,
       updatedBy: previousStatus?.updatedBy ?? null,
+      updatedByUser: previousStatus?.updatedByUser ?? null,
     }
     isUpdatingServiceStatus.value = true
 
@@ -153,6 +158,7 @@ export function useSystemAiConfig() {
           ...currentConfig.value,
           updatedAt: nextStatus.updatedAt,
           updatedBy: nextStatus.updatedBy,
+          updatedByUser: nextStatus.updatedByUser,
         }
       }
 
@@ -167,15 +173,46 @@ export function useSystemAiConfig() {
     }
   }
 
+  function handleServiceStatusChange(value: string | number | boolean) {
+    if (typeof value !== 'boolean') {
+      return
+    }
+
+    void updateServiceStatus(value)
+  }
+
   onMounted(loadConfig)
+
+  async function handleSaveConfig() {
+    await saveConfig(options.systemAiConfigFormRef.value)
+  }
+
+  function clearApiKeyValidation() {
+    options.systemAiConfigFormRef.value?.clearValidate('apiKey')
+  }
+
+  function handleStartApiKeyEdit() {
+    startApiKeyEdit()
+    clearApiKeyValidation()
+  }
+
+  function handleKeepSavedApiKey() {
+    keepSavedApiKey()
+    clearApiKeyValidation()
+  }
 
   return {
     configStatusLabel,
+    configStatusStateClass,
     currentConfig,
     currentServiceStatus,
     errorMessage,
     form,
     formRules,
+    handleKeepSavedApiKey,
+    handleSaveConfig,
+    handleServiceStatusChange,
+    handleStartApiKeyEdit,
     hasSavedApiKey,
     isEditingApiKey,
     isLoading,

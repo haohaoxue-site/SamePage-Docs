@@ -1,5 +1,4 @@
 import type { CreateDocumentResponse, DocumentTreeGroup } from '@haohaoxue/samepage-domain'
-import { TIPTAP_SCHEMA_VERSION } from '@haohaoxue/samepage-contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { computed, effectScope, shallowRef } from 'vue'
 import { createDocument, getDocuments } from '@/apis/document'
@@ -55,7 +54,6 @@ describe('useDocumentTree', () => {
 
     expect(createDocumentMock).toHaveBeenCalledWith({
       title: '未命名',
-      schemaVersion: TIPTAP_SCHEMA_VERSION,
       parentId: null,
     })
     expect(getDocumentsMock).toHaveBeenCalledTimes(1)

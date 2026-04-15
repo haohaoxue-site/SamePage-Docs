@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { FormInstance } from 'element-plus'
 import type { UserProfileSectionEmits, UserProfileSectionProps } from '../typing'
-import { computed, reactive, useTemplateRef } from 'vue'
-import { createDisplayNameRules } from '@/views/auth/utils/rules'
+import { useTemplateRef } from 'vue'
+import { useUserProfileSection } from '../composables/useUserProfileSection'
 import UserSettingsSectionHeader from './UserSettingsSectionHeader.vue'
 
 const props = defineProps<UserProfileSectionProps>()
@@ -10,48 +10,22 @@ const emit = defineEmits<UserProfileSectionEmits>()
 const displayNameModel = defineModel<string>('displayName', { required: true })
 const profileFormRef = useTemplateRef<FormInstance>('profileFormRef')
 const fileInputRef = useTemplateRef<HTMLInputElement>('fileInputRef')
-const form = reactive({
+const {
+  avatarInitial,
+  displayNameRules,
+  form,
+  handleFileChange,
+  handlePickAvatar,
+  handleSaveDisplayName,
+  sectionDescription,
+} = useUserProfileSection({
   displayName: displayNameModel,
+  fileInputRef,
+  onSaveDisplayName: () => emit('saveDisplayName'),
+  onUpload: file => emit('upload', file),
+  props,
+  profileFormRef,
 })
-
-const avatarInitial = computed(() => form.displayName.trim().slice(0, 1).toUpperCase() || 'U')
-const displayNameRules = {
-  displayName: createDisplayNameRules(),
-} as const
-const sectionDescription = computed(() =>
-  props.canEditDisplayName
-    ? '更换头像后会立即生效，显示名称保存后会同步更新。'
-    : '更换头像后会立即生效，当前账号的显示名称不可修改。',
-)
-
-function handlePickAvatar() {
-  fileInputRef.value?.click()
-}
-
-function handleFileChange(event: Event) {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-
-  if (file) {
-    emit('upload', file)
-  }
-
-  target.value = ''
-}
-
-async function handleSaveDisplayName() {
-  if (!props.canEditDisplayName) {
-    return
-  }
-
-  const isValid = await profileFormRef.value?.validate().catch(() => false)
-
-  if (!isValid) {
-    return
-  }
-
-  emit('saveDisplayName')
-}
 </script>
 
 <template>

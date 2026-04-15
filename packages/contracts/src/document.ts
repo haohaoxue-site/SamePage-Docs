@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { TiptapJsonContentPayloadSchema, TiptapSchemaVersionSchema } from './tiptap'
+import { AuditUserSummarySchema } from './user'
 
 export const DOCUMENT_COLLECTION = {
   PERSONAL: 'personal',
@@ -32,6 +33,7 @@ export const DOCUMENT_PANE_STATE = {
   LOADING: 'loading',
   EMPTY: 'empty',
   UNSELECTED: 'unselected',
+  UNSUPPORTED_SCHEMA: 'unsupported-schema',
   NOT_FOUND: 'not-found',
   FORBIDDEN: 'forbidden',
   ERROR: 'error',
@@ -56,9 +58,7 @@ export const DocumentBaseSchema = z.object({
   title: z.string(),
   summary: z.string(),
   createdAt: z.string(),
-  createdBy: z.string().nullable(),
   updatedAt: z.string(),
-  updatedBy: z.string().nullable(),
 })
 
 export const DocumentRecentSchema = z.object({
@@ -67,9 +67,7 @@ export const DocumentRecentSchema = z.object({
   collection: DocumentCollectionIdSchema,
   ancestorTitles: z.string().array(),
   createdAt: z.string(),
-  createdBy: z.string().nullable(),
   updatedAt: z.string(),
-  updatedBy: z.string().nullable(),
 })
 
 export const DocumentItemSchema = DocumentBaseSchema.extend({
@@ -86,25 +84,82 @@ export const DocumentTreeGroupSchema = z.object({
   nodes: DocumentItemSchema.array(),
 })
 
-export const DocumentDetailSchema = DocumentBaseSchema.extend({
+export const DocumentRevisionSchema = z.number().int().min(0)
+
+export const DOCUMENT_SNAPSHOT_SOURCE = {
+  AUTOSAVE: 'autosave',
+  MANUAL_VERSION: 'manual-version',
+  RESTORE: 'restore',
+} as const
+
+export const DOCUMENT_SNAPSHOT_SOURCE_VALUES = [
+  DOCUMENT_SNAPSHOT_SOURCE.AUTOSAVE,
+  DOCUMENT_SNAPSHOT_SOURCE.MANUAL_VERSION,
+  DOCUMENT_SNAPSHOT_SOURCE.RESTORE,
+] as const
+
+export const DocumentSnapshotSourceSchema = z.enum(DOCUMENT_SNAPSHOT_SOURCE_VALUES)
+
+export const DocumentRecordSchema = DocumentBaseSchema.omit({
+  title: true,
+}).extend({
+  ownerId: z.string(),
   parentId: z.string().nullable(),
+  latestSnapshotId: z.string().nullable(),
+  order: z.number().int(),
+  spaceScope: DocumentSpaceScopeSchema,
+  status: DocumentStatusSchema,
+}).strict()
+
+export const DocumentSnapshotSchema = z.object({
+  id: z.string(),
+  documentId: z.string(),
+  revision: DocumentRevisionSchema,
   schemaVersion: TiptapSchemaVersionSchema,
-  content: TiptapJsonContentPayloadSchema,
-  hasChildren: z.boolean(),
-  hasContent: z.boolean(),
-  scope: DocumentSpaceScopeSchema,
-  collection: DocumentCollectionIdSchema,
-})
+  title: TiptapJsonContentPayloadSchema,
+  body: TiptapJsonContentPayloadSchema,
+  source: DocumentSnapshotSourceSchema,
+  restoredFromSnapshotId: z.string().nullable(),
+  createdAt: z.string(),
+  createdBy: z.string().nullable(),
+  createdByUser: AuditUserSummarySchema.nullable(),
+}).strict()
+
+export const DocumentHeadSchema = z.object({
+  document: DocumentRecordSchema,
+  latestSnapshot: DocumentSnapshotSchema,
+  headRevision: DocumentRevisionSchema,
+}).strict()
 
 export const CreateDocumentSchema = z.object({
   title: z.string().trim().min(1),
-  schemaVersion: TiptapSchemaVersionSchema,
-  content: TiptapJsonContentPayloadSchema.optional(),
   parentId: z.string().trim().nullable().optional(),
-})
+}).strict()
 
-export const UpdateDocumentSchema = z.object({
-  title: z.string().trim().min(1),
+export const CreateDocumentSnapshotSchema = z.object({
+  baseRevision: DocumentRevisionSchema,
   schemaVersion: TiptapSchemaVersionSchema,
-  content: TiptapJsonContentPayloadSchema,
-})
+  source: DocumentSnapshotSourceSchema,
+  title: TiptapJsonContentPayloadSchema,
+  body: TiptapJsonContentPayloadSchema,
+}).strict()
+
+export const CreateDocumentSnapshotResponseSchema = z.object({
+  snapshot: DocumentSnapshotSchema,
+  headRevision: DocumentRevisionSchema,
+}).strict()
+
+export const RestoreDocumentSnapshotSchema = z.object({
+  baseRevision: DocumentRevisionSchema,
+  snapshotId: z.string().trim().min(1),
+}).strict()
+
+export const PatchDocumentMetaSchema = z.object({
+  parentId: z.string().trim().nullable().optional(),
+  spaceScope: DocumentSpaceScopeSchema.optional(),
+}).strict().refine(
+  input => input.parentId !== undefined || input.spaceScope !== undefined,
+  {
+    message: '至少更新一个元数据字段',
+  },
+)

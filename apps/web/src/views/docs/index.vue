@@ -1,77 +1,38 @@
 <script setup lang="ts">
-import type { DocumentCollectionId } from '@haohaoxue/samepage-domain'
-import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
-import { computed, ref, watch } from 'vue'
-import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import WorkspacePage from '@/layouts/components/WorkspacePage.vue'
 import DocumentEditorPane from './components/DocumentEditorPane.vue'
+import DocumentHistoryPanel from './components/DocumentHistoryPanel.vue'
 import DocumentSectionPanel from './components/DocumentSectionPanel.vue'
-import { useDocumentWorkspace } from './composables/useDocumentWorkspace'
+import { useDocs } from './composables/useDocs'
 
 const {
   treeGroups,
   currentDocument,
+  snapshots,
   activeDocumentId,
-  breadcrumbLabels,
   expandedDocumentIdSet,
   isDocumentLoading,
   isDocumentItemLoading,
+  isSnapshotsLoading,
   isMutatingTree,
+  isRestoringSnapshot,
   documentPaneState,
   hasFallbackDocument,
-  saveStateLabel,
-  confirmNavigation,
+  visibleBreadcrumbLabels,
+  contextSaveStateLabel,
+  collapsedGroupIdSet,
   openDocument,
   openDefaultDocument,
   reloadCurrentDocument,
+  restoreSnapshot,
   toggleDocument,
+  toggleGroupCollapse,
   createRootDocument,
   createChildDocument,
   deleteDocument,
   updateDocumentTitle,
   updateDocumentContent,
-} = useDocumentWorkspace()
-
-const collapsedGroupIds = ref<DocumentCollectionId[]>([
-  DOCUMENT_COLLECTION.SHARED,
-  DOCUMENT_COLLECTION.TEAM,
-])
-const collapsedGroupIdSet = computed(() => new Set(collapsedGroupIds.value))
-const visibleBreadcrumbLabels = computed(() => breadcrumbLabels.value.length > 1 ? breadcrumbLabels.value : [])
-const contextSaveStateLabel = computed(() => {
-  if (isDocumentItemLoading.value && activeDocumentId.value) {
-    return '正在加载文档...'
-  }
-
-  return saveStateLabel.value
-})
-
-function toggleGroupCollapse(collectionId: DocumentCollectionId) {
-  collapsedGroupIds.value = collapsedGroupIdSet.value.has(collectionId)
-    ? collapsedGroupIds.value.filter(id => id !== collectionId)
-    : [...collapsedGroupIds.value, collectionId]
-}
-
-watch(
-  () => currentDocument.value?.collection,
-  (nextCollectionId) => {
-    if (!nextCollectionId) {
-      return
-    }
-
-    collapsedGroupIds.value = collapsedGroupIds.value.filter(id => id !== nextCollectionId)
-  },
-)
-
-onBeforeRouteUpdate(async (to, from) => {
-  if (to.params.id === from.params.id) {
-    return true
-  }
-
-  return await confirmNavigation()
-})
-
-onBeforeRouteLeave(confirmNavigation)
+} = useDocs()
 </script>
 
 <template>
@@ -132,6 +93,14 @@ onBeforeRouteLeave(confirmNavigation)
         @create-document="createRootDocument"
         @open-fallback-document="openDefaultDocument"
         @retry-load="reloadCurrentDocument"
+      />
+
+      <DocumentHistoryPanel
+        :document="currentDocument"
+        :snapshots="snapshots"
+        :is-loading="isSnapshotsLoading"
+        :is-restoring="isRestoringSnapshot"
+        @restore="restoreSnapshot"
       />
     </div>
   </WorkspacePage>
@@ -201,6 +170,12 @@ onBeforeRouteLeave(confirmNavigation)
     > * + * {
       margin-top: 1.5rem;
     }
+  }
+}
+
+@media (max-width: 1180px) {
+  .docs-view {
+    flex-direction: column;
   }
 }
 </style>

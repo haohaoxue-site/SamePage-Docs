@@ -3,34 +3,14 @@ import type {
   ChatSessionSidebarEmits,
   ChatSessionSidebarProps,
 } from '../typing'
-import { ElMessageBox } from 'element-plus'
+import { useChatSessionSidebar } from '../composables/useChatSessionSidebar'
 
 const props = defineProps<ChatSessionSidebarProps>()
-
 const emits = defineEmits<ChatSessionSidebarEmits>()
-
-async function confirmDelete(session: ChatSessionSidebarProps['sessions'][number]) {
-  const sessionTitle = session.title.trim() || '未命名对话'
-  const confirmed = await ElMessageBox.confirm(
-    `确认删除「${sessionTitle}」吗？此操作不可恢复。`,
-    '删除对话',
-    {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    },
-  ).then(() => true).catch(() => false)
-
-  if (!confirmed) {
-    return
-  }
-
-  emits('delete', session.id)
-}
-
-function getSessionItemStateClass(sessionId: string) {
-  return sessionId === props.activeSessionId ? 'active' : 'idle'
-}
+const { confirmDelete, getSessionItemStateClass } = useChatSessionSidebar(
+  props,
+  sessionId => emits('delete', sessionId),
+)
 </script>
 
 <template>
@@ -43,12 +23,12 @@ function getSessionItemStateClass(sessionId: string) {
     </div>
 
     <div class="overflow-y-auto p-2">
-      <div v-if="sessions.length === 0" class="chat-session-sidebar__empty">
+      <div v-if="props.sessions.length === 0" class="chat-session-sidebar__empty">
         暂无对话
       </div>
 
       <div
-        v-for="session in sessions"
+        v-for="session in props.sessions"
         :key="session.id"
         class="chat-session-sidebar__item"
         :class="getSessionItemStateClass(session.id)"

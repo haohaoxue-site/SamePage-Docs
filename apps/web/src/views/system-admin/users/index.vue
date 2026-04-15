@@ -1,107 +1,24 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { SvgIconCategory } from '@/components/svg-icon/typing'
-import { formatDateTime } from '@/utils/dayjs'
 import ConsoleMetricCard from '../components/ConsoleMetricCard.vue'
 import SystemAdminUserTable from '../components/SystemAdminUserTable.vue'
-import { useAdminUsers } from './composables/useAdminUsers'
+import { useUsers } from './composables/useUsers'
 
 const {
   errorMessage,
+  formatDate,
   governance,
+  handleGovernanceSwitchChange,
   isLoading,
-  loadData,
+  isGovernanceSwitchDisabled,
+  registrationSwitches,
   savingGovernanceFields,
+  shouldShowEmailServiceHint,
+  summaryCards,
+  systemAdminStatusText,
   toggleUserStatus,
-  updateGovernanceOption,
   updatingUserId,
   users,
-} = useAdminUsers()
-
-const registrationSwitches = [
-  {
-    key: 'allowPasswordRegistration',
-    label: '邮箱密码注册',
-    description: '控制新的邮箱密码账号是否允许注册。',
-  },
-  {
-    key: 'allowGithubRegistration',
-    label: 'GitHub 注册',
-    description: '控制新的 GitHub 账号是否允许首次创建用户。',
-  },
-  {
-    key: 'allowLinuxDoRegistration',
-    label: 'LinuxDo 注册',
-    description: '控制新的 LinuxDo 账号是否允许首次创建用户。',
-  },
-] as const
-
-type RegistrationSwitchKey = (typeof registrationSwitches)[number]['key']
-
-function shouldShowEmailServiceHint(key: RegistrationSwitchKey) {
-  return key === 'allowPasswordRegistration' && !governance.emailServiceEnabled
-}
-
-function isGovernanceSwitchDisabled(key: RegistrationSwitchKey) {
-  if (key === 'allowPasswordRegistration' && !governance.emailServiceEnabled) {
-    return true
-  }
-
-  return savingGovernanceFields[key]
-}
-
-function handleGovernanceSwitchChange(
-  key: RegistrationSwitchKey,
-  value: string | number | boolean,
-) {
-  if (typeof value !== 'boolean') {
-    return
-  }
-
-  updateGovernanceOption(key, value)
-}
-
-const summaryCards = computed(() => {
-  const activeUsers = users.value.filter(user => user.status === 'ACTIVE').length
-  const disabledUsers = users.value.length - activeUsers
-  const systemAdmins = users.value.filter(user => user.isSystemAdmin).length
-
-  return [
-    {
-      label: '用户总数',
-      value: users.value.length,
-      detail: `正常 ${activeUsers}，禁用 ${disabledUsers}`,
-      iconCategory: SvgIconCategory.UI,
-      icon: 'user-group',
-    },
-    {
-      label: '管理员',
-      value: systemAdmins,
-      detail: '具备系统后台访问权限',
-      iconCategory: SvgIconCategory.UI,
-      icon: 'user-admin',
-    },
-    {
-      label: '文档交互',
-      value: users.value.reduce((sum, user) => sum + user.sharedDocumentCount, 0),
-      detail: '全平台共享文档总数',
-      iconCategory: SvgIconCategory.UI,
-      icon: 'share',
-    },
-  ]
-})
-
-const systemAdminStatusText = computed(() => governance.systemAdminMustChangePassword ? '首次密码待修改' : '已完成首次改密')
-
-onMounted(loadData)
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return '暂无'
-  }
-
-  return formatDateTime(value)
-}
+} = useUsers()
 </script>
 
 <template>

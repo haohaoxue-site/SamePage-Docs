@@ -12,12 +12,18 @@ import {
   Injectable,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { SystemEmailProvider } from '@prisma/client'
+import { Prisma, SystemEmailProvider } from '@prisma/client'
 import { createTransport } from 'nodemailer'
 import { PrismaService } from '../../database/prisma.service'
+import { auditUserSummarySelect, toAuditUserSummary } from '../../utils/audit-user-summary'
 import { decryptAes256Gcm, encryptAes256Gcm, isEncryptedValue } from '../../utils/crypto'
 
 const DEFAULT_PROVIDER = SYSTEM_EMAIL_PROVIDER.TENCENT_EXMAIL as SystemEmailProvider
+const systemEmailConfigInclude = {
+  updatedByUser: {
+    select: auditUserSummarySelect,
+  },
+} satisfies Prisma.SystemEmailConfigInclude
 
 @Injectable()
 export class SystemEmailService {
@@ -33,6 +39,7 @@ export class SystemEmailService {
   async getEmailConfig(): Promise<SystemEmailConfigDto> {
     const config = await this.prisma.systemEmailConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
+      include: systemEmailConfigInclude,
     })
 
     if (!config) {
@@ -48,6 +55,7 @@ export class SystemEmailService {
         hasPassword: false,
         updatedAt: null,
         updatedBy: null,
+        updatedByUser: null,
       }
     }
 
@@ -61,19 +69,22 @@ export class SystemEmailService {
       fromEmail: config.fromEmail,
       hasPassword: Boolean(this.decryptPassword(config.smtpPasswordEncrypted)),
       updatedAt: config.updatedAt,
-      updatedBy: null,
+      updatedBy: config.updatedBy,
+      updatedByUser: toAuditUserSummary(config.updatedByUser),
     }
   }
 
   async getEmailServiceStatus(): Promise<SystemEmailServiceStatusDto> {
     const config = await this.prisma.systemEmailConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
+      include: systemEmailConfigInclude,
     })
 
     return {
       enabled: config?.enabled ?? false,
       updatedAt: config?.updatedAt ?? null,
-      updatedBy: null,
+      updatedBy: config?.updatedBy ?? null,
+      updatedByUser: toAuditUserSummary(config?.updatedByUser),
     }
   }
 
@@ -120,7 +131,7 @@ export class SystemEmailService {
       smtpPasswordEncrypted: nextPassword ? encryptAes256Gcm(nextPassword, this.encryptionKey) : null,
       fromName: nextFromName,
       fromEmail: nextFromEmail,
-      updatedByUserId: actorUserId,
+      updatedBy: actorUserId,
     }
 
     if (existing) {
@@ -165,6 +176,7 @@ export class SystemEmailService {
         enabled: false,
         updatedAt: null,
         updatedBy: null,
+        updatedByUser: null,
       }
     }
 
@@ -172,7 +184,7 @@ export class SystemEmailService {
       where: { id: existing.id },
       data: {
         enabled: payload.enabled,
-        updatedByUserId: actorUserId,
+        updatedBy: actorUserId,
       },
     })
 

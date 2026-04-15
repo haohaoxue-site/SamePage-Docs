@@ -55,7 +55,7 @@ const schedules: HomeScheduleItem[] = [
   },
 ]
 
-export function useHomeView() {
+export function useHome() {
   const userStore = useUserStore()
   const recentDocuments = ref<HomeRecentDocument[]>([])
   const visibleWidgetIds = useLocalStorage<HomeWidgetId[]>(HOME_WIDGET_STORAGE_KEY, [...defaultWidgetIds])

@@ -640,9 +640,7 @@ function toChatSessionSummaryDto(session: PersistedChatSessionSummary): ChatSess
     id: session.id,
     title: session.title,
     createdAt: session.createdAt,
-    createdBy: null,
     updatedAt: session.updatedAt,
-    updatedBy: null,
   }
 }
 

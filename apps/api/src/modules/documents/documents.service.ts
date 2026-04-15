@@ -1,33 +1,65 @@
 import type {
   CreateDocumentRequest,
   CreateDocumentResponse,
+  CreateDocumentSnapshotRequest,
+  CreateDocumentSnapshotResponse,
   DocumentBase,
   DocumentCollectionId,
-  DocumentDetail,
+  DocumentHead,
   DocumentItem,
   DocumentRecent,
+  DocumentRecord,
+  DocumentSnapshot,
+  DocumentSnapshotSource,
   DocumentSpaceScope,
   DocumentTreeGroup,
+  PatchDocumentMetaRequest,
+  RestoreDocumentSnapshotRequest,
   TiptapJsonContent,
-  UpdateDocumentRequest,
 } from '@haohaoxue/samepage-domain'
-import { DOCUMENT_COLLECTION, TIPTAP_SCHEMA_VERSION } from '@haohaoxue/samepage-contracts'
 import {
-  deserializeDocumentContent,
-  hasDocumentContent,
+  DOCUMENT_COLLECTION,
+  DOCUMENT_SNAPSHOT_SOURCE,
+  TIPTAP_SCHEMA_VERSION,
+} from '@haohaoxue/samepage-contracts'
+import {
+  createDocumentTitleContent,
+  getDocumentTitlePlainText,
+  isSameDocumentSnapshotContent,
   resolveOwnedDocumentCollectionId,
-  serializeDocumentContent,
   summarizeDocumentContent,
 } from '@haohaoxue/samepage-shared'
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
 import {
   DocumentMemberRole,
   DocumentStatus,
   Prisma,
 } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
+import { auditUserSummarySelect, toAuditUserSummary } from '../../utils/audit-user-summary'
 
 const RECENT_DOCUMENT_LIMIT = 8
+
+const documentSnapshotSelect = {
+  id: true,
+  documentId: true,
+  revision: true,
+  schemaVersion: true,
+  title: true,
+  body: true,
+  source: true,
+  restoredFromSnapshotId: true,
+  createdAt: true,
+  createdBy: true,
+  createdByUser: {
+    select: auditUserSummarySelect,
+  },
+} satisfies Prisma.DocumentSnapshotSelect
 
 const documentSelect = {
   id: true,
@@ -35,21 +67,32 @@ const documentSelect = {
   parentId: true,
   spaceScope: true,
   title: true,
-  content: true,
+  latestSnapshotId: true,
+  headRevision: true,
   summary: true,
   status: true,
   order: true,
   createdAt: true,
   updatedAt: true,
-  owner: {
-    select: {
-      displayName: true,
-    },
+} satisfies Prisma.DocumentSelect
+
+const documentHeadSelect = {
+  ...documentSelect,
+  latestSnapshot: {
+    select: documentSnapshotSelect,
   },
 } satisfies Prisma.DocumentSelect
 
 type PersistedDocument = Prisma.DocumentGetPayload<{
   select: typeof documentSelect
+}>
+
+type PersistedDocumentHead = Prisma.DocumentGetPayload<{
+  select: typeof documentHeadSelect
+}>
+
+type PersistedDocumentSnapshot = Prisma.DocumentSnapshotGetPayload<{
+  select: typeof documentSnapshotSelect
 }>
 
 /**
@@ -68,7 +111,6 @@ export class DocumentsService {
 
   async createDocument(userId: string, payload: CreateDocumentRequest): Promise<CreateDocumentResponse> {
     const normalizedParentId = payload.parentId ?? null
-    const normalizedContent = payload.content ?? []
     let scope: DocumentSpaceScope = 'PERSONAL'
 
     if (normalizedParentId) {
@@ -96,19 +138,50 @@ export class DocumentsService {
       },
     })
 
-    const document = await this.prisma.document.create({
-      data: {
-        ownerId: userId,
-        parentId: normalizedParentId,
-        spaceScope: scope,
-        title: payload.title,
-        content: serializeDocumentContent(normalizedContent),
-        summary: summarizeDocumentContent(normalizedContent),
-        order: (lastSibling?.order ?? -1) + 1,
-      },
-      select: {
-        id: true,
-      },
+    const title = createDocumentTitleContent(payload.title)
+    const body: TiptapJsonContent = []
+
+    const document = await this.prisma.$transaction(async (tx) => {
+      const createdDocument = await tx.document.create({
+        data: {
+          ownerId: userId,
+          parentId: normalizedParentId,
+          spaceScope: scope,
+          title: getDocumentTitlePlainText(title),
+          summary: summarizeDocumentContent(body, 120, ''),
+          order: (lastSibling?.order ?? -1) + 1,
+        },
+        select: {
+          id: true,
+        },
+      })
+
+      const snapshot = await tx.documentSnapshot.create({
+        data: {
+          documentId: createdDocument.id,
+          revision: 1,
+          schemaVersion: TIPTAP_SCHEMA_VERSION,
+          title: toPrismaJsonValue(title),
+          body: toPrismaJsonValue(body),
+          source: DOCUMENT_SNAPSHOT_SOURCE.AUTOSAVE,
+          createdBy: userId,
+        },
+        select: {
+          id: true,
+        },
+      })
+
+      await tx.document.update({
+        where: {
+          id: createdDocument.id,
+        },
+        data: {
+          latestSnapshotId: snapshot.id,
+          headRevision: 1,
+        },
+      })
+
+      return createdDocument
     })
 
     return {
@@ -152,64 +225,232 @@ export class DocumentsService {
     return Array.from(visibleDocumentIds)
       .map(id => context.documentsById.get(id))
       .filter((document): document is PersistedDocument => Boolean(document))
-      .filter(document => hasDocumentContent(readDocumentContent(document)))
+      .filter(document => document.summary.length > 0)
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
       .slice(0, RECENT_DOCUMENT_LIMIT)
       .map(document => toDocumentRecent(document, context, userId))
   }
 
-  async getDocumentById(userId: string, id: string): Promise<DocumentDetail> {
+  async getDocumentHead(userId: string, id: string): Promise<DocumentHead> {
     const context = await this.loadDocumentContext(userId)
-    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
+    this.resolveAccessibleDocument(context, userId, id)
 
-    return toDocumentDetail(
-      resolvedDocument.document,
-      resolvedDocument.collection,
-      this.hasChildren(id, context),
-    )
-  }
-
-  async updateDocument(
-    userId: string,
-    id: string,
-    payload: UpdateDocumentRequest,
-  ): Promise<DocumentDetail> {
-    const context = await this.loadDocumentContext(userId)
-    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
-
-    if (resolvedDocument.document.ownerId !== userId) {
-      throw new ForbiddenException('当前用户无权编辑该文档')
-    }
-
-    const document = await this.prisma.document.update({
+    const document = await this.prisma.document.findUnique({
       where: { id },
-      data: {
-        title: payload.title,
-        content: serializeDocumentContent(payload.content),
-        summary: summarizeDocumentContent(payload.content),
-      },
-      select: documentSelect,
-    }).catch((error) => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException(`Document "${id}" not found`)
-      }
-      throw error
+      select: documentHeadSelect,
     })
 
-    return toDocumentDetail(
-      document,
-      resolvedDocument.collection,
-      this.hasChildren(id, context),
-    )
+    if (!document?.latestSnapshot) {
+      throw new NotFoundException(`Document "${id}" head not found`)
+    }
+
+    return toDocumentHead(document)
+  }
+
+  async createDocumentSnapshot(
+    userId: string,
+    id: string,
+    payload: CreateDocumentSnapshotRequest,
+  ): Promise<CreateDocumentSnapshotResponse> {
+    const context = await this.loadDocumentContext(userId)
+    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
+    this.ensureDocumentOwner(resolvedDocument.document, userId)
+
+    return await this.prisma.$transaction(async (tx) => {
+      const currentDocument = await tx.document.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          headRevision: true,
+        },
+      })
+
+      if (!currentDocument) {
+        throw new NotFoundException(`Document "${id}" not found`)
+      }
+
+      if (currentDocument.headRevision !== payload.baseRevision) {
+        throw new ConflictException('文档版本已变化，请刷新后重试')
+      }
+
+      const nextRevision = currentDocument.headRevision + 1
+      const snapshot = await tx.documentSnapshot.create({
+        data: {
+          documentId: id,
+          revision: nextRevision,
+          schemaVersion: payload.schemaVersion,
+          title: toPrismaJsonValue(payload.title),
+          body: toPrismaJsonValue(payload.body),
+          source: payload.source,
+          createdBy: userId,
+        },
+        select: documentSnapshotSelect,
+      })
+
+      await tx.document.update({
+        where: { id },
+        data: {
+          latestSnapshotId: snapshot.id,
+          headRevision: nextRevision,
+          title: getDocumentTitlePlainText(payload.title),
+          summary: summarizeDocumentContent(payload.body, 120, ''),
+        },
+      })
+
+      return {
+        snapshot: toDocumentSnapshot(snapshot),
+        headRevision: nextRevision,
+      }
+    })
+  }
+
+  async getDocumentSnapshots(userId: string, id: string): Promise<DocumentSnapshot[]> {
+    const context = await this.loadDocumentContext(userId)
+    this.resolveAccessibleDocument(context, userId, id)
+
+    const snapshots = await this.prisma.documentSnapshot.findMany({
+      where: {
+        documentId: id,
+      },
+      select: documentSnapshotSelect,
+      orderBy: {
+        revision: 'desc',
+      },
+    })
+
+    return snapshots.map(toDocumentSnapshot)
+  }
+
+  async restoreDocumentSnapshot(
+    userId: string,
+    id: string,
+    payload: RestoreDocumentSnapshotRequest,
+  ): Promise<CreateDocumentSnapshotResponse> {
+    const context = await this.loadDocumentContext(userId)
+    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
+    this.ensureDocumentOwner(resolvedDocument.document, userId)
+
+    return await this.prisma.$transaction(async (tx) => {
+      const [currentDocument, targetSnapshot] = await Promise.all([
+        tx.document.findUnique({
+          where: { id },
+          select: {
+            headRevision: true,
+            latestSnapshot: {
+              select: documentSnapshotSelect,
+            },
+          },
+        }),
+        tx.documentSnapshot.findFirst({
+          where: {
+            documentId: id,
+            id: payload.snapshotId,
+          },
+          select: documentSnapshotSelect,
+        }),
+      ])
+
+      if (!currentDocument) {
+        throw new NotFoundException(`Document "${id}" not found`)
+      }
+
+      if (!currentDocument.latestSnapshot) {
+        throw new NotFoundException(`Document "${id}" head not found`)
+      }
+
+      if (!targetSnapshot) {
+        throw new NotFoundException(`Snapshot "${payload.snapshotId}" not found`)
+      }
+
+      if (currentDocument.headRevision !== payload.baseRevision) {
+        throw new ConflictException('文档版本已变化，请刷新后重试')
+      }
+
+      const currentHeadSnapshot = toDocumentSnapshot(currentDocument.latestSnapshot)
+      const targetDocumentSnapshot = toDocumentSnapshot(targetSnapshot)
+
+      if (isSameDocumentSnapshotContent(currentHeadSnapshot, targetDocumentSnapshot)) {
+        return {
+          snapshot: currentHeadSnapshot,
+          headRevision: currentDocument.headRevision,
+        }
+      }
+
+      const nextRevision = currentDocument.headRevision + 1
+      const snapshot = await tx.documentSnapshot.create({
+        data: {
+          documentId: id,
+          revision: nextRevision,
+          schemaVersion: targetSnapshot.schemaVersion,
+          title: toPrismaJsonValue(targetSnapshot.title),
+          body: toPrismaJsonValue(targetSnapshot.body),
+          source: DOCUMENT_SNAPSHOT_SOURCE.RESTORE,
+          restoredFromSnapshotId: targetSnapshot.id,
+          createdBy: userId,
+        },
+        select: documentSnapshotSelect,
+      })
+
+      const nextSnapshot = toDocumentSnapshot(snapshot)
+
+      await tx.document.update({
+        where: { id },
+        data: {
+          latestSnapshotId: snapshot.id,
+          headRevision: nextRevision,
+          title: getDocumentTitlePlainText(nextSnapshot.title),
+          summary: summarizeDocumentContent(nextSnapshot.body, 120, ''),
+        },
+      })
+
+      return {
+        snapshot: nextSnapshot,
+        headRevision: nextRevision,
+      }
+    })
+  }
+
+  async patchDocumentMeta(
+    userId: string,
+    id: string,
+    payload: PatchDocumentMetaRequest,
+  ): Promise<DocumentHead> {
+    const context = await this.loadDocumentContext(userId)
+    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
+    this.ensureDocumentOwner(resolvedDocument.document, userId)
+
+    let nextParentId = resolvedDocument.document.parentId
+    let nextSpaceScope = resolvedDocument.document.spaceScope
+
+    if (payload.parentId !== undefined) {
+      nextParentId = payload.parentId
+
+      if (payload.parentId) {
+        const resolvedParent = this.resolveAccessibleDocument(context, userId, payload.parentId)
+        this.ensureDocumentOwner(resolvedParent.document, userId)
+        nextSpaceScope = resolvedParent.document.spaceScope
+      }
+    }
+
+    if (payload.spaceScope !== undefined && payload.parentId === undefined) {
+      nextSpaceScope = payload.spaceScope
+    }
+
+    await this.prisma.document.update({
+      where: { id },
+      data: {
+        parentId: nextParentId,
+        spaceScope: nextSpaceScope,
+      },
+    })
+
+    return await this.getDocumentHead(userId, id)
   }
 
   async deleteDocument(userId: string, id: string): Promise<void> {
     const context = await this.loadDocumentContext(userId)
     const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
-
-    if (resolvedDocument.document.ownerId !== userId) {
-      throw new ForbiddenException('当前用户无权删除该文档')
-    }
+    this.ensureDocumentOwner(resolvedDocument.document, userId)
 
     const removableDocumentIds = new Set<string>()
     this.collectDescendantDocumentIds(id, context, removableDocumentIds)
@@ -322,7 +563,7 @@ export class DocumentsService {
       ...toDocumentBase(document),
       parentId: document.parentId,
       hasChildren: nextChildren.length > 0,
-      hasContent: hasDocumentContent(readDocumentContent(document)),
+      hasContent: Boolean(document.latestSnapshotId) && document.summary.length > 0,
       children: nextChildren,
     }
   }
@@ -382,8 +623,10 @@ export class DocumentsService {
     }
   }
 
-  private hasChildren(documentId: string, context: TreeContext) {
-    return (context.childrenByParent.get(documentId)?.length ?? 0) > 0
+  private ensureDocumentOwner(document: Pick<PersistedDocument, 'ownerId'>, userId: string) {
+    if (document.ownerId !== userId) {
+      throw new ForbiddenException('当前用户无权编辑该文档')
+    }
   }
 }
 
@@ -393,9 +636,21 @@ function toDocumentBase(document: PersistedDocument): DocumentBase {
     title: document.title,
     summary: document.summary,
     createdAt: document.createdAt.toISOString(),
-    createdBy: null,
     updatedAt: document.updatedAt.toISOString(),
-    updatedBy: null,
+  }
+}
+
+function toDocumentRecord(document: PersistedDocumentHead): DocumentRecord {
+  const { title: _title, ...base } = toDocumentBase(document)
+
+  return {
+    ...base,
+    ownerId: document.ownerId,
+    parentId: document.parentId,
+    latestSnapshotId: document.latestSnapshotId,
+    order: document.order,
+    spaceScope: document.spaceScope,
+    status: document.status,
   }
 }
 
@@ -410,9 +665,7 @@ function toDocumentRecent(
     collection: resolveRecentDocumentCollection(document, userId),
     ancestorTitles: collectRecentAncestorTitles(document, context, userId),
     createdAt: document.createdAt.toISOString(),
-    createdBy: null,
     updatedAt: document.updatedAt.toISOString(),
-    updatedBy: null,
   }
 }
 
@@ -498,25 +751,38 @@ function findSharedRootId(document: PersistedDocument, context: TreeContext) {
   return null
 }
 
-function toDocumentDetail(
-  document: PersistedDocument,
-  collection: DocumentCollectionId,
-  hasChildren: boolean,
-): DocumentDetail {
-  const content = readDocumentContent(document)
+function toDocumentHead(document: PersistedDocumentHead): DocumentHead {
+  if (!document.latestSnapshot) {
+    throw new NotFoundException(`Document "${document.id}" head not found`)
+  }
 
   return {
-    ...toDocumentBase(document),
-    parentId: document.parentId,
-    schemaVersion: TIPTAP_SCHEMA_VERSION,
-    content,
-    hasChildren,
-    hasContent: hasDocumentContent(content),
-    scope: document.spaceScope,
-    collection,
+    document: toDocumentRecord(document),
+    latestSnapshot: toDocumentSnapshot(document.latestSnapshot),
+    headRevision: document.headRevision,
   }
 }
 
-function readDocumentContent(document: Pick<PersistedDocument, 'content'>): TiptapJsonContent {
-  return deserializeDocumentContent(document.content)
+function toDocumentSnapshot(snapshot: PersistedDocumentSnapshot): DocumentSnapshot {
+  return {
+    id: snapshot.id,
+    documentId: snapshot.documentId,
+    revision: snapshot.revision,
+    schemaVersion: snapshot.schemaVersion as DocumentSnapshot['schemaVersion'],
+    title: asTiptapJsonContent(snapshot.title),
+    body: asTiptapJsonContent(snapshot.body),
+    source: snapshot.source as DocumentSnapshotSource,
+    restoredFromSnapshotId: snapshot.restoredFromSnapshotId,
+    createdAt: snapshot.createdAt.toISOString(),
+    createdBy: snapshot.createdBy,
+    createdByUser: toAuditUserSummary(snapshot.createdByUser),
+  }
+}
+
+function asTiptapJsonContent(value: Prisma.JsonValue): TiptapJsonContent {
+  return (Array.isArray(value) ? value : []) as unknown as TiptapJsonContent
+}
+
+function toPrismaJsonValue(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue
 }

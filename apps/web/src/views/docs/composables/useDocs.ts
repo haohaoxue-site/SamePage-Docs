@@ -1,7 +1,23 @@
-import type { DocumentPaneState } from '@haohaoxue/samepage-domain'
-import { DOCUMENT_PANE_STATE } from '@haohaoxue/samepage-contracts'
-import { computed, shallowRef } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import type {
+  DocumentCollectionId,
+  DocumentPaneState,
+} from '@haohaoxue/samepage-domain'
+import {
+  DOCUMENT_COLLECTION,
+  DOCUMENT_PANE_STATE,
+} from '@haohaoxue/samepage-contracts'
+import {
+  computed,
+  ref,
+  shallowRef,
+  watch,
+} from 'vue'
+import {
+  onBeforeRouteLeave,
+  onBeforeRouteUpdate,
+  useRoute,
+  useRouter,
+} from 'vue-router'
 import { useActiveDocument } from './useActiveDocument'
 import { useDocumentTree } from './useDocumentTree'
 
@@ -13,11 +29,15 @@ interface NavigateToDocumentOptions {
   skipConfirm?: boolean
 }
 
-export function useDocumentWorkspace() {
+export function useDocs() {
   const route = useRoute()
   const router = useRouter()
   const activeDocumentId = computed(() => typeof route.params.id === 'string' ? route.params.id : null)
   const isSelectingInitialDocument = shallowRef(false)
+  const collapsedGroupIds = ref<DocumentCollectionId[]>([
+    DOCUMENT_COLLECTION.SHARED,
+    DOCUMENT_COLLECTION.TEAM,
+  ])
   let confirmPendingNavigation = async () => true
 
   const tree = useDocumentTree({
@@ -33,6 +53,15 @@ export function useDocumentWorkspace() {
   })
   confirmPendingNavigation = activeDocument.confirmNavigation
 
+  const collapsedGroupIdSet = computed(() => new Set(collapsedGroupIds.value))
+  const visibleBreadcrumbLabels = computed(() => tree.breadcrumbLabels.value.length > 1 ? tree.breadcrumbLabels.value : [])
+  const contextSaveStateLabel = computed(() => {
+    if (activeDocument.isDocumentItemLoading.value && activeDocumentId.value) {
+      return '正在加载文档...'
+    }
+
+    return activeDocument.saveStateLabel.value
+  })
   const documentPaneState = computed<DocumentPaneState>(() => {
     if (activeDocument.currentDocument.value) {
       return DOCUMENT_PANE_STATE.READY
@@ -53,28 +82,51 @@ export function useDocumentWorkspace() {
     return DOCUMENT_PANE_STATE.EMPTY
   })
 
+  watch(
+    tree.activeCollectionId,
+    (nextCollectionId) => {
+      if (!nextCollectionId) {
+        return
+      }
+
+      collapsedGroupIds.value = collapsedGroupIds.value.filter(id => id !== nextCollectionId)
+    },
+  )
+
+  onBeforeRouteUpdate(async (to, from) => {
+    if (to.params.id === from.params.id) {
+      return true
+    }
+
+    return await activeDocument.confirmNavigation()
+  })
+
+  onBeforeRouteLeave(activeDocument.confirmNavigation)
   void loadInitialTree()
 
   return {
     treeGroups: tree.treeGroups,
+    activeCollectionId: tree.activeCollectionId,
     currentDocument: activeDocument.currentDocument,
+    snapshots: activeDocument.snapshots,
     activeDocumentId,
-    breadcrumbLabels: tree.breadcrumbLabels,
     expandedDocumentIdSet: tree.expandedDocumentIdSet,
     isDocumentLoading: tree.isDocumentLoading,
     isDocumentItemLoading: activeDocument.isDocumentItemLoading,
-    isSaving: activeDocument.isSaving,
-    isCreating: tree.isCreating,
+    isSnapshotsLoading: activeDocument.isSnapshotsLoading,
     isMutatingTree: tree.isMutatingTree,
+    isRestoringSnapshot: activeDocument.isRestoringSnapshot,
     documentPaneState,
     hasFallbackDocument: tree.hasFallbackDocument,
-    saveState: activeDocument.saveState,
-    saveStateLabel: activeDocument.saveStateLabel,
-    confirmNavigation: activeDocument.confirmNavigation,
+    visibleBreadcrumbLabels,
+    contextSaveStateLabel,
+    collapsedGroupIdSet,
     openDocument,
     openDefaultDocument,
     reloadCurrentDocument: activeDocument.reloadCurrentDocument,
+    restoreSnapshot: activeDocument.restoreSnapshot,
     toggleDocument: tree.toggleDocument,
+    toggleGroupCollapse,
     createRootDocument: tree.createRootDocument,
     createChildDocument: tree.createChildDocument,
     deleteDocument: tree.deleteDocument,
@@ -116,6 +168,12 @@ export function useDocumentWorkspace() {
     }
 
     await navigateToDocument(tree.defaultDocumentId.value, options)
+  }
+
+  function toggleGroupCollapse(collectionId: DocumentCollectionId) {
+    collapsedGroupIds.value = collapsedGroupIdSet.value.has(collectionId)
+      ? collapsedGroupIds.value.filter(id => id !== collectionId)
+      : [...collapsedGroupIds.value, collectionId]
   }
 
   async function loadInitialTree() {

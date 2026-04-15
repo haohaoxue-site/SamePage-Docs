@@ -1,46 +1,20 @@
 <script setup lang="ts">
 import type { ChatMessageListProps } from '../typing'
-import { computed, nextTick, onUpdated, useTemplateRef } from 'vue'
-import { SvgIconCategory } from '@/components/svg-icon/typing'
+import { useTemplateRef } from 'vue'
+import { useChatMessageList } from '../composables/useChatMessageList'
 
 const props = defineProps<ChatMessageListProps>()
-
-const scrollContainer = useTemplateRef<HTMLElement>('scrollContainer')
-
-function scrollToBottom() {
-  if (scrollContainer.value) {
-    scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
-  }
-}
-
-onUpdated(() => {
-  nextTick(scrollToBottom)
+const scrollContainerRef = useTemplateRef<HTMLElement>('scrollContainerRef')
+const { emptyIcon, emptyIconStateClass, getMessageRoleClass } = useChatMessageList(props, {
+  scrollContainerRef,
 })
-
-function getEmptyIconStateClass() {
-  return props.isConfigured ? 'configured' : 'idle'
-}
-
-const emptyIcon = computed(() => props.isConfigured
-  ? {
-      category: SvgIconCategory.NAV,
-      icon: 'chat-active',
-    }
-  : {
-      category: SvgIconCategory.UI,
-      icon: 'settings',
-    })
-
-function getMessageRoleClass(role: ChatMessageListProps['messages'][number]['role']) {
-  return role === 'user' ? 'user' : 'assistant'
-}
 </script>
 
 <template>
-  <div ref="scrollContainer" class="chat-message-list flex-1 overflow-y-auto px-6 py-4">
-    <div v-if="messages.length === 0" class="flex h-full items-center justify-center">
+  <div ref="scrollContainerRef" class="chat-message-list flex-1 overflow-y-auto px-6 py-4">
+    <div v-if="props.messages.length === 0" class="flex h-full items-center justify-center">
       <div class="text-center">
-        <div class="chat-message-list__empty-icon" :class="getEmptyIconStateClass()">
+        <div class="chat-message-list__empty-icon" :class="emptyIconStateClass">
           <SvgIcon
             :category="emptyIcon.category"
             :icon="emptyIcon.icon"
@@ -49,17 +23,17 @@ function getMessageRoleClass(role: ChatMessageListProps['messages'][number]['rol
           />
         </div>
         <div class="text-lg text-secondary">
-          {{ isConfigured ? '有什么可以帮助你的？' : '还不能开始对话' }}
+          {{ props.isConfigured ? '有什么可以帮助你的？' : '还不能开始对话' }}
         </div>
         <div class="mt-1 text-sm text-secondary-a60">
-          {{ isConfigured ? '输入消息开始对话' : '请先选择模型，或等待 AI 服务准备完成' }}
+          {{ props.isConfigured ? '输入消息开始对话' : '请先选择模型，或等待 AI 服务准备完成' }}
         </div>
       </div>
     </div>
 
     <div v-else class="mx-auto max-w-3xl space-y-4">
       <div
-        v-for="(msg, idx) in messages"
+        v-for="(msg, idx) in props.messages"
         :key="idx"
         class="chat-message-list__row"
         :class="getMessageRoleClass(msg.role)"
@@ -71,7 +45,7 @@ function getMessageRoleClass(role: ChatMessageListProps['messages'][number]['rol
         <div class="chat-message-list__bubble" :class="getMessageRoleClass(msg.role)">
           {{ msg.content }}
           <span
-            v-if="msg.role === 'assistant' && isStreaming && idx === messages.length - 1 && msg.content"
+            v-if="msg.role === 'assistant' && props.isStreaming && idx === props.messages.length - 1 && msg.content"
             class="chat-message-list__stream-cursor"
           />
         </div>

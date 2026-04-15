@@ -1,4 +1,5 @@
-import type { FormRules } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import type { ShallowRef } from 'vue'
 import { ElMessage } from 'element-plus'
 import { onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
@@ -7,7 +8,7 @@ import { useFormSubmit } from '@/composables/useFormSubmit'
 import { useAuthCapabilities } from '../../composables/useAuthCapabilities'
 import { createEmailRules, isValidEmail } from '../../utils/rules'
 
-export function usePasswordRegisterRequestView() {
+export function useRegister(options: { registerRequestFormRef: ShallowRef<FormInstance | null> }) {
   const router = useRouter()
   const form = reactive({ email: '' })
   const formRules: FormRules<typeof form> = {
@@ -40,9 +41,14 @@ export function usePasswordRegisterRequestView() {
     void loadCapabilities()
   })
 
+  async function handleSubmitEmailVerificationRequest() {
+    await submitEmailVerificationRequest(options.registerRequestFormRef.value)
+  }
+
   return {
     form,
     formRules,
+    handleSubmitEmailVerificationRequest,
     isLoadingCapabilities,
     isSubmitting,
     loadErrorMessage,

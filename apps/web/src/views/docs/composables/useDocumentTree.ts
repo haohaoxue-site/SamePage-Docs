@@ -1,6 +1,9 @@
-import type { DocumentItem, DocumentTreeGroup } from '@haohaoxue/samepage-domain'
+import type {
+  DocumentItem,
+  DocumentTreeGroup,
+} from '@haohaoxue/samepage-domain'
 import type { ComputedRef } from 'vue'
-import { DOCUMENT_COLLECTION, TIPTAP_SCHEMA_VERSION } from '@haohaoxue/samepage-contracts'
+import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
 import { formatDocumentCollectionLabel } from '@haohaoxue/samepage-shared'
 import { useLocalStorage } from '@vueuse/core'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -16,7 +19,7 @@ import {
   resolveNextDocumentIdAfterDelete,
   resolvePreferredDocumentId,
   updateDocumentBranch,
-} from '../utils/document-tree'
+} from '../utils/documentTree'
 
 const EXPANDED_DOCUMENT_STORAGE_KEY = 'samepage_docs_expanded_documents'
 const LAST_OPENED_DOCUMENT_STORAGE_KEY = 'samepage_docs_last_opened_document'
@@ -38,43 +41,32 @@ interface UseDocumentTreeOptions {
   navigateToDocument: (documentId: string | null, options?: NavigateToDocumentOptions) => Promise<boolean>
 }
 
+/**
+ * 文档树状态组合参数。
+ */
+interface UseDocumentTreeStateOptions {
+  activeDocumentId: ComputedRef<string | null>
+}
+
 export function useDocumentTree({
   activeDocumentId,
   confirmNavigation,
   navigateToDocument,
 }: UseDocumentTreeOptions) {
-  const treeGroups = shallowRef<DocumentTreeGroup[]>([])
   const isDocumentLoading = shallowRef(false)
   const isCreating = shallowRef(false)
   const isDeleting = shallowRef(false)
-  const expandedDocumentIds = useLocalStorage<string[]>(EXPANDED_DOCUMENT_STORAGE_KEY, [])
-  const lastOpenedDocumentId = useLocalStorage<string | null>(LAST_OPENED_DOCUMENT_STORAGE_KEY, null)
-
-  const expandedDocumentIdSet = computed(() => new Set(expandedDocumentIds.value))
-  const activePath = computed(() => activeDocumentId.value ? findDocumentPath(treeGroups.value, activeDocumentId.value) : null)
-  const isMutatingTree = computed(() => isCreating.value || isDeleting.value)
-  const defaultDocumentId = computed(() => resolvePreferredDocumentId(
-    treeGroups.value,
-    lastOpenedDocumentId.value,
-  ))
-  const hasFallbackDocument = computed(() => Boolean(defaultDocumentId.value))
-  const breadcrumbLabels = computed(() => {
-    if (!activePath.value) {
-      return ['文档']
-    }
-
-    return [
-      formatDocumentCollectionLabel(activePath.value.collectionId),
-      ...activePath.value.nodes.map(document => document.title),
-    ]
+  const state = useDocumentTreeState({
+    activeDocumentId,
   })
+
+  const isMutatingTree = computed(() => isCreating.value || isDeleting.value)
 
   async function loadTree() {
     isDocumentLoading.value = true
 
     try {
-      treeGroups.value = await getDocuments()
-      ensureExpandedPath(activeDocumentId.value)
+      state.applyLoadedTree(await getDocuments())
     }
     finally {
       isDocumentLoading.value = false
@@ -90,7 +82,7 @@ export function useDocumentTree({
       return
     }
 
-    const parentPath = findDocumentPath(treeGroups.value, parentDocumentId)
+    const parentPath = findDocumentPath(state.treeGroups.value, parentDocumentId)
 
     if (!parentPath || parentPath.collectionId !== DOCUMENT_COLLECTION.PERSONAL) {
       return
@@ -100,7 +92,7 @@ export function useDocumentTree({
   }
 
   async function deleteDocument(documentId: string) {
-    const targetPath = findDocumentPath(treeGroups.value, documentId)
+    const targetPath = findDocumentPath(state.treeGroups.value, documentId)
     const targetDocument = targetPath?.nodes.at(-1)
 
     if (!targetPath || !targetDocument || targetPath.collectionId !== DOCUMENT_COLLECTION.PERSONAL) {
@@ -123,7 +115,7 @@ export function useDocumentTree({
 
     const deletedDocumentIds = collectDocumentItemIds([targetDocument])
     const nextDocumentId = resolveNextDocumentIdAfterDelete(
-      treeGroups.value,
+      state.treeGroups.value,
       documentId,
       activeDocumentId.value,
     )
@@ -132,7 +124,7 @@ export function useDocumentTree({
 
     try {
       await deleteDocumentRequest(documentId)
-      expandedDocumentIds.value = expandedDocumentIds.value.filter(id => !deletedDocumentIds.has(id))
+      state.pruneExpandedDocumentIds(deletedDocumentIds)
       await loadTree()
 
       if (activeDocumentId.value && deletedDocumentIds.has(activeDocumentId.value)) {
@@ -149,6 +141,82 @@ export function useDocumentTree({
     finally {
       isDeleting.value = false
     }
+  }
+
+  async function createDocument(parentId: string | null) {
+    const canNavigate = await confirmNavigation()
+
+    if (!canNavigate) {
+      return
+    }
+
+    isCreating.value = true
+
+    try {
+      const createdDocument = await createDocumentRequest({
+        title: '未命名',
+        parentId,
+      })
+      await loadTree()
+      await navigateToDocument(createdDocument.id, {
+        skipConfirm: true,
+      })
+    }
+    finally {
+      isCreating.value = false
+    }
+  }
+
+  return {
+    treeGroups: state.treeGroups,
+    activeCollectionId: state.activeCollectionId,
+    breadcrumbLabels: state.breadcrumbLabels,
+    expandedDocumentIdSet: state.expandedDocumentIdSet,
+    isDocumentLoading,
+    isCreating,
+    isMutatingTree,
+    defaultDocumentId: state.defaultDocumentId,
+    hasFallbackDocument: state.hasFallbackDocument,
+    loadTree,
+    toggleDocument: state.toggleDocument,
+    ensureExpandedPath: state.ensureExpandedPath,
+    patchDocumentItem: state.patchDocumentItem,
+    rememberLastOpenedDocument: state.rememberLastOpenedDocument,
+    createRootDocument,
+    createChildDocument,
+    deleteDocument,
+  }
+}
+
+export function useDocumentTreeState({
+  activeDocumentId,
+}: UseDocumentTreeStateOptions) {
+  const treeGroups = shallowRef<DocumentTreeGroup[]>([])
+  const expandedDocumentIds = useLocalStorage<string[]>(EXPANDED_DOCUMENT_STORAGE_KEY, [])
+  const lastOpenedDocumentId = useLocalStorage<string | null>(LAST_OPENED_DOCUMENT_STORAGE_KEY, null)
+
+  const expandedDocumentIdSet = computed(() => new Set(expandedDocumentIds.value))
+  const activePath = computed(() => activeDocumentId.value ? findDocumentPath(treeGroups.value, activeDocumentId.value) : null)
+  const activeCollectionId = computed(() => activePath.value?.collectionId ?? null)
+  const defaultDocumentId = computed(() => resolvePreferredDocumentId(
+    treeGroups.value,
+    lastOpenedDocumentId.value,
+  ))
+  const hasFallbackDocument = computed(() => Boolean(defaultDocumentId.value))
+  const breadcrumbLabels = computed(() => {
+    if (!activePath.value) {
+      return ['文档']
+    }
+
+    return [
+      formatDocumentCollectionLabel(activePath.value.collectionId),
+      ...activePath.value.nodes.map(document => document.title),
+    ]
+  })
+
+  function applyLoadedTree(groups: DocumentTreeGroup[]) {
+    treeGroups.value = groups
+    ensureExpandedPath(activeDocumentId.value)
   }
 
   function toggleDocument(documentId: string) {
@@ -184,6 +252,10 @@ export function useDocumentTree({
     expandedDocumentIds.value = Array.from(nextExpandedIds)
   }
 
+  function pruneExpandedDocumentIds(documentIds: Set<string>) {
+    expandedDocumentIds.value = expandedDocumentIds.value.filter(id => !documentIds.has(id))
+  }
+
   function patchDocumentItem(documentId: string, input: Partial<DocumentItem>) {
     treeGroups.value = treeGroups.value.map(group => ({
       ...group,
@@ -195,47 +267,18 @@ export function useDocumentTree({
     lastOpenedDocumentId.value = documentId
   }
 
-  async function createDocument(parentId: string | null) {
-    const canNavigate = await confirmNavigation()
-
-    if (!canNavigate) {
-      return
-    }
-
-    isCreating.value = true
-
-    try {
-      const createdDocument = await createDocumentRequest({
-        title: '未命名',
-        schemaVersion: TIPTAP_SCHEMA_VERSION,
-        parentId,
-      })
-      await loadTree()
-      await navigateToDocument(createdDocument.id, {
-        skipConfirm: true,
-      })
-    }
-    finally {
-      isCreating.value = false
-    }
-  }
-
   return {
     treeGroups,
+    activeCollectionId,
     breadcrumbLabels,
     expandedDocumentIdSet,
-    isDocumentLoading,
-    isCreating,
-    isMutatingTree,
     defaultDocumentId,
     hasFallbackDocument,
-    loadTree,
+    applyLoadedTree,
     toggleDocument,
     ensureExpandedPath,
+    pruneExpandedDocumentIds,
     patchDocumentItem,
     rememberLastOpenedDocument,
-    createRootDocument,
-    createChildDocument,
-    deleteDocument,
   }
 }

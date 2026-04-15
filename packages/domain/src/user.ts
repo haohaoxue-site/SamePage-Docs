@@ -1,10 +1,16 @@
-import type { APPEARANCE_PREFERENCE_VALUES, LANGUAGE_PREFERENCE_VALUES } from '@haohaoxue/samepage-contracts'
+import type {
+  APPEARANCE_PREFERENCE_VALUES,
+  AuditUserSummarySchema,
+  LANGUAGE_PREFERENCE_VALUES,
+} from '@haohaoxue/samepage-contracts'
+import type { z } from 'zod'
 import type { AuthMethodName } from './auth'
 
 export type UserStatus = 'ACTIVE' | 'DISABLED'
 export type LanguagePreference = (typeof LANGUAGE_PREFERENCE_VALUES)[number]
 export type AppearancePreference = (typeof APPEARANCE_PREFERENCE_VALUES)[number]
 export type ResolvedAppearancePreference = Exclude<AppearancePreference, 'auto'>
+export type AuditUserSummary = z.infer<typeof AuditUserSummarySchema>
 
 export interface CurrentUserDto {
   id: string

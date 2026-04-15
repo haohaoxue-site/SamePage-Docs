@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { nextTick, useTemplateRef } from 'vue'
+import { useTemplateRef } from 'vue'
 import WorkspacePage from '@/layouts/components/WorkspacePage.vue'
 import UserAccountSection from './components/UserAccountSection.vue'
 import UserDeleteSection from './components/UserDeleteSection.vue'
 import UserPreferenceSection from './components/UserPreferenceSection.vue'
 import UserProfileSection from './components/UserProfileSection.vue'
-import { useUserSettingsView } from './composables/useUserSettingsView'
+import { useUser } from './composables/useUser'
 
+const userAccountSectionRef = useTemplateRef<{ clearEmailValidation: () => void }>('userAccountSectionRef')
 const {
   account,
   avatarUrl,
@@ -32,28 +33,17 @@ const {
   isUploadingAvatar,
   languagePreference,
   profileForm,
+  handleConfirmEmail,
   saveDisplayName,
   sendEmailCode,
   shouldShowDeleteAccountSection,
-  bindEmail,
   canEditDisplayName,
   connectOauth,
   disconnectOauth,
   uploadAvatar,
-} = useUserSettingsView()
-
-const userAccountSectionRef = useTemplateRef<InstanceType<typeof UserAccountSection>>('userAccountSectionRef')
-
-async function handleConfirmEmail() {
-  const isSuccess = await bindEmail()
-
-  if (!isSuccess) {
-    return
-  }
-
-  await nextTick()
-  userAccountSectionRef.value?.clearEmailValidation()
-}
+} = useUser({
+  userAccountSectionRef,
+})
 </script>
 
 <template>

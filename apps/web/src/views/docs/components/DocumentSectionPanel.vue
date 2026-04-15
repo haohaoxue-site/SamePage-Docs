@@ -4,24 +4,16 @@ import type {
   DocumentSectionPanelProps,
 } from '../typing'
 import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
-import { formatDocumentCollectionLabel } from '@haohaoxue/samepage-shared'
-import { computed } from 'vue'
+import { useDocumentSectionPanel } from '../composables/useDocumentSectionPanel'
 import DocumentItem from './DocumentItem.vue'
 import DocumentToolbar from './DocumentToolbar.vue'
 
 const props = defineProps<DocumentSectionPanelProps>()
-
 const emit = defineEmits<DocumentSectionPanelEmits>()
-
-const displayLabel = computed(() => formatDocumentCollectionLabel(props.group.id))
-
-const chevronIconName = computed(() => {
-  return props.isCollapsed ? 'chevron-right' : 'chevron-down'
-})
-
-function toggleSection() {
-  return emit('toggleCollapse', props.group.id)
-}
+const { chevronIconName, displayLabel, toggleSection } = useDocumentSectionPanel(
+  props,
+  collectionId => emit('toggleCollapse', collectionId),
+)
 </script>
 
 <template>
@@ -38,27 +30,27 @@ function toggleSection() {
       </div>
 
       <div
-        v-if="group.id === DOCUMENT_COLLECTION.PERSONAL"
+        v-if="props.group.id === DOCUMENT_COLLECTION.PERSONAL"
         class="document-tree-section__toolbar"
         @click.stop
       >
         <DocumentToolbar
-          :is-busy="isActionPending"
+          :is-busy="props.isActionPending"
           @create-root="emit('createRoot')"
         />
       </div>
     </div>
 
-    <div v-if="!isCollapsed && group.nodes.length" class="space-y-0.5">
+    <div v-if="!props.isCollapsed && props.group.nodes.length" class="space-y-0.5">
       <DocumentItem
-        v-for="document in group.nodes"
+        v-for="document in props.group.nodes"
         :key="document.id"
         :item="document"
-        :collection-id="group.id"
+        :collection-id="props.group.id"
         :depth="0"
-        :active-document-id="activeDocumentId"
-        :expanded-document-ids="expandedDocumentIds"
-        :is-action-pending="isActionPending"
+        :active-document-id="props.activeDocumentId"
+        :expanded-document-ids="props.expandedDocumentIds"
+        :is-action-pending="props.isActionPending"
         @open="emit('open', $event)"
         @toggle="emit('toggle', $event)"
         @create-child="emit('createChild', $event)"
@@ -67,7 +59,7 @@ function toggleSection() {
     </div>
 
     <ElEmpty
-      v-else-if="!isCollapsed"
+      v-else-if="!props.isCollapsed"
       :image-size="48"
       description="暂无文档"
     />

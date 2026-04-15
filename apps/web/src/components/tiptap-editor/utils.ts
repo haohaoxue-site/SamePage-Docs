@@ -1,5 +1,4 @@
 import type {
-  DocumentTitleContent,
   TiptapJsonContent,
   TiptapJsonNode,
 } from '@haohaoxue/samepage-domain'
@@ -25,7 +24,7 @@ export function wrapTiptapContent(content: TiptapEditorContent): TiptapJsonNode 
   }
 }
 
-export function toTitleEditorContent(content: DocumentTitleContent): TiptapEditorContent {
+export function toTitleEditorContent(content: TiptapJsonContent): TiptapEditorContent {
   const title = getDocumentTitlePlainText(content)
 
   if (!title) {
@@ -40,7 +39,7 @@ export function toTitleEditorContent(content: DocumentTitleContent): TiptapEdito
   ]
 }
 
-export function fromTitleEditorContent(content: TiptapEditorContent): DocumentTitleContent {
+export function fromTitleEditorContent(content: TiptapEditorContent): TiptapJsonContent {
   return createDocumentTitleContent(getDocumentPlainText(content))
 }
 

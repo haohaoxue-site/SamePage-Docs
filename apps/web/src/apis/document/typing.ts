@@ -1,10 +1,14 @@
 import type {
   CreateDocumentRequest,
   CreateDocumentResponse,
-  DocumentDetail,
+  CreateDocumentSnapshotRequest,
+  CreateDocumentSnapshotResponse,
+  DocumentHead,
   DocumentRecent,
+  DocumentSnapshot,
   DocumentTreeGroup,
-  UpdateDocumentRequest,
+  PatchDocumentMetaRequest,
+  RestoreDocumentSnapshotRequest,
 } from '@haohaoxue/samepage-domain'
 
 /**
@@ -18,9 +22,14 @@ export type DocumentRecentDto = DocumentRecent
 export type DocumentDto = DocumentTreeGroup[]
 
 /**
- * Web 端文档详情 DTO。
+ * Web 端文档 head DTO。
  */
-export type DocumentDetailDto = DocumentDetail
+export type DocumentHeadDto = DocumentHead
+
+/**
+ * Web 端文档快照 DTO。
+ */
+export type DocumentSnapshotDto = DocumentSnapshot
 
 /**
  * Web 端创建文档请求 DTO。
@@ -33,11 +42,21 @@ export type CreateDocumentDto = CreateDocumentRequest
 export type CreateDocumentResponseDto = CreateDocumentResponse
 
 /**
- * Web 端更新文档请求 DTO。
+ * Web 端创建 snapshot 请求 DTO。
  */
-export type UpdateDocumentDto = UpdateDocumentRequest
+export type CreateDocumentSnapshotDto = CreateDocumentSnapshotRequest
 
 /**
- * Web 端更新文档响应 DTO。
+ * Web 端创建 snapshot 响应 DTO。
  */
-export type UpdateDocumentResponseDto = DocumentDetail
+export type CreateDocumentSnapshotResponseDto = CreateDocumentSnapshotResponse
+
+/**
+ * Web 端恢复 snapshot 请求 DTO。
+ */
+export type RestoreDocumentSnapshotDto = RestoreDocumentSnapshotRequest
+
+/**
+ * Web 端文档元数据补丁 DTO。
+ */
+export type PatchDocumentMetaDto = PatchDocumentMetaRequest

@@ -1,33 +1,15 @@
 <script setup lang="ts">
 import type { ChatInputBoxEmits, ChatInputBoxProps } from '../typing'
-import { shallowRef } from 'vue'
+import { useChatInputBox } from '../composables/useChatInputBox'
 
-withDefaults(defineProps<ChatInputBoxProps>(), {
+const props = withDefaults(defineProps<ChatInputBoxProps>(), {
   placeholder: '输入消息...',
 })
-
 const emits = defineEmits<ChatInputBoxEmits>()
-
-const inputText = shallowRef('')
-
-function handleSend() {
-  const text = inputText.value.trim()
-  if (!text)
-    return
-  emits('send', text)
-  inputText.value = ''
-}
-
-function handleKeydown(e: Event | KeyboardEvent) {
-  if (!(e instanceof KeyboardEvent)) {
-    return
-  }
-
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    handleSend()
-  }
-}
+const { handleKeydown, handleSend, inputText, isSendDisabled } = useChatInputBox(
+  props,
+  content => emits('send', content),
+)
 </script>
 
 <template>
@@ -38,15 +20,15 @@ function handleKeydown(e: Event | KeyboardEvent) {
           v-model="inputText"
           type="textarea"
           :autosize="{ minRows: 2, maxRows: 6 }"
-          :placeholder="placeholder"
-          :disabled="disabled"
+          :placeholder="props.placeholder"
+          :disabled="props.disabled"
           class="chat-input-box__field"
           @keydown="handleKeydown"
         />
         <ElButton
           type="primary"
           circle
-          :disabled="!inputText.trim() || disabled"
+          :disabled="isSendDisabled"
           class="chat-input-box__send"
           @click="handleSend"
         >

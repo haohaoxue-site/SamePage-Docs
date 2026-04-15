@@ -1,13 +1,22 @@
 import type {
   CreateDocumentRequest,
   CreateDocumentResponse,
-  DocumentDetail,
+  CreateDocumentSnapshotRequest,
+  CreateDocumentSnapshotResponse,
+  DocumentHead,
   DocumentRecent,
+  DocumentSnapshot,
   DocumentTreeGroup,
-  UpdateDocumentRequest,
+  PatchDocumentMetaRequest,
+  RestoreDocumentSnapshotRequest,
 } from '@haohaoxue/samepage-domain'
 import type { AuthUserContext } from '../auth/auth.interface'
-import { CreateDocumentSchema, UpdateDocumentSchema } from '@haohaoxue/samepage-contracts'
+import {
+  CreateDocumentSchema,
+  CreateDocumentSnapshotSchema,
+  PatchDocumentMetaSchema,
+  RestoreDocumentSnapshotSchema,
+} from '@haohaoxue/samepage-contracts'
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common'
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { CurrentUser } from '../../decorators/current-user.decorator'
@@ -17,7 +26,10 @@ import { DocumentsService } from './documents.service'
 import {
   createDocumentRequestApiSchema,
   createDocumentResponseApiSchema,
-  updateDocumentRequestApiSchema,
+  createDocumentSnapshotRequestApiSchema,
+  createDocumentSnapshotResponseApiSchema,
+  patchDocumentMetaRequestApiSchema,
+  restoreDocumentSnapshotRequestApiSchema,
 } from './documents.swagger'
 
 @ApiTags('documents')
@@ -50,26 +62,60 @@ export class DocumentsController {
     return this.documentsService.getRecentDocuments(authUser.id)
   }
 
-  @ApiOperation({ summary: '获取文档详情' })
+  @ApiOperation({ summary: '获取文档当前 head' })
   @ApiRequestResponse({ type: 'object' })
   @Get(':id')
-  async getDocumentById(
+  async getDocumentHead(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
-  ): Promise<DocumentDetail> {
-    return this.documentsService.getDocumentById(authUser.id, id)
+  ): Promise<DocumentHead> {
+    return this.documentsService.getDocumentHead(authUser.id, id)
   }
 
-  @ApiOperation({ summary: '更新文档' })
-  @ApiBody({ schema: updateDocumentRequestApiSchema })
-  @ApiRequestResponse({ type: 'object' })
-  @Patch(':id')
-  async updateDocument(
+  @ApiOperation({ summary: '创建文档 snapshot' })
+  @ApiBody({ schema: createDocumentSnapshotRequestApiSchema })
+  @ApiRequestResponse(createDocumentSnapshotResponseApiSchema)
+  @Post(':id/snapshots')
+  async createDocumentSnapshot(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(UpdateDocumentSchema)) payload: UpdateDocumentRequest,
-  ): Promise<DocumentDetail> {
-    return this.documentsService.updateDocument(authUser.id, id, payload)
+    @Body(new ZodValidationPipe(CreateDocumentSnapshotSchema)) payload: CreateDocumentSnapshotRequest,
+  ): Promise<CreateDocumentSnapshotResponse> {
+    return this.documentsService.createDocumentSnapshot(authUser.id, id, payload)
+  }
+
+  @ApiOperation({ summary: '获取文档 snapshot 列表' })
+  @ApiRequestResponse([{ type: 'object' }])
+  @Get(':id/snapshots')
+  async getDocumentSnapshots(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+  ): Promise<DocumentSnapshot[]> {
+    return this.documentsService.getDocumentSnapshots(authUser.id, id)
+  }
+
+  @ApiOperation({ summary: '恢复文档 snapshot' })
+  @ApiBody({ schema: restoreDocumentSnapshotRequestApiSchema })
+  @ApiRequestResponse(createDocumentSnapshotResponseApiSchema)
+  @Post(':id/restore')
+  async restoreDocumentSnapshot(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(RestoreDocumentSnapshotSchema)) payload: RestoreDocumentSnapshotRequest,
+  ): Promise<CreateDocumentSnapshotResponse> {
+    return this.documentsService.restoreDocumentSnapshot(authUser.id, id, payload)
+  }
+
+  @ApiOperation({ summary: '更新文档元数据' })
+  @ApiBody({ schema: patchDocumentMetaRequestApiSchema })
+  @ApiRequestResponse({ type: 'object' })
+  @Patch(':id/meta')
+  async patchDocumentMeta(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(PatchDocumentMetaSchema)) payload: PatchDocumentMetaRequest,
+  ): Promise<DocumentHead> {
+    return this.documentsService.patchDocumentMeta(authUser.id, id, payload)
   }
 
   @ApiOperation({ summary: '删除文档' })

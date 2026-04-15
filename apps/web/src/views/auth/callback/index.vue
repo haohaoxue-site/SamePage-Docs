@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import AuthEntryShell from '../components/AuthEntryShell.vue'
-import { useAuthCallbackView } from './composables/useAuthCallbackView'
+import { useCallback } from './composables/useCallback'
 
-const { statusLabel, errorMessage } = useAuthCallbackView()
-const pageDescription = computed(() => errorMessage.value ? '请返回登录页后重试。' : '正在处理第三方登录，请稍候。')
+const { statusLabel, errorMessage, pageDescription } = useCallback()
 </script>
 
 <template>

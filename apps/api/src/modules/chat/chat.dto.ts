@@ -30,14 +30,8 @@ export class ChatSessionSummaryDto {
   @ApiProperty()
   createdAt!: Date
 
-  @ApiProperty({ nullable: true })
-  createdBy!: string | null
-
   @ApiProperty()
   updatedAt!: Date
-
-  @ApiProperty({ nullable: true })
-  updatedBy!: string | null
 }
 
 export class ChatSessionDetailDto extends ChatSessionSummaryDto {

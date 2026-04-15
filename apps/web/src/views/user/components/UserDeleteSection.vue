@@ -1,106 +1,29 @@
 <script setup lang="ts">
-import type { FormInstance, FormRules } from 'element-plus'
+import type { FormInstance } from 'element-plus'
 import type { UserDeleteSectionEmits, UserDeleteSectionProps } from '../typing'
-import { computed, reactive, shallowRef, useTemplateRef } from 'vue'
+import { useTemplateRef } from 'vue'
+import { useUserDeleteSection } from '../composables/useUserDeleteSection'
 import UserSettingsSectionHeader from './UserSettingsSectionHeader.vue'
 
 const props = defineProps<UserDeleteSectionProps>()
 const emit = defineEmits<UserDeleteSectionEmits>()
 const deleteFormRef = useTemplateRef<FormInstance>('deleteFormRef')
-const isDialogVisible = shallowRef(false)
-const form = reactive({
-  accountConfirmation: '',
-  confirmationPhrase: '',
+const {
+  accountLabel,
+  accountPlaceholder,
+  form,
+  handleConfirm,
+  isDialogVisible,
+  isSubmitDisabled,
+  openDialog,
+  closeDialog,
+  resetForm,
+  rules,
+} = useUserDeleteSection({
+  deleteFormRef,
+  onDeleteAccount: payload => emit('deleteAccount', payload),
+  props,
 })
-
-const accountLabel = computed(() => props.confirmationMode === 'email' ? '当前邮箱' : '当前显示名称')
-const accountPlaceholder = computed(() =>
-  props.confirmationMode === 'email' ? '请输入当前邮箱' : '请输入当前显示名称',
-)
-const accountValidatorMessage = computed(() =>
-  props.confirmationMode === 'email' ? '请输入当前邮箱完成确认' : '请输入当前显示名称完成确认',
-)
-const normalizedExpectedAccount = computed(() => normalizeAccountConfirmation(props.confirmationTarget, props.confirmationMode))
-const isAccountConfirmationReady = computed(() =>
-  normalizeAccountConfirmation(form.accountConfirmation, props.confirmationMode) === normalizedExpectedAccount.value,
-)
-const isPhraseConfirmationReady = computed(() => form.confirmationPhrase.trim() === props.confirmationPhrase)
-const isSubmitDisabled = computed(() =>
-  props.isDeleting
-  || !isAccountConfirmationReady.value
-  || !isPhraseConfirmationReady.value,
-)
-const rules = computed<FormRules>(() => ({
-  accountConfirmation: [
-    {
-      required: true,
-      message: accountValidatorMessage.value,
-      trigger: ['blur', 'change'],
-    },
-    {
-      validator: (_rule, value: string, callback) => {
-        if (normalizeAccountConfirmation(value, props.confirmationMode) !== normalizedExpectedAccount.value) {
-          callback(new Error(accountValidatorMessage.value))
-          return
-        }
-
-        callback()
-      },
-      trigger: ['blur', 'change'],
-    },
-  ],
-  confirmationPhrase: [
-    {
-      required: true,
-      message: `请输入“${props.confirmationPhrase}”`,
-      trigger: ['blur', 'change'],
-    },
-    {
-      validator: (_rule, value: string, callback) => {
-        if (value.trim() !== props.confirmationPhrase) {
-          callback(new Error(`请输入“${props.confirmationPhrase}”`))
-          return
-        }
-
-        callback()
-      },
-      trigger: ['blur', 'change'],
-    },
-  ],
-}))
-
-function openDialog() {
-  resetForm()
-  isDialogVisible.value = true
-}
-
-function closeDialog() {
-  isDialogVisible.value = false
-  resetForm()
-}
-
-async function handleConfirm() {
-  const isValid = await deleteFormRef.value?.validate().catch(() => false)
-
-  if (!isValid) {
-    return
-  }
-
-  emit('deleteAccount', {
-    accountConfirmation: form.accountConfirmation.trim(),
-    confirmationPhrase: form.confirmationPhrase.trim(),
-  })
-}
-
-function resetForm() {
-  form.accountConfirmation = ''
-  form.confirmationPhrase = ''
-  deleteFormRef.value?.clearValidate()
-}
-
-function normalizeAccountConfirmation(value: string, mode: UserDeleteSectionProps['confirmationMode']) {
-  return mode === 'email' ? value.trim().toLowerCase() : value.trim()
-}
 </script>
 
 <template>

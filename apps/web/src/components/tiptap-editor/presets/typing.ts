@@ -1,4 +1,4 @@
-import type { DocumentTitleContent } from '@haohaoxue/samepage-domain'
+import type { TiptapJsonContent } from '@haohaoxue/samepage-domain'
 import type { TiptapEditorContent } from '../typing'
 
 export interface DocumentTitleEditorProps {
@@ -6,11 +6,11 @@ export interface DocumentTitleEditorProps {
    * 标题
    * @description 文档标题轻量内容
    */
-  title: DocumentTitleContent
+  title: TiptapJsonContent
 }
 
 export interface DocumentTitleEditorEmits {
-  'update:title': [title: DocumentTitleContent]
+  'update:title': [title: TiptapJsonContent]
 }
 
 export interface DocumentBodyEditorProps {

@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import WorkspacePage from '@/layouts/components/WorkspacePage.vue'
+import { useKnowledge } from './composables/useKnowledge'
+
+const { pageTitle, placeholderTitle } = useKnowledge()
 </script>
 
 <template>
@@ -7,7 +10,7 @@ import WorkspacePage from '@/layouts/components/WorkspacePage.vue'
     <template #context>
       <div class="knowledge-view-context">
         <div class="knowledge-view-context__title">
-          知识库
+          {{ pageTitle }}
         </div>
       </div>
     </template>
@@ -17,7 +20,7 @@ import WorkspacePage from '@/layouts/components/WorkspacePage.vue'
         <SvgIcon category="nav" icon="knowledge-active" size="4rem" />
       </div>
       <div class="knowledge-view-placeholder__title">
-        知识库正在建设中
+        {{ placeholderTitle }}
       </div>
     </section>
   </WorkspacePage>

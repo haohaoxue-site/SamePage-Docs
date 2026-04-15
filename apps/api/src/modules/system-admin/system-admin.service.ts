@@ -31,12 +31,18 @@ import {
   UserStatus,
 } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
+import { auditUserSummarySelect, toAuditUserSummary } from '../../utils/audit-user-summary'
 import { resolveAuthMethods } from '../../utils/auth-methods'
 import { decryptAes256Gcm, encryptAes256Gcm, isEncryptedValue } from '../../utils/crypto'
 import { SystemAuthService } from '../auth/system-auth.service'
 import { SystemEmailService } from '../system-email/system-email.service'
 
 const DEFAULT_SYSTEM_AI_BASE_URL = 'https://api.openai.com/v1'
+const systemAiConfigInclude = {
+  updatedByUser: {
+    select: auditUserSummarySelect,
+  },
+} satisfies Prisma.SystemAiConfigInclude
 
 @Injectable()
 export class SystemAdminService {
@@ -133,7 +139,6 @@ export class SystemAdminService {
       ownedDocumentCount: user._count.ownedDocuments,
       sharedDocumentCount: user.documentMemberships.length,
       createdAt: user.createdAt,
-      createdBy: null,
       lastLoginAt: user.lastLoginAt,
     }))
   }
@@ -301,6 +306,7 @@ export class SystemAdminService {
   async getAiConfig(): Promise<SystemAiConfigDto> {
     const config = await this.prisma.systemAiConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
+      include: systemAiConfigInclude,
     })
 
     if (!config) {
@@ -311,6 +317,7 @@ export class SystemAdminService {
         maskedApiKey: null,
         updatedAt: null,
         updatedBy: null,
+        updatedByUser: null,
       }
     }
 
@@ -322,19 +329,22 @@ export class SystemAdminService {
       hasApiKey: Boolean(decryptedApiKey),
       maskedApiKey: maskApiKey(decryptedApiKey),
       updatedAt: config.updatedAt,
-      updatedBy: null,
+      updatedBy: config.updatedBy,
+      updatedByUser: toAuditUserSummary(config.updatedByUser),
     }
   }
 
   async getAiServiceStatus(): Promise<SystemAiServiceStatusDto> {
     const config = await this.prisma.systemAiConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
+      include: systemAiConfigInclude,
     })
 
     return {
       enabled: config?.enabled ?? false,
       updatedAt: config?.updatedAt ?? null,
-      updatedBy: null,
+      updatedBy: config?.updatedBy ?? null,
+      updatedByUser: toAuditUserSummary(config?.updatedByUser),
     }
   }
 
@@ -370,7 +380,7 @@ export class SystemAdminService {
       baseUrl: normalizedBaseUrl,
       defaultModel: null,
       apiKey: nextPlainApiKey ? encryptAes256Gcm(nextPlainApiKey, this.encryptionKey) : null,
-      updatedByUserId: actorUserId,
+      updatedBy: actorUserId,
     }
 
     if (existing) {
@@ -419,6 +429,7 @@ export class SystemAdminService {
         enabled: false,
         updatedAt: null,
         updatedBy: null,
+        updatedByUser: null,
       }
     }
 
@@ -426,7 +437,7 @@ export class SystemAdminService {
       where: { id: existing.id },
       data: {
         enabled: payload.enabled,
-        updatedByUserId: actorUserId,
+        updatedBy: actorUserId,
       },
     })
 
@@ -467,7 +478,6 @@ export class SystemAdminService {
       actorAvatarUrl: log.actorUser.avatarUrl,
       metadata: asRecord(log.metadata),
       createdAt: log.createdAt,
-      createdBy: null,
     }))
   }
 

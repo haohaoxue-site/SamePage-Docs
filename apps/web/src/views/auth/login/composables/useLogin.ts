@@ -1,5 +1,6 @@
 import type { AuthProviderName } from '@haohaoxue/samepage-domain'
-import type { FormRules } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import type { ShallowRef } from 'vue'
 import { AUTH_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
 import { computed, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -11,7 +12,7 @@ import { completeAuthNavigation, syncPendingRedirect } from '../../utils/navigat
 import { AUTH_PROVIDER_UI_META } from '../../utils/provider-ui'
 import { createEmailRules, createPasswordRules, isValidEmail, isValidPassword } from '../../utils/rules'
 
-export function useLoginView() {
+export function useLogin(options: { passwordFormRef: ShallowRef<FormInstance | null> }) {
   const route = useRoute()
   const router = useRouter()
   const authStore = useAuthStore()
@@ -62,12 +63,17 @@ export function useLoginView() {
     window.location.assign(buildOAuthStartUrl(provider))
   }
 
+  async function handleSubmitPasswordLogin() {
+    await submitPasswordLogin(options.passwordFormRef.value)
+  }
+
   onMounted(() => {
     syncPendingRedirect(route.query.redirect, authStore)
     void loadCapabilities()
   })
 
   return {
+    handleSubmitPasswordLogin,
     hasOauthProviders,
     isLoadingCapabilities,
     isPasswordSubmitting,

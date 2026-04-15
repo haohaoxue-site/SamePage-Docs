@@ -1,58 +1,24 @@
 <script setup lang="ts">
-import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
+import type { FormInstance } from 'element-plus'
 import type {
   ChatProviderSettingsDialogEmits,
   ChatProviderSettingsDialogProps,
 } from '../typing'
 import type { ChatModelSelection } from '@/apis/chat'
 import { useTemplateRef } from 'vue'
+import { useChatProviderSettingsDialog } from '../composables/useChatProviderSettingsDialog'
 
-defineProps<ChatProviderSettingsDialogProps>()
+const props = defineProps<ChatProviderSettingsDialogProps>()
 const emits = defineEmits<ChatProviderSettingsDialogEmits>()
 const visible = defineModel<boolean>({ required: true })
 const form = defineModel<ChatModelSelection>('form', { required: true })
 const providerFormRef = useTemplateRef<FormInstance>('providerFormRef')
-
-type RuleValidator = NonNullable<FormItemRule['validator']>
-
-function resolveTrimmedValue(value: unknown) {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function createRequiredValidator(message: string): RuleValidator {
-  return (_rule, value, callback) => {
-    if (!resolveTrimmedValue(value)) {
-      callback(new Error(message))
-      return
-    }
-
-    callback()
-  }
-}
-
-const formRules: FormRules<ChatModelSelection> = {
-  model: [{
-    validator: createRequiredValidator('请选择模型'),
-  }],
-}
-
-function handleRefreshModels() {
-  emits('refreshModels')
-}
-
-async function handleSave() {
-  form.value.model = form.value.model.trim()
-
-  const isValid = providerFormRef.value
-    ? await providerFormRef.value.validate().catch(() => false)
-    : false
-
-  if (!isValid) {
-    return
-  }
-
-  emits('save')
-}
+const { formRules, handleRefreshModels, handleSave } = useChatProviderSettingsDialog({
+  form,
+  providerFormRef,
+  onRefreshModels: () => emits('refreshModels'),
+  onSave: () => emits('save'),
+})
 </script>
 
 <template>
@@ -78,7 +44,7 @@ async function handleSave() {
               placeholder="请选择模型"
             >
               <ElOption
-                v-for="model in models"
+                v-for="model in props.models"
                 :key="model.id"
                 :label="model.ownedBy ? `${model.id} · ${model.ownedBy}` : model.id"
                 :value="model.id"
@@ -86,7 +52,7 @@ async function handleSave() {
             </ElSelect>
 
             <ElButton
-              :loading="isLoadingModels"
+              :loading="props.isLoadingModels"
               @click="handleRefreshModels"
             >
               刷新
