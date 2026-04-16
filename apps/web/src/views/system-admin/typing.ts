@@ -1,12 +1,12 @@
 import type {
-  SystemAdminAuditLogItemDto,
-  SystemAdminUserItemDto,
+  SystemAdminAuditLogItem,
+  SystemAdminUserItem,
   SystemAdminUserStatus,
 } from '@/apis/system-admin'
 import type { SvgIconCategory } from '@/components/svg-icon/typing'
 
 export interface AdminAuditLogListProps {
-  logs: SystemAdminAuditLogItemDto[]
+  logs: SystemAdminAuditLogItem[]
 }
 
 export interface ConsoleMetricCardProps {
@@ -26,10 +26,10 @@ export interface ConsoleMetricCardProps {
 }
 
 export interface SystemAdminUserTableProps {
-  users: SystemAdminUserItemDto[]
+  users: SystemAdminUserItem[]
   updatingUserId: string | null
 }
 
 export interface SystemAdminUserTableEmits {
-  toggleStatus: [user: SystemAdminUserItemDto, nextStatus: SystemAdminUserStatus]
+  toggleStatus: [user: SystemAdminUserItem, nextStatus: SystemAdminUserStatus]
 }

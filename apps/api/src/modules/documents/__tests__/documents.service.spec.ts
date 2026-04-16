@@ -1,3 +1,4 @@
+import type { DocumentAssetsService } from '../document-assets.service'
 import {
   DOCUMENT_SNAPSHOT_SOURCE,
   TIPTAP_SCHEMA_VERSION,
@@ -5,7 +6,7 @@ import {
 import { createDocumentTitleContent } from '@haohaoxue/samepage-shared'
 import { ConflictException } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
-import { DocumentsService } from './documents.service'
+import { DocumentsService } from '../documents.service'
 
 function createPrismaMock() {
   const document = {
@@ -87,7 +88,8 @@ describe('documentsService', () => {
     prisma.documentSnapshot.create.mockResolvedValue(createPersistedSnapshot())
     prisma.document.update.mockResolvedValue(undefined)
 
-    const service = new DocumentsService(prisma as never)
+    const documentAssetsService = createDocumentAssetsServiceMock()
+    const service = new DocumentsService(prisma as never, documentAssetsService as never)
     const result = await service.createDocumentSnapshot('user-1', 'doc-1', {
       baseRevision: 1,
       schemaVersion: TIPTAP_SCHEMA_VERSION,
@@ -118,7 +120,8 @@ describe('documentsService', () => {
       headRevision: 2,
     })
 
-    const service = new DocumentsService(prisma as never)
+    const documentAssetsService = createDocumentAssetsServiceMock()
+    const service = new DocumentsService(prisma as never, documentAssetsService as never)
 
     await expect(service.createDocumentSnapshot('user-1', 'doc-1', {
       baseRevision: 1,
@@ -165,7 +168,8 @@ describe('documentsService', () => {
     prisma.documentSnapshot.create.mockResolvedValue(restoredSnapshot)
     prisma.document.update.mockResolvedValue(undefined)
 
-    const service = new DocumentsService(prisma as never)
+    const documentAssetsService = createDocumentAssetsServiceMock()
+    const service = new DocumentsService(prisma as never, documentAssetsService as never)
     const result = await service.restoreDocumentSnapshot('user-1', 'doc-1', {
       baseRevision: 2,
       snapshotId: 'snapshot-1',
@@ -205,7 +209,8 @@ describe('documentsService', () => {
     })
     prisma.documentSnapshot.findFirst.mockResolvedValue(targetSnapshot)
 
-    const service = new DocumentsService(prisma as never)
+    const documentAssetsService = createDocumentAssetsServiceMock()
+    const service = new DocumentsService(prisma as never, documentAssetsService as never)
     const result = await service.restoreDocumentSnapshot('user-1', 'doc-1', {
       baseRevision: 2,
       snapshotId: 'snapshot-1',
@@ -216,4 +221,66 @@ describe('documentsService', () => {
     expect(prisma.documentSnapshot.create).not.toHaveBeenCalled()
     expect(prisma.document.update).not.toHaveBeenCalled()
   })
+
+  it('createDocumentSnapshot 会校验正文里所有 assetId 都属于当前文档', async () => {
+    const prisma = createPrismaMock()
+    const documentAssetsService = createDocumentAssetsServiceMock()
+    prisma.document.findMany.mockResolvedValue([createPersistedDocument()])
+    prisma.documentMember.findMany.mockResolvedValue([])
+    prisma.document.findUnique.mockResolvedValue({
+      id: 'doc-1',
+      headRevision: 1,
+    })
+    prisma.documentSnapshot.create.mockResolvedValue(createPersistedSnapshot())
+    prisma.document.update.mockResolvedValue(undefined)
+
+    const service = new DocumentsService(prisma as never, documentAssetsService as never)
+
+    await service.createDocumentSnapshot('user-1', 'doc-1', {
+      baseRevision: 1,
+      schemaVersion: TIPTAP_SCHEMA_VERSION,
+      source: DOCUMENT_SNAPSHOT_SOURCE.AUTOSAVE,
+      title: createDocumentTitleContent('新的标题'),
+      body: [
+        {
+          type: 'image',
+          attrs: {
+            id: 'block_a',
+            assetId: 'asset_1',
+            src: '/runtime/1',
+          },
+        },
+        {
+          type: 'blockquote',
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                id: 'block_b',
+                assetId: 'asset_1',
+              },
+            },
+            {
+              type: 'image',
+              attrs: {
+                id: 'block_c',
+                assetId: 'asset_2',
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(documentAssetsService.assertAssetsBelongToDocument).toHaveBeenCalledWith({
+      documentId: 'doc-1',
+      assetIds: ['asset_1', 'asset_2'],
+    })
+  })
 })
+
+function createDocumentAssetsServiceMock() {
+  return {
+    assertAssetsBelongToDocument: vi.fn(async () => {}),
+  } satisfies Pick<DocumentAssetsService, 'assertAssetsBelongToDocument'>
+}

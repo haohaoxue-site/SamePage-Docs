@@ -1,8 +1,8 @@
 import type {
   AppearancePreference,
   AuthMethodName,
-  DeleteCurrentUserDto as DeleteCurrentUserPayloadDto,
-  DeleteCurrentUserResponseDto as DeleteCurrentUserResultDto,
+  DeleteCurrentUserRequest as DeleteCurrentUserPayload,
+  DeleteCurrentUserResponse as DeleteCurrentUserResult,
   LanguagePreference,
 } from '@haohaoxue/samepage-domain'
 import {
@@ -155,7 +155,7 @@ export class ConfirmBindEmailDto {
   newPassword?: string
 }
 
-export class DeleteCurrentUserDto implements DeleteCurrentUserPayloadDto {
+export class DeleteCurrentUserDto implements DeleteCurrentUserPayload {
   @ApiProperty()
   @IsString()
   @MinLength(1)
@@ -168,7 +168,7 @@ export class DeleteCurrentUserDto implements DeleteCurrentUserPayloadDto {
   confirmationPhrase!: string
 }
 
-export class DeleteCurrentUserResponseDto implements DeleteCurrentUserResultDto {
+export class DeleteCurrentUserResponseDto implements DeleteCurrentUserResult {
   @ApiProperty()
   deleted!: boolean
 }

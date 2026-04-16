@@ -1,4 +1,5 @@
 import type {
+  DocumentAsset,
   DocumentCollectionId,
   DocumentSaveState,
   DocumentSnapshot,
@@ -85,6 +86,31 @@ export function hasDocumentContent(content: TiptapJsonContent): boolean {
   return getDocumentPlainText(content).length > 0
 }
 
+export function collectDocumentAssetIds(content: TiptapJsonContent): string[] {
+  const assetIds = new Set<string>()
+
+  for (const node of content) {
+    collectNodeAssetIds(node, assetIds)
+  }
+
+  return Array.from(assetIds)
+}
+
+export function stripDocumentRuntimeAttributes(content: TiptapJsonContent): TiptapJsonContent {
+  return content.map(node => stripNodeRuntimeAttributes(node))
+}
+
+export function hydrateDocumentAssetAttributes(
+  content: TiptapJsonContent,
+  assetsById: Record<string, DocumentAsset>,
+): TiptapJsonContent {
+  return content.map(node => hydrateNodeAssetAttributes(node, assetsById))
+}
+
+export function hasUnresolvedDocumentAssets(content: TiptapJsonContent): boolean {
+  return content.some(node => hasNodeWithMissingAssetId(node))
+}
+
 export function isSameDocumentSnapshotContent(
   left: Pick<DocumentSnapshot, 'schemaVersion' | 'title' | 'body'>,
   right: Pick<DocumentSnapshot, 'schemaVersion' | 'title' | 'body'>,
@@ -150,6 +176,121 @@ function walkTiptapNode(node: TiptapJsonNode | undefined, textParts: string[]) {
 
 function isTiptapJsonNode(value: unknown): value is TiptapJsonNode {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function collectNodeAssetIds(node: TiptapJsonNode | undefined, assetIds: Set<string>) {
+  if (!node) {
+    return
+  }
+
+  const assetId = readAssetId(node)
+
+  if (assetId) {
+    assetIds.add(assetId)
+  }
+
+  const childNodes = node.content
+
+  if (!Array.isArray(childNodes)) {
+    return
+  }
+
+  for (const child of childNodes) {
+    if (isTiptapJsonNode(child)) {
+      collectNodeAssetIds(child, assetIds)
+    }
+  }
+}
+
+function stripNodeRuntimeAttributes(node: TiptapJsonNode): TiptapJsonNode {
+  const nextNode: TiptapJsonNode = {
+    ...node,
+  }
+
+  if (node.attrs && typeof node.attrs === 'object') {
+    const nextAttrs = {
+      ...node.attrs,
+    }
+
+    if (node.type === 'image') {
+      delete nextAttrs.src
+    }
+    else if (node.type === 'file') {
+      delete nextAttrs.fileName
+      delete nextAttrs.mimeType
+      delete nextAttrs.size
+      delete nextAttrs.contentUrl
+    }
+
+    nextNode.attrs = Object.keys(nextAttrs).length ? nextAttrs : undefined
+  }
+
+  if (Array.isArray(node.content)) {
+    nextNode.content = node.content
+      .filter(isTiptapJsonNode)
+      .map(child => stripNodeRuntimeAttributes(child))
+  }
+
+  return nextNode
+}
+
+function hydrateNodeAssetAttributes(
+  node: TiptapJsonNode,
+  assetsById: Record<string, DocumentAsset>,
+): TiptapJsonNode {
+  const nextNode: TiptapJsonNode = {
+    ...node,
+  }
+
+  if (node.attrs && typeof node.attrs === 'object') {
+    const nextAttrs = {
+      ...node.attrs,
+    }
+    const assetId = readAssetId(node)
+    const asset = assetId ? assetsById[assetId] : undefined
+
+    if (node.type === 'image' && asset?.kind === 'image' && asset.contentUrl) {
+      nextAttrs.src = asset.contentUrl
+    }
+    else if (node.type === 'file' && asset?.kind === 'file') {
+      nextAttrs.fileName = asset.fileName
+      nextAttrs.mimeType = asset.mimeType
+      nextAttrs.size = asset.size
+      nextAttrs.contentUrl = asset.contentUrl
+    }
+
+    nextNode.attrs = nextAttrs
+  }
+
+  if (Array.isArray(node.content)) {
+    nextNode.content = node.content
+      .filter(isTiptapJsonNode)
+      .map(child => hydrateNodeAssetAttributes(child, assetsById))
+  }
+
+  return nextNode
+}
+
+function readAssetId(node: TiptapJsonNode): string | null {
+  const assetId = node.attrs?.assetId
+
+  return typeof assetId === 'string' && assetId.length ? assetId : null
+}
+
+function hasNodeWithMissingAssetId(node: TiptapJsonNode): boolean {
+  if ((node.type === 'image' || node.type === 'file') && !readAssetId(node)) {
+    return true
+  }
+
+  const childNodes = node.content
+
+  if (!Array.isArray(childNodes)) {
+    return false
+  }
+
+  return childNodes
+    .filter(isTiptapJsonNode)
+    .some(child => hasNodeWithMissingAssetId(child))
 }
 
 function normalizeDocumentTitleText(title: string) {

@@ -100,6 +100,10 @@ export const DOCUMENT_SNAPSHOT_SOURCE_VALUES = [
 
 export const DocumentSnapshotSourceSchema = z.enum(DOCUMENT_SNAPSHOT_SOURCE_VALUES)
 
+export const DocumentAssetKindSchema = z.enum(['image', 'file'])
+
+export const DocumentAssetStatusSchema = z.enum(['pending', 'ready', 'deleted'])
+
 export const DocumentRecordSchema = DocumentBaseSchema.omit({
   title: true,
 }).extend({
@@ -131,6 +135,20 @@ export const DocumentHeadSchema = z.object({
   headRevision: DocumentRevisionSchema,
 }).strict()
 
+export const DocumentAssetSchema = z.object({
+  id: z.string(),
+  documentId: z.string(),
+  kind: DocumentAssetKindSchema,
+  status: DocumentAssetStatusSchema,
+  mimeType: z.string(),
+  size: z.number().int().nonnegative(),
+  fileName: z.string(),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+  contentUrl: z.string().nullable(),
+  createdAt: z.string(),
+}).strict()
+
 export const CreateDocumentSchema = z.object({
   title: z.string().trim().min(1),
   parentId: z.string().trim().nullable().optional(),
@@ -147,6 +165,15 @@ export const CreateDocumentSnapshotSchema = z.object({
 export const CreateDocumentSnapshotResponseSchema = z.object({
   snapshot: DocumentSnapshotSchema,
   headRevision: DocumentRevisionSchema,
+}).strict()
+
+export const ResolveDocumentAssetsSchema = z.object({
+  assetIds: z.string().array(),
+}).strict()
+
+export const ResolveDocumentAssetsResponseSchema = z.object({
+  assets: DocumentAssetSchema.array(),
+  unresolvedAssetIds: z.string().array(),
 }).strict()
 
 export const RestoreDocumentSnapshotSchema = z.object({

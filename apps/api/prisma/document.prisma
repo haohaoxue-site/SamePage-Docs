@@ -7,6 +7,17 @@ enum DocumentMemberRole {
   VIEWER
 }
 
+enum DocumentAssetKind {
+  IMAGE
+  FILE
+}
+
+enum DocumentAssetStatus {
+  PENDING
+  READY
+  DELETED
+}
+
 enum DocumentSpaceScope {
   PERSONAL
   TEAM
@@ -28,6 +39,7 @@ model Document {
   children         Document[]         @relation("DocumentTree")
   latestSnapshot   DocumentSnapshot?  @relation("DocumentLatestSnapshot", fields: [latestSnapshotId], references: [id], onDelete: SetNull)
   snapshots        DocumentSnapshot[] @relation("DocumentSnapshots")
+  assets           DocumentAsset[]
   members          DocumentMember[]
   ydoc             DocumentYdoc?
   createdAt        DateTime           @default(now())
@@ -81,4 +93,30 @@ model DocumentYdoc {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   deletedAt  DateTime?
+}
+
+model DocumentAsset {
+  id               String              @id @default(uuid())
+  documentId       String
+  kind             DocumentAssetKind
+  status           DocumentAssetStatus @default(READY)
+  bucket           String
+  objectKey        String
+  mimeType         String
+  size             Int
+  sha256           String
+  originalFileName String
+  width            Int?
+  height           Int?
+  document         Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt        DateTime            @default(now())
+  createdBy        String?
+  createdByUser    User?               @relation("DocumentAssetCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedAt        DateTime            @updatedAt
+  deletedAt        DateTime?
+
+  @@unique([bucket, objectKey])
+  @@index([documentId, createdAt])
+  @@index([documentId, kind, status])
+  @@index([sha256])
 }

@@ -30,6 +30,7 @@ model User {
   localCredential        LocalCredential?
   ownedDocuments         Document[]                  @relation("DocumentOwner")
   createdDocumentSnapshots DocumentSnapshot[]        @relation("DocumentSnapshotCreator")
+  createdDocumentAssets  DocumentAsset[]             @relation("DocumentAssetCreator")
   documentMemberships    DocumentMember[]
   chatSessions           ChatSession[]
   adminAuditLogs         AdminAuditLog[]             @relation("AdminAuditLogActor")

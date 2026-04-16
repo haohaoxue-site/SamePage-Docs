@@ -1,0 +1,126 @@
+import { mergeAttributes, Node } from '@tiptap/core'
+
+export const DocumentFile = Node.create({
+  name: 'file',
+  group: 'block',
+  atom: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      assetId: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-asset-id'),
+        renderHTML: (attributes) => {
+          if (typeof attributes.assetId !== 'string' || !attributes.assetId.length) {
+            return {}
+          }
+
+          return {
+            'data-asset-id': attributes.assetId,
+          }
+        },
+      },
+      fileName: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-file-name'),
+        renderHTML: (attributes) => {
+          if (typeof attributes.fileName !== 'string' || !attributes.fileName.length) {
+            return {}
+          }
+
+          return {
+            'data-file-name': attributes.fileName,
+          }
+        },
+      },
+      mimeType: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-mime-type'),
+        renderHTML: (attributes) => {
+          if (typeof attributes.mimeType !== 'string' || !attributes.mimeType.length) {
+            return {}
+          }
+
+          return {
+            'data-mime-type': attributes.mimeType,
+          }
+        },
+      },
+      size: {
+        default: null,
+        parseHTML: (element) => {
+          const size = Number(element.getAttribute('data-size'))
+          return Number.isFinite(size) ? size : null
+        },
+        renderHTML: (attributes) => {
+          if (typeof attributes.size !== 'number') {
+            return {}
+          }
+
+          return {
+            'data-size': String(attributes.size),
+          }
+        },
+      },
+      contentUrl: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-content-url'),
+        renderHTML: (attributes) => {
+          if (typeof attributes.contentUrl !== 'string' || !attributes.contentUrl.length) {
+            return {}
+          }
+
+          return {
+            'data-content-url': attributes.contentUrl,
+          }
+        },
+      },
+    }
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: 'div[data-type="document-file"][data-asset-id]',
+      },
+    ]
+  },
+
+  renderHTML({ node, HTMLAttributes }) {
+    const fileName = typeof node.attrs.fileName === 'string' && node.attrs.fileName.length
+      ? node.attrs.fileName
+      : '未命名附件'
+    const metaParts = [
+      typeof node.attrs.mimeType === 'string' && node.attrs.mimeType.length
+        ? node.attrs.mimeType
+        : null,
+      typeof node.attrs.size === 'number'
+        ? formatFileSize(node.attrs.size)
+        : null,
+    ].filter(Boolean)
+
+    return [
+      'div',
+      mergeAttributes({
+        'data-type': 'document-file',
+        'class': 'document-file-node',
+        'contenteditable': 'false',
+      }, HTMLAttributes),
+      ['div', { class: 'document-file-node__title' }, fileName],
+      ['div', { class: 'document-file-node__meta' }, metaParts.join(' · ') || '附件'],
+    ]
+  },
+})
+
+function formatFileSize(size: number): string {
+  if (size < 1024) {
+    return `${size} B`
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}

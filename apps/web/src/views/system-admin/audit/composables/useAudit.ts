@@ -1,11 +1,11 @@
-import type { SystemAdminAuditLogItemDto } from '@/apis/system-admin'
+import type { SystemAdminAuditLogItem } from '@/apis/system-admin'
 import { computed, onMounted, shallowRef } from 'vue'
 import { getSystemAdminAuditLogs } from '@/apis/system-admin'
 import { SvgIconCategory } from '@/components/svg-icon/typing'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 export function useAudit() {
-  const logs = shallowRef<SystemAdminAuditLogItemDto[]>([])
+  const logs = shallowRef<SystemAdminAuditLogItem[]>([])
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
   const summaryCards = computed(() => [

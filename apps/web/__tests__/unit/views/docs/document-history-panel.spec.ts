@@ -60,7 +60,7 @@ function createSnapshot(overrides: Partial<DocumentSnapshot> = {}): DocumentSnap
 }
 
 describe('documentHistoryPanel', () => {
-  it('点击历史条目只切换选中态，点击还原按钮才触发 restore', async () => {
+  it('点击历史条目时只触发选中事件', async () => {
     const wrapper = mount(DocumentHistoryPanel, {
       props: {
         document: createDocument(),
@@ -80,8 +80,8 @@ describe('documentHistoryPanel', () => {
             createdAt: '2026-04-15T15:00:00+08:00',
           }),
         ],
+        selectedSnapshotId: 'snapshot-2',
         isLoading: false,
-        isRestoring: false,
       },
     })
 
@@ -93,15 +93,11 @@ describe('documentHistoryPanel', () => {
 
     await targetButton!.trigger('click')
 
+    expect(wrapper.emitted('select')).toEqual([['snapshot-1']])
     expect(wrapper.emitted('restore')).toBeFalsy()
-    expect(wrapper.text()).toContain('还原此历史记录')
-
-    await wrapper.get('.document-history-panel__restore-button').trigger('click')
-
-    expect(wrapper.emitted('restore')).toEqual([['snapshot-1']])
   })
 
-  it('当前内容的旧历史记录不可再次还原', async () => {
+  it('当前内容的旧历史记录仍会显示当前内容标签', async () => {
     const wrapper = mount(DocumentHistoryPanel, {
       props: {
         document: createDocument({
@@ -133,8 +129,8 @@ describe('documentHistoryPanel', () => {
             createdAt: '2026-04-15T15:00:00+08:00',
           }),
         ],
+        selectedSnapshotId: 'snapshot-0',
         isLoading: false,
-        isRestoring: false,
       },
     })
 
@@ -146,8 +142,7 @@ describe('documentHistoryPanel', () => {
 
     await targetButton!.trigger('click')
 
-    expect(wrapper.text()).toContain('该历史记录已是当前内容')
-    expect(wrapper.find('.document-history-panel__restore-button').exists()).toBe(false)
-    expect(wrapper.emitted('restore')).toBeFalsy()
+    expect(wrapper.text()).toContain('当前内容')
+    expect(wrapper.emitted('select')).toEqual([['snapshot-0']])
   })
 })

@@ -235,4 +235,49 @@ describe('tiptapEditor', () => {
       },
     ])
   })
+
+  it('正文编辑器支持 image 节点保留 assetId，并允许运行时 src 存在于编辑态', async () => {
+    const wrapper = mount(TiptapEditor, {
+      props: {
+        content: initialContent,
+        extensions: createBodyExtensions(),
+      },
+    })
+
+    await vi.waitFor(() => {
+      expect((wrapper.vm as unknown as TiptapEditorExposed).editor).toBeTruthy()
+    })
+
+    const { editor } = wrapper.vm as unknown as TiptapEditorExposed
+    editor?.commands.setContent([
+      {
+        type: 'image',
+        attrs: {
+          assetId: 'asset_1',
+          alt: '封面图',
+          src: '/runtime/1',
+        },
+      },
+    ])
+
+    await nextTick()
+
+    expect(wrapper.emitted('update:content')?.at(-1)?.[0]).toEqual([
+      {
+        type: 'image',
+        attrs: expect.objectContaining({
+          id: expect.any(String),
+          assetId: 'asset_1',
+          alt: '封面图',
+          src: '/runtime/1',
+        }),
+      },
+      {
+        type: 'paragraph',
+        attrs: {
+          id: expect.any(String),
+        },
+      },
+    ])
+  })
 })

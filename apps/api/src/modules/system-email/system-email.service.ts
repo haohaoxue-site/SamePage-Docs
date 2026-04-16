@@ -1,11 +1,11 @@
 import type { CryptoConfig } from '../../config/auth.config'
 import type {
-  SystemEmailConfigDto,
-  SystemEmailServiceStatusDto,
-  TestSystemEmailConfigResponseDto,
-  UpdateSystemEmailConfigDto,
-  UpdateSystemEmailServiceStatusDto,
-} from '../system-admin/system-admin.dto'
+  SystemEmailConfig,
+  SystemEmailServiceStatus,
+  TestSystemEmailConfigResponse,
+  UpdateSystemEmailConfigInput,
+  UpdateSystemEmailServiceStatusInput,
+} from './system-email.interface'
 import { SYSTEM_EMAIL_PROVIDER, SYSTEM_EMAIL_PROVIDER_DEFAULTS } from '@haohaoxue/samepage-contracts'
 import {
   BadRequestException,
@@ -36,7 +36,7 @@ export class SystemEmailService {
     this.encryptionKey = configService.getOrThrow<CryptoConfig>('crypto').encryptionKey
   }
 
-  async getEmailConfig(): Promise<SystemEmailConfigDto> {
+  async getEmailConfig(): Promise<SystemEmailConfig> {
     const config = await this.prisma.systemEmailConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
       include: systemEmailConfigInclude,
@@ -74,7 +74,7 @@ export class SystemEmailService {
     }
   }
 
-  async getEmailServiceStatus(): Promise<SystemEmailServiceStatusDto> {
+  async getEmailServiceStatus(): Promise<SystemEmailServiceStatus> {
     const config = await this.prisma.systemEmailConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
       include: systemEmailConfigInclude,
@@ -94,8 +94,8 @@ export class SystemEmailService {
 
   async updateEmailConfig(
     actorUserId: string,
-    payload: UpdateSystemEmailConfigDto,
-  ): Promise<SystemEmailConfigDto> {
+    payload: UpdateSystemEmailConfigInput,
+  ): Promise<SystemEmailConfig> {
     const existing = await this.prisma.systemEmailConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
     })
@@ -154,8 +154,8 @@ export class SystemEmailService {
 
   async updateEmailServiceStatus(
     actorUserId: string,
-    payload: UpdateSystemEmailServiceStatusDto,
-  ): Promise<SystemEmailServiceStatusDto> {
+    payload: UpdateSystemEmailServiceStatusInput,
+  ): Promise<SystemEmailServiceStatus> {
     const existing = await this.prisma.systemEmailConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
     })
@@ -191,7 +191,7 @@ export class SystemEmailService {
     return this.getEmailServiceStatus()
   }
 
-  async sendTestEmail(recipientEmail: string): Promise<TestSystemEmailConfigResponseDto> {
+  async sendTestEmail(recipientEmail: string): Promise<TestSystemEmailConfigResponse> {
     await this.sendMail({
       to: recipientEmail,
       subject: 'SamePage 发件配置测试',

@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import WorkspaceContextBar from './WorkspaceContextBar.vue'
+
+withDefaults(defineProps<{
+  showContextBar?: boolean
+}>(), {
+  showContextBar: true,
+})
 </script>
 
 <template>
   <div class="workspace-page">
-    <WorkspaceContextBar>
+    <WorkspaceContextBar v-if="showContextBar">
       <template #context>
         <slot name="context" />
       </template>

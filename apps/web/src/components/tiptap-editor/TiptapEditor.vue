@@ -2,17 +2,17 @@
 import type { TiptapEditorContent, TiptapEditorEmits, TiptapEditorProps } from './typing'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { onBeforeUnmount, watch } from 'vue'
-import BubbleToolbar from './bubble-menu/BubbleToolbar.vue'
 import { unwrapTiptapContent, wrapTiptapContent } from './utils'
 
 const props = withDefaults(defineProps<TiptapEditorProps>(), {
-  showBubbleToolbar: false,
+  editable: true,
 })
 const emits = defineEmits<TiptapEditorEmits>()
 
 const editor = useEditor({
   content: wrapTiptapContent(props.content),
   extensions: props.extensions,
+  editable: props.editable,
   enableContentCheck: true,
   editorProps: {
     attributes: {
@@ -67,6 +67,13 @@ watch(
   syncEditorContent,
 )
 
+watch(
+  () => props.editable,
+  (nextEditable) => {
+    editor.value?.setEditable(nextEditable, false)
+  },
+)
+
 onBeforeUnmount(destroyEditor)
 
 defineExpose({
@@ -76,7 +83,6 @@ defineExpose({
 
 <template>
   <section class="tiptap-editor">
-    <BubbleToolbar v-if="editor && props.showBubbleToolbar" :editor="editor" />
     <EditorContent v-if="editor" :editor="editor" class="tiptap-editor__content" />
   </section>
 </template>

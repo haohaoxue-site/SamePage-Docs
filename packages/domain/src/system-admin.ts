@@ -5,7 +5,7 @@ import type { AuditUserSummary, UserStatus } from './user'
 export type SystemAdminUserStatus = UserStatus
 export type SystemEmailProvider = (typeof SYSTEM_EMAIL_PROVIDER_VALUES)[number]
 
-export interface SystemAdminOverviewDto {
+export interface SystemAdminOverview {
   totalUsers: number
   activeUsers: number
   disabledUsers: number
@@ -18,7 +18,7 @@ export interface SystemAdminOverviewDto {
   systemAiDefaultModel: string | null
 }
 
-export interface SystemAdminUserItemDto {
+export interface SystemAdminUserItem {
   id: string
   email: string | null
   displayName: string
@@ -32,17 +32,17 @@ export interface SystemAdminUserItemDto {
   lastLoginAt: string | null
 }
 
-export interface UpdateSystemAdminUserStatusDto {
+export interface UpdateSystemAdminUserStatusRequest {
   status: SystemAdminUserStatus
 }
 
-export interface UpdateSystemAdminUserResponseDto {
+export interface UpdateSystemAdminUserResponse {
   id: string
   status: SystemAdminUserStatus
   isSystemAdmin: boolean
 }
 
-export interface SystemAuthGovernanceDto {
+export interface SystemAuthGovernance {
   allowPasswordRegistration: boolean
   allowGithubRegistration: boolean
   allowLinuxDoRegistration: boolean
@@ -54,13 +54,13 @@ export interface SystemAuthGovernanceDto {
   systemAdminPasswordUpdatedAt: string | null
 }
 
-export interface UpdateSystemAuthGovernanceDto {
+export interface UpdateSystemAuthGovernanceRequest {
   allowPasswordRegistration?: boolean
   allowGithubRegistration?: boolean
   allowLinuxDoRegistration?: boolean
 }
 
-export interface SystemEmailConfigDto {
+export interface SystemEmailConfig {
   provider: SystemEmailProvider
   smtpHost: string
   smtpPort: number
@@ -74,14 +74,14 @@ export interface SystemEmailConfigDto {
   updatedByUser: AuditUserSummary | null
 }
 
-export interface SystemEmailServiceStatusDto {
+export interface SystemEmailServiceStatus {
   enabled: boolean
   updatedAt: string | null
   updatedBy: string | null
   updatedByUser: AuditUserSummary | null
 }
 
-export interface UpdateSystemEmailConfigDto {
+export interface UpdateSystemEmailConfigRequest {
   provider: SystemEmailProvider
   smtpHost: string
   smtpPort: number
@@ -93,22 +93,22 @@ export interface UpdateSystemEmailConfigDto {
   fromEmail: string
 }
 
-export interface UpdateSystemEmailServiceStatusDto {
+export interface UpdateSystemEmailServiceStatusRequest {
   enabled: boolean
 }
 
 /**
  * 发送测试邮件请求。
  */
-export interface TestSystemEmailConfigDto {
+export interface TestSystemEmailConfigRequest {
   email: string
 }
 
-export interface TestSystemEmailConfigResponseDto {
+export interface TestSystemEmailConfigResponse {
   sent: boolean
 }
 
-export interface SystemAiConfigDto {
+export interface SystemAiConfig {
   id: string | null
   baseUrl: string | null
   hasApiKey: boolean
@@ -118,24 +118,24 @@ export interface SystemAiConfigDto {
   updatedByUser: AuditUserSummary | null
 }
 
-export interface SystemAiServiceStatusDto {
+export interface SystemAiServiceStatus {
   enabled: boolean
   updatedAt: string | null
   updatedBy: string | null
   updatedByUser: AuditUserSummary | null
 }
 
-export interface UpdateSystemAiConfigDto {
+export interface UpdateSystemAiConfigRequest {
   baseUrl?: string
   apiKey?: string
   clearApiKey?: boolean
 }
 
-export interface UpdateSystemAiServiceStatusDto {
+export interface UpdateSystemAiServiceStatusRequest {
   enabled: boolean
 }
 
-export interface SystemAdminAuditLogItemDto {
+export interface SystemAdminAuditLogItem {
   id: string
   action: string
   targetType: string
@@ -147,7 +147,7 @@ export interface SystemAdminAuditLogItemDto {
   createdAt: string
 }
 
-export interface GovernanceSummaryDto {
+export interface GovernanceSummary {
   totalDocuments: number
   sharedDocuments: number
   lockedDocuments: number

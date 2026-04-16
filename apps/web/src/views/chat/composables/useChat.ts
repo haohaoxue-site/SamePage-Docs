@@ -1,5 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
-import type { ChatModelOption, ChatModelSelection, ChatRuntimeConfig, ChatSessionDetail, ChatSessionSummary } from '@/apis/chat'
+import type { ChatModelItem, ChatModelSelection, ChatRuntimeConfig, ChatSessionDetail, ChatSessionSummary } from '@/apis/chat'
 import { useStorage } from '@vueuse/core'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, shallowRef, toValue } from 'vue'
@@ -75,7 +75,7 @@ function useChatProviderSettingsState() {
   const isLoadingRuntimeConfig = shallowRef(true)
   const isLoadingModels = shallowRef(false)
   const runtimeConfig = shallowRef<ChatRuntimeConfig>(createEmptyRuntimeConfig())
-  const modelOptions = shallowRef<ChatModelOption[]>([])
+  const modelOptions = shallowRef<ChatModelItem[]>([])
   const draft = reactive<ChatModelSelection>(toDraft(storedSelection.value))
 
   const selectedModel = computed(() => {

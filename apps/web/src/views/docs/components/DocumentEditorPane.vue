@@ -17,6 +17,8 @@ const { contentError, handleContentError, handleRetryLoad, shouldShowEditor } = 
     <DocumentEditor
       v-if="shouldShowEditor && props.document"
       :document="props.document"
+      :metadata="props.metadata"
+      :mode="props.mode"
       @update-title="emits('updateTitle', $event)"
       @update-content="emits('updateContent', $event)"
       @content-error="handleContentError"

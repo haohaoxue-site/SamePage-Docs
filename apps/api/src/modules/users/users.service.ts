@@ -1,41 +1,52 @@
 import type {
-  AppearancePreference,
   AuthProviderName,
-  ConfirmBindEmailDto,
-  CurrentUserDto,
-  DeleteCurrentUserDto,
-  LanguagePreference,
-  UpdateCurrentUserAvatarResponseDto,
-  UpdateUserPreferencesDto,
-  UserSettingsDto,
+  ConfirmBindEmailRequest,
+  CurrentUser,
+  DeleteCurrentUserRequest,
+  UpdateCurrentUserAvatarResponse,
+  UpdateUserPreferencesRequest,
+  UserSettings,
 } from '@haohaoxue/samepage-domain'
 import type { FastifyRequest } from 'fastify'
 import type { AuthUserContext } from '../auth/auth.interface'
-import { Buffer } from 'node:buffer'
-import { createHash, randomInt } from 'node:crypto'
-import { ROLES, SERVER_PATH } from '@haohaoxue/samepage-contracts'
+import type { StorageObject } from '../storage/storage.interface'
+import type { UpdateCurrentUserAvatarInput } from './users.interface'
+import { randomInt } from 'node:crypto'
+import { ROLES } from '@haohaoxue/samepage-contracts'
 import {
   BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import {
-  AuthProvider,
-  UserAppearancePreference as DbUserAppearancePreference,
-  UserLanguagePreference as DbUserLanguagePreference,
-} from '@prisma/client'
+import { AuthProvider } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
 import { resolveAuthMethods } from '../../utils/auth-methods'
+import { normalizeEmail } from '../../utils/email'
+import { sha256Hex } from '../../utils/hash'
 import { hashPassword } from '../../utils/password'
 import { AuthMailerService } from '../auth/auth-mailer.service'
 import { AuthService } from '../auth/auth.service'
 import { RbacService } from '../rbac/rbac.service'
 import { StorageService } from '../storage/storage.service'
 import { SystemEmailService } from '../system-email/system-email.service'
-
-const BIND_EMAIL_CODE_TTL_SECONDS = 10 * 60
-const BIND_EMAIL_CODE_RESEND_INTERVAL_MS = 60 * 1000
-const MAX_BIND_EMAIL_CODE_ATTEMPTS = 5
+import {
+  AVATAR_BUCKET,
+  BIND_EMAIL_CODE_RESEND_INTERVAL_MS,
+  BIND_EMAIL_CODE_TTL_SECONDS,
+  MAX_BIND_EMAIL_CODE_ATTEMPTS,
+} from './users.constants'
+import {
+  assertAvatarBuffer,
+  assertAvatarMimeType,
+  buildAvatarStorageKey,
+  buildAvatarUrl,
+  mapAppearancePreference,
+  mapAppearancePreferenceToDb,
+  mapLanguagePreference,
+  mapLanguagePreferenceToDb,
+  normalizeAccountDeletionConfirmation,
+  resolveDbProvider,
+} from './users.utils'
 
 @Injectable()
 export class UsersService {
@@ -48,7 +59,7 @@ export class UsersService {
     private readonly systemEmailService: SystemEmailService,
   ) {}
 
-  async getCurrentUser(userId: string): Promise<CurrentUserDto> {
+  async getCurrentUser(userId: string): Promise<CurrentUser> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -95,7 +106,7 @@ export class UsersService {
     }
   }
 
-  async getCurrentUserSettings(userId: string): Promise<UserSettingsDto> {
+  async getCurrentUserSettings(userId: string): Promise<UserSettings> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -163,7 +174,7 @@ export class UsersService {
     return context.permissions
   }
 
-  async updateCurrentUserProfile(authUser: AuthUserContext, displayName: string): Promise<CurrentUserDto> {
+  async updateCurrentUserProfile(authUser: AuthUserContext, displayName: string): Promise<CurrentUser> {
     if (authUser.roles.includes(ROLES.SYSTEM_ADMIN)) {
       throw new BadRequestException('系统管理员账号不支持修改显示名称')
     }
@@ -186,12 +197,8 @@ export class UsersService {
 
   async updateCurrentUserAvatar(
     userId: string,
-    payload: {
-      fileName: string
-      mimeType: string
-      buffer: Buffer
-    },
-  ): Promise<UpdateCurrentUserAvatarResponseDto> {
+    payload: UpdateCurrentUserAvatarInput,
+  ): Promise<UpdateCurrentUserAvatarResponse> {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -204,11 +211,21 @@ export class UsersService {
       throw new NotFoundException(`User "${userId}" not found`)
     }
 
-    const uploadedAvatar = await this.storageService.uploadAvatar({
-      userId,
-      fileName: payload.fileName,
-      mimeType: payload.mimeType,
-      buffer: payload.buffer,
+    const avatarMimeType = assertAvatarMimeType(payload.mimeType)
+    assertAvatarBuffer(payload.buffer, avatarMimeType)
+    const avatarStorageKey = buildAvatarStorageKey(userId, avatarMimeType)
+
+    await this.storageService.putObject({
+      bucket: AVATAR_BUCKET,
+      key: avatarStorageKey,
+      body: payload.buffer,
+      contentType: avatarMimeType,
+      contentDisposition: {
+        type: 'inline',
+        fileName: payload.fileName,
+        fallbackFileName: 'avatar',
+      },
+      contentLength: payload.buffer.length,
     })
 
     const avatarUrl = buildAvatarUrl(userId)
@@ -217,18 +234,18 @@ export class UsersService {
       where: { id: userId },
       data: {
         avatarUrl,
-        avatarStorageKey: uploadedAvatar.key,
+        avatarStorageKey,
       },
     })
 
-    await this.storageService.removeAvatar(currentUser.avatarStorageKey)
+    await this.removeAvatarObject(currentUser.avatarStorageKey)
 
     return {
       avatarUrl,
     }
   }
 
-  async getUserAvatar(userId: string) {
+  async getUserAvatar(userId: string): Promise<StorageObject> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -240,7 +257,10 @@ export class UsersService {
       throw new NotFoundException('头像不存在')
     }
 
-    return this.storageService.getAvatarObject(user.avatarStorageKey)
+    return this.storageService.getObject({
+      bucket: AVATAR_BUCKET,
+      key: user.avatarStorageKey,
+    })
   }
 
   async requestBindEmailCode(userId: string, rawEmail: string): Promise<{ requested: boolean }> {
@@ -300,7 +320,7 @@ export class UsersService {
         userId,
         email,
         purpose: 'BIND_EMAIL',
-        codeHash: hashValue(code),
+        codeHash: sha256Hex(code),
         expiresAt: new Date(Date.now() + BIND_EMAIL_CODE_TTL_SECONDS * 1000),
       },
     })
@@ -313,7 +333,7 @@ export class UsersService {
     return { requested: true }
   }
 
-  async confirmBindEmail(userId: string, payload: ConfirmBindEmailDto): Promise<CurrentUserDto> {
+  async confirmBindEmail(userId: string, payload: ConfirmBindEmailRequest): Promise<CurrentUser> {
     const email = normalizeEmail(payload.email)
     const code = payload.code.trim()
     const latestCode = await this.prisma.userEmailVerificationCode.findFirst({
@@ -336,7 +356,7 @@ export class UsersService {
       throw new BadRequestException('验证码输入错误次数过多，请重新获取')
     }
 
-    if (latestCode.codeHash !== hashValue(code)) {
+    if (latestCode.codeHash !== sha256Hex(code)) {
       await this.prisma.userEmailVerificationCode.update({
         where: { id: latestCode.id },
         data: {
@@ -432,7 +452,7 @@ export class UsersService {
   async disconnectOauthBinding(
     userId: string,
     provider: AuthProviderName,
-  ): Promise<CurrentUserDto> {
+  ): Promise<CurrentUser> {
     const dbProvider = resolveDbProvider(provider)
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -479,7 +499,7 @@ export class UsersService {
 
   async deleteCurrentUser(
     authUser: AuthUserContext,
-    payload: DeleteCurrentUserDto,
+    payload: DeleteCurrentUserRequest,
   ): Promise<void> {
     if (authUser.roles.includes(ROLES.SYSTEM_ADMIN)) {
       throw new BadRequestException('系统管理员账号不支持在这里删除')
@@ -520,13 +540,13 @@ export class UsersService {
       })
     })
 
-    await this.storageService.removeAvatar(currentUser.avatarStorageKey)
+    await this.removeAvatarObject(currentUser.avatarStorageKey)
   }
 
   async updatePreferences(
     userId: string,
-    payload: UpdateUserPreferencesDto,
-  ): Promise<UserSettingsDto['preferences']> {
+    payload: UpdateUserPreferencesRequest,
+  ): Promise<UserSettings['preferences']> {
     if (payload.language === undefined && payload.appearance === undefined) {
       throw new BadRequestException('至少更新一项偏好设置')
     }
@@ -589,82 +609,15 @@ export class UsersService {
       throw new BadRequestException('该邮箱已被其他账号使用')
     }
   }
-}
 
-function hashValue(value: string): string {
-  return createHash('sha256').update(value).digest('hex')
-}
+  private async removeAvatarObject(key: string | null | undefined): Promise<void> {
+    if (!key) {
+      return
+    }
 
-function normalizeEmail(email: string): string {
-  const normalizedEmail = email.trim().toLowerCase()
-
-  if (!normalizedEmail.length) {
-    throw new BadRequestException('邮箱不能为空')
+    await this.storageService.deleteObject({
+      bucket: AVATAR_BUCKET,
+      key,
+    })
   }
-
-  return normalizedEmail
-}
-
-function normalizeAccountDeletionConfirmation(value: string, isEmail: boolean): string {
-  return isEmail ? normalizeEmail(value) : value.trim()
-}
-
-function buildAvatarUrl(userId: string): string {
-  return `${SERVER_PATH}/users/avatar/${userId}?v=${Date.now()}`
-}
-
-function mapLanguagePreference(value: DbUserLanguagePreference | null | undefined): LanguagePreference {
-  if (value === 'ZH_CN') {
-    return 'zh-CN'
-  }
-
-  if (value === 'EN_US') {
-    return 'en-US'
-  }
-
-  return 'auto'
-}
-
-function mapAppearancePreference(value: DbUserAppearancePreference | null | undefined): AppearancePreference {
-  if (value === 'LIGHT') {
-    return 'light'
-  }
-
-  if (value === 'DARK') {
-    return 'dark'
-  }
-
-  return 'auto'
-}
-
-function mapLanguagePreferenceToDb(value: LanguagePreference): DbUserLanguagePreference {
-  if (value === 'zh-CN') {
-    return 'ZH_CN'
-  }
-
-  if (value === 'en-US') {
-    return 'EN_US'
-  }
-
-  return 'AUTO'
-}
-
-function mapAppearancePreferenceToDb(value: AppearancePreference): DbUserAppearancePreference {
-  if (value === 'light') {
-    return 'LIGHT'
-  }
-
-  if (value === 'dark') {
-    return 'DARK'
-  }
-
-  return 'AUTO'
-}
-
-function resolveDbProvider(provider: AuthProviderName): AuthProvider {
-  if (provider === 'github') {
-    return AuthProvider.GITHUB
-  }
-
-  return AuthProvider.LINUX_DO
 }

@@ -2,7 +2,7 @@ import type {
   ChatRuntimeConfig,
   ChatSessionDetail,
   ChatSessionSummary,
-  GetChatModelsResponseDto,
+  GetChatModelsResponse,
 } from './typing'
 import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import { useAuthStore } from '@/stores/auth'
@@ -48,7 +48,7 @@ export function getChatRuntimeConfig(): Promise<ChatRuntimeConfig> {
   })
 }
 
-export function getChatModels(): Promise<GetChatModelsResponseDto> {
+export function getChatModels(): Promise<GetChatModelsResponse> {
   return axios.request({
     method: 'get',
     url: '/chat/models',

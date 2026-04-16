@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AppearancePreference, AuthUserDto } from '@haohaoxue/samepage-domain'
+import type { AppearancePreference, AuthUser } from '@haohaoxue/samepage-domain'
 import {
   APPEARANCE_PREFERENCE_LABELS,
   APPEARANCE_PREFERENCE_VALUES,
@@ -14,7 +14,7 @@ import { DEFAULT_ADMIN_NAVIGATION_ITEM } from '@/router/navigation'
 import { useUserStore } from '@/stores/user'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
-type SessionMenuUser = Pick<AuthUserDto, 'displayName' | 'email' | 'avatarUrl'> & {
+type SessionMenuUser = Pick<AuthUser, 'displayName' | 'email' | 'avatarUrl'> & {
   initial: string
 }
 

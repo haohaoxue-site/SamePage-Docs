@@ -1,7 +1,7 @@
 import type {
   AuthProviderName,
-  DeleteCurrentUserDto,
-  UserSettingsDto,
+  DeleteCurrentUserRequest,
+  UserSettings,
 } from '@haohaoxue/samepage-domain'
 
 export interface UserProfileSectionProps {
@@ -17,7 +17,7 @@ export interface UserProfileSectionEmits {
 }
 
 export interface UserAccountSectionProps {
-  account: UserSettingsDto['account']
+  account: UserSettings['account']
   emailBindingEnabled: boolean
   isSendingCode: boolean
   isBindingEmail: boolean
@@ -52,5 +52,5 @@ export interface UserDeleteSectionProps {
 }
 
 export interface UserDeleteSectionEmits {
-  deleteAccount: [payload: DeleteCurrentUserDto]
+  deleteAccount: [payload: DeleteCurrentUserRequest]
 }

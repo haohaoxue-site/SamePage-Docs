@@ -18,6 +18,8 @@ export const BODY_BLOCK_ID_NODE_TYPES = [
   'blockquote',
   'codeBlock',
   'horizontalRule',
+  'image',
+  'file',
 ] as const
 
 export type BodyBlockIdNodeType = (typeof BODY_BLOCK_ID_NODE_TYPES)[number]

@@ -1,8 +1,8 @@
 import type {
-  SystemAdminUserItemDto,
+  SystemAdminUserItem,
   SystemAdminUserStatus,
-  SystemAuthGovernanceDto,
-  UpdateSystemAuthGovernanceDto,
+  SystemAuthGovernance,
+  UpdateSystemAuthGovernanceRequest,
 } from '@/apis/system-admin'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, shallowRef } from 'vue'
@@ -16,7 +16,7 @@ import { SvgIconCategory } from '@/components/svg-icon/typing'
 import { formatDateTime } from '@/utils/dayjs'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
-export type RegistrationGovernanceField = keyof UpdateSystemAuthGovernanceDto
+export type RegistrationGovernanceField = keyof UpdateSystemAuthGovernanceRequest
 
 const governanceFieldLabels: Record<RegistrationGovernanceField, string> = {
   allowPasswordRegistration: '邮箱密码注册',
@@ -45,7 +45,7 @@ const registrationSwitches = [
 type RegistrationSwitchKey = (typeof registrationSwitches)[number]['key']
 
 export function useUsers() {
-  const users = shallowRef<SystemAdminUserItemDto[]>([])
+  const users = shallowRef<SystemAdminUserItem[]>([])
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
   const updatingUserId = shallowRef<string | null>(null)
@@ -54,7 +54,7 @@ export function useUsers() {
     allowGithubRegistration: false,
     allowLinuxDoRegistration: false,
   })
-  const governance = reactive<SystemAuthGovernanceDto>({
+  const governance = reactive<SystemAuthGovernance>({
     allowPasswordRegistration: false,
     allowGithubRegistration: false,
     allowLinuxDoRegistration: false,
@@ -118,7 +118,7 @@ export function useUsers() {
   }
 
   async function toggleUserStatus(
-    user: SystemAdminUserItemDto,
+    user: SystemAdminUserItem,
     nextStatus: SystemAdminUserStatus,
   ) {
     updatingUserId.value = user.id
@@ -223,7 +223,7 @@ export function useUsers() {
     users,
   }
 
-  function applyGovernance(nextGovernance: SystemAuthGovernanceDto) {
+  function applyGovernance(nextGovernance: SystemAuthGovernance) {
     Object.assign(governance, nextGovernance)
   }
 }

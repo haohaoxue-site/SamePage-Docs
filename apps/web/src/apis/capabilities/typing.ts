@@ -1,4 +1,4 @@
 export type {
-  AuthCapabilitiesDto,
-  AuthProviderCapabilityDto,
+  AuthCapabilities,
+  AuthProviderCapability,
 } from '@haohaoxue/samepage-domain'

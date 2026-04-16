@@ -1,21 +1,15 @@
 import type { AuthMethodName } from '@haohaoxue/samepage-domain'
-import {
-  AUTH_METHOD_VALUES,
-  SYSTEM_EMAIL_PROVIDER_VALUES,
-} from '@haohaoxue/samepage-contracts'
+import { AUTH_METHOD_VALUES } from '@haohaoxue/samepage-contracts'
 import { ApiProperty } from '@nestjs/swagger'
 import { DocumentStatus, UserStatus } from '@prisma/client'
 import { Transform } from 'class-transformer'
 import {
   IsBoolean,
-  IsEmail,
   IsEnum,
-  IsIn,
   IsOptional,
   IsString,
   IsUrl,
   MaxLength,
-  Min,
 } from 'class-validator'
 
 export class SystemAdminOverviewDto {
@@ -157,125 +151,6 @@ export class UpdateSystemAuthGovernanceDto {
   @IsOptional()
   @IsBoolean()
   allowLinuxDoRegistration?: boolean
-}
-
-export class SystemEmailConfigDto {
-  @ApiProperty({ enum: SYSTEM_EMAIL_PROVIDER_VALUES })
-  provider!: (typeof SYSTEM_EMAIL_PROVIDER_VALUES)[number]
-
-  @ApiProperty()
-  smtpHost!: string
-
-  @ApiProperty()
-  smtpPort!: number
-
-  @ApiProperty()
-  smtpSecure!: boolean
-
-  @ApiProperty()
-  smtpUsername!: string
-
-  @ApiProperty()
-  fromName!: string
-
-  @ApiProperty()
-  fromEmail!: string
-
-  @ApiProperty()
-  hasPassword!: boolean
-
-  @ApiProperty({ nullable: true })
-  updatedAt!: Date | null
-
-  @ApiProperty({ nullable: true })
-  updatedBy!: string | null
-
-  @ApiProperty({ type: () => AuditUserSummaryDto, nullable: true })
-  updatedByUser!: AuditUserSummaryDto | null
-}
-
-export class SystemEmailServiceStatusDto {
-  @ApiProperty()
-  enabled!: boolean
-
-  @ApiProperty({ nullable: true })
-  updatedAt!: Date | null
-
-  @ApiProperty({ nullable: true })
-  updatedBy!: string | null
-
-  @ApiProperty({ type: () => AuditUserSummaryDto, nullable: true })
-  updatedByUser!: AuditUserSummaryDto | null
-}
-
-export class UpdateSystemEmailConfigDto {
-  @ApiProperty({ enum: SYSTEM_EMAIL_PROVIDER_VALUES })
-  @IsIn(SYSTEM_EMAIL_PROVIDER_VALUES)
-  provider!: (typeof SYSTEM_EMAIL_PROVIDER_VALUES)[number]
-
-  @ApiProperty()
-  @IsString()
-  @MaxLength(120)
-  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
-  smtpHost!: string
-
-  @ApiProperty()
-  @Min(1)
-  smtpPort!: number
-
-  @ApiProperty()
-  @IsBoolean()
-  smtpSecure!: boolean
-
-  @ApiProperty()
-  @IsString()
-  @MaxLength(120)
-  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
-  smtpUsername!: string
-
-  @ApiProperty({ required: false, nullable: true })
-  @IsOptional()
-  @IsString()
-  @MaxLength(256)
-  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
-  smtpPassword?: string
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  clearPassword?: boolean
-
-  @ApiProperty()
-  @IsString()
-  @MaxLength(80)
-  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
-  fromName!: string
-
-  @ApiProperty()
-  @IsEmail({}, { message: '请输入有效的发件邮箱' })
-  @IsString()
-  @MaxLength(120)
-  @Transform(({ value }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
-  fromEmail!: string
-}
-
-export class UpdateSystemEmailServiceStatusDto {
-  @ApiProperty()
-  @IsBoolean()
-  enabled!: boolean
-}
-
-export class TestSystemEmailConfigDto {
-  @ApiProperty()
-  @IsEmail({}, { message: '请输入有效的收件邮箱' })
-  @MaxLength(120)
-  @Transform(({ value }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
-  email!: string
-}
-
-export class TestSystemEmailConfigResponseDto {
-  @ApiProperty()
-  sent!: boolean
 }
 
 export class SystemAiConfigDto {

@@ -6,7 +6,7 @@ export type AuthMethodName = (typeof AUTH_METHOD_VALUES)[number]
 /**
  * 当前登录用户信息。
  */
-export interface AuthUserDto {
+export interface AuthUser {
   id: string
   email: string | null
   displayName: string
@@ -21,47 +21,47 @@ export interface AuthUserDto {
 /**
  * 一次性登录码交换请求。
  */
-export interface ExchangeCodeDto {
+export interface ExchangeCodeRequest {
   code: string
 }
 
 /**
  * 访问令牌交换响应。
  */
-export interface TokenExchangeResponseDto {
+export interface TokenExchangeResponse {
   accessToken: string
   expiresIn: number
-  user: AuthUserDto
+  user: AuthUser
 }
 
 /**
  * 登出响应。
  */
-export interface LogoutResponseDto {
+export interface LogoutResponse {
   loggedOut: boolean
 }
 
-export interface PasswordLoginDto {
+export interface PasswordLoginRequest {
   email: string
   password: string
 }
 
-export interface RequestEmailVerificationDto {
+export interface RequestEmailVerificationRequest {
   email: string
 }
 
-export interface RequestEmailVerificationResponseDto {
+export interface RequestEmailVerificationResponse {
   requested: boolean
 }
 
-export interface PasswordRegisterDto {
+export interface PasswordRegisterRequest {
   email: string
   code: string
   displayName: string
   password: string
 }
 
-export interface ChangePasswordDto {
+export interface ChangePasswordRequest {
   currentPassword: string
   newPassword: string
 }
@@ -69,7 +69,7 @@ export interface ChangePasswordDto {
 /**
  * 第三方认证能力。
  */
-export interface AuthProviderCapabilityDto {
+export interface AuthProviderCapability {
   enabled: boolean
   allowRegistration: boolean
 }
@@ -77,8 +77,8 @@ export interface AuthProviderCapabilityDto {
 /**
  * 认证能力配置。
  */
-export interface AuthCapabilitiesDto {
+export interface AuthCapabilities {
   emailBindingEnabled: boolean
   passwordRegistrationEnabled: boolean
-  providers: Record<AuthProviderName, AuthProviderCapabilityDto>
+  providers: Record<AuthProviderName, AuthProviderCapability>
 }

@@ -1,6 +1,6 @@
 import type { RequestResponse } from '@haohaoxue/samepage-domain'
 import type { Router } from 'vue-router'
-import type { TokenExchangeResponseDto } from '@/apis/auth'
+import type { TokenExchangeResponse } from '@/apis/auth'
 import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import { useSessionStorage } from '@vueuse/core'
 import rawAxios from 'axios'
@@ -35,7 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
   const pendingRedirect = useSessionStorage(AUTH_REDIRECT_KEY, '')
   const userStore = useUserStore()
   let sessionRouter: Router | null = null
-  let refreshPromise: Promise<TokenExchangeResponseDto | null> | null = null
+  let refreshPromise: Promise<TokenExchangeResponse | null> | null = null
   let sessionExpiryPromise: Promise<void> | null = null
   let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -106,7 +106,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function applyAuthSession(
-    result: TokenExchangeResponseDto,
+    result: TokenExchangeResponse,
     options: {
       syncSettings?: boolean
     } = {},
@@ -127,7 +127,7 @@ export const useAuthStore = defineStore('auth', () => {
     sessionRouter = router
   }
 
-  async function refreshSession(): Promise<TokenExchangeResponseDto | null> {
+  async function refreshSession(): Promise<TokenExchangeResponse | null> {
     if (refreshPromise) {
       return refreshPromise
     }
@@ -321,7 +321,7 @@ function resolveRefreshDelay(expiresInSeconds: number) {
 }
 
 async function requestRefreshSession() {
-  const response = await refreshClient.request<RequestResponse<TokenExchangeResponseDto>>({
+  const response = await refreshClient.request<RequestResponse<TokenExchangeResponse>>({
     method: 'post',
     url: '/auth/refresh',
   })

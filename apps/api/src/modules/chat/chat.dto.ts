@@ -1,3 +1,10 @@
+import type {
+  ChatMessage,
+  ChatModelItem,
+  ChatRuntimeConfig,
+  ChatSessionDetail,
+  ChatSessionSummary,
+} from './chat.interface'
 import { ApiProperty } from '@nestjs/swagger'
 import { Type } from 'class-transformer'
 import {
@@ -8,7 +15,7 @@ import {
   MaxLength,
 } from 'class-validator'
 
-export class ChatMessageDto {
+export class ChatMessageDto implements ChatMessage {
   @ApiProperty({ enum: ['user', 'assistant'] })
   @IsString()
   @IsIn(['user', 'assistant'])
@@ -20,7 +27,7 @@ export class ChatMessageDto {
   content!: string
 }
 
-export class ChatSessionSummaryDto {
+export class ChatSessionSummaryDto implements ChatSessionSummary {
   @ApiProperty()
   id!: string
 
@@ -34,12 +41,12 @@ export class ChatSessionSummaryDto {
   updatedAt!: Date
 }
 
-export class ChatSessionDetailDto extends ChatSessionSummaryDto {
+export class ChatSessionDetailDto extends ChatSessionSummaryDto implements ChatSessionDetail {
   @ApiProperty({ type: () => [ChatMessageDto] })
   messages!: ChatMessageDto[]
 }
 
-export class ChatModelItemDto {
+export class ChatModelItemDto implements ChatModelItem {
   @ApiProperty()
   id!: string
 
@@ -52,7 +59,7 @@ export class ChatModelListResponseDto {
   models!: ChatModelItemDto[]
 }
 
-export class ChatRuntimeConfigDto {
+export class ChatRuntimeConfigDto implements ChatRuntimeConfig {
   @ApiProperty()
   @IsBoolean()
   enabled!: boolean

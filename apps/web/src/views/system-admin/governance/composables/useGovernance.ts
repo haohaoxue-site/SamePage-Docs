@@ -1,11 +1,11 @@
-import type { GovernanceSummaryDto } from '@/apis/system-admin'
+import type { GovernanceSummary } from '@/apis/system-admin'
 import { computed, onMounted, shallowRef } from 'vue'
 import { getGovernanceSummary } from '@/apis/system-admin'
 import { SvgIconCategory } from '@/components/svg-icon/typing'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 export function useGovernance() {
-  const summary = shallowRef<GovernanceSummaryDto | null>(null)
+  const summary = shallowRef<GovernanceSummary | null>(null)
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
   const governanceCards = computed(() => {

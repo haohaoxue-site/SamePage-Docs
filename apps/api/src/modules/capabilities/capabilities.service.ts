@@ -1,4 +1,4 @@
-import type { AuthCapabilitiesDto as AuthCapabilitiesView } from '@haohaoxue/samepage-domain'
+import type { AuthCapabilities as AuthCapabilitiesView } from '@haohaoxue/samepage-domain'
 import type { OAuthConfig, OAuthProviderConfig } from '../../config/auth.config'
 import { AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
 import { Injectable } from '@nestjs/common'

@@ -191,6 +191,35 @@
     }
   }
 
+  .document-file-node {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin: 1em 0;
+    padding: 0.9rem 1rem;
+    border: 1px solid color-mix(in srgb, var(--brand-border-base) 82%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--brand-fill-lighter) 70%, var(--brand-bg-surface));
+
+    &__title {
+      color: var(--brand-text-primary);
+      font-size: 0.95rem;
+      font-weight: 600;
+      line-height: 1.5;
+    }
+
+    &__meta {
+      color: var(--brand-text-secondary);
+      font-size: 0.8125rem;
+      line-height: 1.4;
+    }
+
+    &.ProseMirror-selectednode {
+      outline: 2px solid var(--el-color-primary);
+      outline-offset: 2px;
+    }
+  }
+
   pre {
     margin: 1.25em 0;
     padding: 1rem 1.125rem;

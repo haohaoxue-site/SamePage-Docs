@@ -1,10 +1,10 @@
-import type { AuthCapabilitiesDto } from '@/apis/capabilities'
+import type { AuthCapabilities } from '@/apis/capabilities'
 import { computed, shallowRef } from 'vue'
 import { getAuthCapabilities } from '@/apis/capabilities'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 export function useAuthCapabilities() {
-  const authCapabilities = shallowRef<AuthCapabilitiesDto | null>(null)
+  const authCapabilities = shallowRef<AuthCapabilities | null>(null)
   const loadErrorMessage = shallowRef('')
   const isLoadingCapabilities = shallowRef(true)
   const passwordRegistrationEnabled = computed(() => authCapabilities.value?.passwordRegistrationEnabled ?? false)

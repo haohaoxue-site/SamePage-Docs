@@ -1,35 +1,35 @@
 import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type {
-  ConfirmBindEmailDto,
-  CurrentUserDto,
-  DeleteCurrentUserDto,
-  DeleteCurrentUserResponseDto,
-  RequestBindEmailCodeDto,
-  RequestBindEmailCodeResponseDto,
-  UpdateCurrentUserAvatarResponseDto,
-  UpdateCurrentUserProfileDto,
-  UpdateUserPreferencesDto,
-  UserSettingsDto,
+  ConfirmBindEmailRequest,
+  CurrentUser,
+  DeleteCurrentUserRequest,
+  DeleteCurrentUserResponse,
+  RequestBindEmailCodeRequest,
+  RequestBindEmailCodeResponse,
+  UpdateCurrentUserAvatarResponse,
+  UpdateCurrentUserProfileRequest,
+  UpdateUserPreferencesRequest,
+  UserSettings,
 } from './typing'
 import { axios } from '@/utils/axios'
 
 export * from './typing'
 
-export function getCurrentUser(): Promise<CurrentUserDto> {
+export function getCurrentUser(): Promise<CurrentUser> {
   return axios.request({
     method: 'get',
     url: '/users/me',
   })
 }
 
-export function getCurrentUserSettings(): Promise<UserSettingsDto> {
+export function getCurrentUserSettings(): Promise<UserSettings> {
   return axios.request({
     method: 'get',
     url: '/users/me/settings',
   })
 }
 
-export function updateCurrentUserProfile(data: UpdateCurrentUserProfileDto): Promise<CurrentUserDto> {
+export function updateCurrentUserProfile(data: UpdateCurrentUserProfileRequest): Promise<CurrentUser> {
   return axios.request({
     method: 'patch',
     url: '/users/me/profile',
@@ -37,7 +37,7 @@ export function updateCurrentUserProfile(data: UpdateCurrentUserProfileDto): Pro
   })
 }
 
-export function updateCurrentUserAvatar(file: File): Promise<UpdateCurrentUserAvatarResponseDto> {
+export function updateCurrentUserAvatar(file: File): Promise<UpdateCurrentUserAvatarResponse> {
   const formData = new FormData()
   formData.set('file', file)
 
@@ -49,8 +49,8 @@ export function updateCurrentUserAvatar(file: File): Promise<UpdateCurrentUserAv
 }
 
 export function requestBindEmailCode(
-  data: RequestBindEmailCodeDto,
-): Promise<RequestBindEmailCodeResponseDto> {
+  data: RequestBindEmailCodeRequest,
+): Promise<RequestBindEmailCodeResponse> {
   return axios.request({
     method: 'post',
     url: '/users/me/email/request-bind-code',
@@ -58,7 +58,7 @@ export function requestBindEmailCode(
   })
 }
 
-export function confirmBindEmail(data: ConfirmBindEmailDto): Promise<CurrentUserDto> {
+export function confirmBindEmail(data: ConfirmBindEmailRequest): Promise<CurrentUser> {
   return axios.request({
     method: 'post',
     url: '/users/me/email/confirm-bind',
@@ -73,14 +73,14 @@ export function startOauthBinding(provider: AuthProviderName): Promise<{ authori
   })
 }
 
-export function disconnectOauthBinding(provider: AuthProviderName): Promise<CurrentUserDto> {
+export function disconnectOauthBinding(provider: AuthProviderName): Promise<CurrentUser> {
   return axios.request({
     method: 'delete',
     url: `/users/me/oauth/${provider}`,
   })
 }
 
-export function deleteCurrentUser(data: DeleteCurrentUserDto): Promise<DeleteCurrentUserResponseDto> {
+export function deleteCurrentUser(data: DeleteCurrentUserRequest): Promise<DeleteCurrentUserResponse> {
   return axios.request({
     method: 'post',
     url: '/users/me/delete',
@@ -89,7 +89,7 @@ export function deleteCurrentUser(data: DeleteCurrentUserDto): Promise<DeleteCur
   })
 }
 
-export function updateUserPreferences(data: UpdateUserPreferencesDto): Promise<UserSettingsDto['preferences']> {
+export function updateUserPreferences(data: UpdateUserPreferencesRequest): Promise<UserSettings['preferences']> {
   return axios.request({
     method: 'patch',
     url: '/users/me/preferences',

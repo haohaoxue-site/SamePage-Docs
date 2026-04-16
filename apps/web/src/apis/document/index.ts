@@ -1,27 +1,30 @@
 import type {
-  CreateDocumentDto,
-  CreateDocumentResponseDto,
-  CreateDocumentSnapshotDto,
-  CreateDocumentSnapshotResponseDto,
-  DocumentDto,
-  DocumentHeadDto,
-  DocumentRecentDto,
-  DocumentSnapshotDto,
-  PatchDocumentMetaDto,
-  RestoreDocumentSnapshotDto,
+  CreateDocumentRequest,
+  CreateDocumentResponse,
+  CreateDocumentSnapshotRequest,
+  CreateDocumentSnapshotResponse,
+  DocumentAsset,
+  DocumentHead,
+  DocumentRecent,
+  DocumentSnapshot,
+  DocumentTreeGroup,
+  PatchDocumentMetaRequest,
+  ResolveDocumentAssetsRequest,
+  ResolveDocumentAssetsResponse,
+  RestoreDocumentSnapshotRequest,
 } from './typing'
 import { axios } from '@/utils/axios'
 
 export * from './typing'
 
-export function getDocuments(): Promise<DocumentDto> {
+export function getDocuments(): Promise<DocumentTreeGroup[]> {
   return axios.request({
     method: 'get',
     url: '/documents',
   })
 }
 
-export function createDocument(data: CreateDocumentDto): Promise<CreateDocumentResponseDto> {
+export function createDocument(data: CreateDocumentRequest): Promise<CreateDocumentResponse> {
   return axios.request({
     method: 'post',
     url: '/documents',
@@ -29,14 +32,14 @@ export function createDocument(data: CreateDocumentDto): Promise<CreateDocumentR
   })
 }
 
-export function getRecentDocuments(): Promise<DocumentRecentDto[]> {
+export function getRecentDocuments(): Promise<DocumentRecent[]> {
   return axios.request({
     method: 'get',
     url: '/documents/recent',
   })
 }
 
-export function getDocumentHead(id: string): Promise<DocumentHeadDto> {
+export function getDocumentHead(id: string): Promise<DocumentHead> {
   return axios.request({
     method: 'get',
     url: `/documents/${id}`,
@@ -45,8 +48,8 @@ export function getDocumentHead(id: string): Promise<DocumentHeadDto> {
 
 export function createDocumentSnapshot(
   id: string,
-  data: CreateDocumentSnapshotDto,
-): Promise<CreateDocumentSnapshotResponseDto> {
+  data: CreateDocumentSnapshotRequest,
+): Promise<CreateDocumentSnapshotResponse> {
   return axios.request({
     method: 'post',
     url: `/documents/${id}/snapshots`,
@@ -54,7 +57,7 @@ export function createDocumentSnapshot(
   })
 }
 
-export function getDocumentSnapshots(id: string): Promise<DocumentSnapshotDto[]> {
+export function getDocumentSnapshots(id: string): Promise<DocumentSnapshot[]> {
   return axios.request({
     method: 'get',
     url: `/documents/${id}/snapshots`,
@@ -63,8 +66,8 @@ export function getDocumentSnapshots(id: string): Promise<DocumentSnapshotDto[]>
 
 export function restoreDocumentSnapshot(
   id: string,
-  data: RestoreDocumentSnapshotDto,
-): Promise<CreateDocumentSnapshotResponseDto> {
+  data: RestoreDocumentSnapshotRequest,
+): Promise<CreateDocumentSnapshotResponse> {
   return axios.request({
     method: 'post',
     url: `/documents/${id}/restore`,
@@ -72,7 +75,7 @@ export function restoreDocumentSnapshot(
   })
 }
 
-export function patchDocumentMeta(id: string, data: PatchDocumentMetaDto): Promise<DocumentHeadDto> {
+export function patchDocumentMeta(id: string, data: PatchDocumentMetaRequest): Promise<DocumentHead> {
   return axios.request({
     method: 'patch',
     url: `/documents/${id}/meta`,
@@ -84,5 +87,38 @@ export function deleteDocument(id: string): Promise<null> {
   return axios.request({
     method: 'delete',
     url: `/documents/${id}`,
+  })
+}
+
+export function uploadDocumentImage(id: string, file: File): Promise<DocumentAsset> {
+  const data = new FormData()
+  data.append('file', file)
+
+  return axios.request({
+    method: 'post',
+    url: `/documents/${id}/assets/images`,
+    data,
+  })
+}
+
+export function uploadDocumentFile(id: string, file: File): Promise<DocumentAsset> {
+  const data = new FormData()
+  data.append('file', file)
+
+  return axios.request({
+    method: 'post',
+    url: `/documents/${id}/assets/files`,
+    data,
+  })
+}
+
+export function resolveDocumentAssets(
+  id: string,
+  data: ResolveDocumentAssetsRequest,
+): Promise<ResolveDocumentAssetsResponse> {
+  return axios.request({
+    method: 'post',
+    url: `/documents/${id}/assets/resolve`,
+    data,
   })
 }

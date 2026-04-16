@@ -150,6 +150,7 @@ components.d.ts
 .claude
 .codex
 .playwright
+.playwright-cli
 AGENTS.md
 CLAUDE.md
 skills-lock.json

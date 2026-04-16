@@ -1,12 +1,13 @@
 import type { AuthMethodName } from '@haohaoxue/samepage-domain'
 import type { AuthProvider, LocalCredential, Prisma, SystemAuthConfig, User } from '@prisma/client'
 import type { BootstrapConfig } from '../../config/auth.config'
-import { createHash, randomInt } from 'node:crypto'
+import { randomInt } from 'node:crypto'
 import { AUTH_METHOD } from '@haohaoxue/samepage-contracts'
 import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../database/prisma.service'
 import { resolveAuthMethod } from '../../utils/auth-methods'
+import { sha256Hex } from '../../utils/hash'
 import { generateTemporaryPassword, hashPassword } from '../../utils/password'
 import { RbacService } from '../rbac/rbac.service'
 import { SystemEmailService } from '../system-email/system-email.service'
@@ -367,6 +368,6 @@ export class SystemAuthService implements OnModuleInit {
   }
 
   private hash(value: string): string {
-    return createHash('sha256').update(value).digest('hex')
+    return sha256Hex(value)
   }
 }

@@ -2,7 +2,7 @@
 import type { TurnIntoBlockType } from '@haohaoxue/samepage-domain'
 import type { TurnIntoDropdownProps } from '../typing'
 import { computed, shallowRef } from 'vue'
-import { isTurnIntoBlockActive } from '../extensions/BlockCommands'
+import { getTurnIntoMenuItems } from '../helpers/turnIntoMenu'
 
 const props = defineProps<TurnIntoDropdownProps>()
 
@@ -16,64 +16,8 @@ interface TurnIntoItem {
   isActive: boolean
 }
 
-const turnIntoItems = [
-  {
-    label: '正文',
-    icon: 'T',
-    target: 'paragraph',
-  },
-  {
-    label: '标题 1',
-    icon: 'H1',
-    target: 'heading-1',
-  },
-  {
-    label: '标题 2',
-    icon: 'H2',
-    target: 'heading-2',
-  },
-  {
-    label: '标题 3',
-    icon: 'H3',
-    target: 'heading-3',
-  },
-  {
-    label: '无序列表',
-    icon: 'list-ul',
-    target: 'bulletList',
-  },
-  {
-    label: '有序列表',
-    icon: 'list-ol',
-    target: 'orderedList',
-  },
-  {
-    label: '代码块',
-    icon: 'code',
-    target: 'codeBlock',
-  },
-  {
-    label: '引用',
-    icon: 'quote',
-    target: 'blockquote',
-  },
-  {
-    label: '分割线',
-    icon: 'divider',
-    target: 'divider',
-  },
-  {
-    label: '任务列表',
-    icon: 'task',
-    target: 'taskList',
-  },
-] satisfies Array<Pick<TurnIntoItem, 'label' | 'icon' | 'target'>>
-
 const items = computed<TurnIntoItem[]>(() =>
-  turnIntoItems.map(item => ({
-    ...item,
-    isActive: isTurnIntoBlockActive(props.editor, item.target),
-  })),
+  getTurnIntoMenuItems(props.editor),
 )
 
 function handleSelect(item: TurnIntoItem) {

@@ -84,7 +84,6 @@ const {
                     <button
                       type="button"
                       class="admin-users__switch-hint-trigger"
-                      aria-label="查看发件服务提示"
                       @click.stop.prevent
                       @mousedown.stop.prevent
                     >

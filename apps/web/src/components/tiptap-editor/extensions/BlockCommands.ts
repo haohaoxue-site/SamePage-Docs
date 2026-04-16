@@ -66,6 +66,13 @@ export const BlockCommands = Extension.create({
       duplicateBlock: () => (props: CommandProps) => duplicateCurrentBlock(props),
     }
   },
+
+  addKeyboardShortcuts() {
+    return {
+      'Alt-Shift-ArrowUp': () => this.editor.commands.moveBlockUp(),
+      'Alt-Shift-ArrowDown': () => this.editor.commands.moveBlockDown(),
+    }
+  },
 })
 
 export function isTurnIntoBlockActive(editor: Editor, target: TurnIntoBlockType) {

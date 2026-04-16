@@ -1,11 +1,11 @@
-import type { SystemAdminOverviewDto } from '@/apis/system-admin'
+import type { SystemAdminOverview } from '@/apis/system-admin'
 import { computed, onMounted, shallowRef } from 'vue'
 import { getSystemAdminOverview } from '@/apis/system-admin'
 import { SvgIconCategory } from '@/components/svg-icon/typing'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 export function useOverview() {
-  const overview = shallowRef<SystemAdminOverviewDto | null>(null)
+  const overview = shallowRef<SystemAdminOverview | null>(null)
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
   const metricCards = computed(() => {

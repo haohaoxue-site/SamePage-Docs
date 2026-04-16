@@ -2,10 +2,10 @@ import type {
   AppearancePreference,
   AuthProviderName,
   LanguagePreference,
-  UserSettingsDto,
+  UserSettings,
 } from '@haohaoxue/samepage-domain'
 import type { Ref, ShallowRef } from 'vue'
-import type { AuthCapabilitiesDto } from '@/apis/capabilities'
+import type { AuthCapabilities } from '@/apis/capabilities'
 import { ACCOUNT_DELETION_CONFIRMATION_PHRASE, AUTH_PROVIDER, PERMISSIONS } from '@haohaoxue/samepage-contracts'
 import { formatAuthMethod, normalizeAuthProviderName } from '@haohaoxue/samepage-shared'
 import { ElMessage } from 'element-plus'
@@ -18,7 +18,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
-const DEFAULT_AUTH_CAPABILITIES: AuthCapabilitiesDto = {
+const DEFAULT_AUTH_CAPABILITIES: AuthCapabilities = {
   emailBindingEnabled: false,
   passwordRegistrationEnabled: false,
   providers: {
@@ -33,7 +33,7 @@ const DEFAULT_AUTH_CAPABILITIES: AuthCapabilitiesDto = {
   },
 }
 
-function createDefaultAccount(): UserSettingsDto['account'] {
+function createDefaultAccount(): UserSettings['account'] {
   return {
     email: null,
     hasPasswordAuth: false,
@@ -55,7 +55,7 @@ export function useUser(options: {
   const router = useRouter()
   const authStore = useAuthStore()
   const userStore = useUserStore()
-  const authCapabilities = shallowRef<AuthCapabilitiesDto>(DEFAULT_AUTH_CAPABILITIES)
+  const authCapabilities = shallowRef<AuthCapabilities>(DEFAULT_AUTH_CAPABILITIES)
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
   const isDeletingAccount = shallowRef(false)
@@ -244,7 +244,7 @@ function useUserProfileState() {
   }
 }
 
-function useUserAccountState(options: { authCapabilities: ShallowRef<AuthCapabilitiesDto> }) {
+function useUserAccountState(options: { authCapabilities: ShallowRef<AuthCapabilities> }) {
   const route = useRoute()
   const router = useRouter()
   const userStore = useUserStore()
@@ -260,7 +260,7 @@ function useUserAccountState(options: { authCapabilities: ShallowRef<AuthCapabil
   })
 
   const settings = computed(() => userStore.settings)
-  const account = computed<UserSettingsDto['account']>(() => settings.value?.account ?? createDefaultAccount())
+  const account = computed<UserSettings['account']>(() => settings.value?.account ?? createDefaultAccount())
   const emailBindingEnabled = computed(() => options.authCapabilities.value.emailBindingEnabled)
   const canDisconnectGithub = computed(() =>
     account.value.github.connected && (account.value.hasPasswordAuth || account.value.linuxDo.connected),

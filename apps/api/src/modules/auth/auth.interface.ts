@@ -1,4 +1,4 @@
-import type { AuthMethodName } from '@haohaoxue/samepage-domain'
+import type { AuthUser } from '@haohaoxue/samepage-domain'
 import type { JWTPayload } from 'jose'
 
 /**
@@ -12,6 +12,26 @@ export interface OAuthProfile {
   emailVerified?: boolean
   avatarUrl?: string
   rawProfile: Record<string, unknown>
+}
+
+/**
+ * OAuth state 载荷。
+ */
+export interface OAuthStatePayload {
+  v: number
+  nonce: string
+  webOrigin: string
+  purpose: 'login' | 'bind'
+  redirectPath: string
+}
+
+/**
+ * 构建 OAuth 授权地址参数。
+ */
+export interface BuildOAuthAuthorizationUrlOptions {
+  purpose?: 'login' | 'bind'
+  initiatorUserId?: string
+  redirectPath?: string
 }
 
 /**
@@ -33,26 +53,11 @@ export interface AuthUserContext {
 }
 
 /**
- * 当前登录用户响应。
- */
-export interface AuthUserDto {
-  id: string
-  email: string | null
-  displayName: string
-  avatarUrl: string | null
-  roles: string[]
-  permissions: string[]
-  authMethods: AuthMethodName[]
-  mustChangePassword: boolean
-  emailVerified: boolean
-}
-
-/**
  * Token exchange 统一返回类型
  */
 export interface TokenExchangeResult {
   accessToken: string
   expiresIn: number
-  user: AuthUserDto
+  user: AuthUser
   refreshTokenCookie: string
 }

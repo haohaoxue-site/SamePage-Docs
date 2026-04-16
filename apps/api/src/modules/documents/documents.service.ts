@@ -23,13 +23,16 @@ import {
   TIPTAP_SCHEMA_VERSION,
 } from '@haohaoxue/samepage-contracts'
 import {
+  collectDocumentAssetIds,
   createDocumentTitleContent,
   getDocumentTitlePlainText,
+  hasUnresolvedDocumentAssets,
   isSameDocumentSnapshotContent,
   resolveOwnedDocumentCollectionId,
   summarizeDocumentContent,
 } from '@haohaoxue/samepage-shared'
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -42,8 +45,8 @@ import {
 } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
 import { auditUserSummarySelect, toAuditUserSummary } from '../../utils/audit-user-summary'
-
-const RECENT_DOCUMENT_LIMIT = 8
+import { DocumentAssetsService } from './document-assets.service'
+import { RECENT_DOCUMENT_LIMIT } from './documents.constants'
 
 const documentSnapshotSelect = {
   id: true,
@@ -107,7 +110,10 @@ interface TreeContext {
 
 @Injectable()
 export class DocumentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly documentAssetsService: DocumentAssetsService,
+  ) {}
 
   async createDocument(userId: string, payload: CreateDocumentRequest): Promise<CreateDocumentResponse> {
     const normalizedParentId = payload.parentId ?? null
@@ -255,6 +261,11 @@ export class DocumentsService {
     const context = await this.loadDocumentContext(userId)
     const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
     this.ensureDocumentOwner(resolvedDocument.document, userId)
+    this.assertPersistableDocumentAssets(payload.body)
+    await this.documentAssetsService.assertAssetsBelongToDocument({
+      documentId: id,
+      assetIds: collectDocumentAssetIds(payload.body),
+    })
 
     return await this.prisma.$transaction(async (tx) => {
       const currentDocument = await tx.document.findUnique({
@@ -626,6 +637,12 @@ export class DocumentsService {
   private ensureDocumentOwner(document: Pick<PersistedDocument, 'ownerId'>, userId: string) {
     if (document.ownerId !== userId) {
       throw new ForbiddenException('当前用户无权编辑该文档')
+    }
+  }
+
+  private assertPersistableDocumentAssets(body: TiptapJsonContent) {
+    if (hasUnresolvedDocumentAssets(body)) {
+      throw new BadRequestException('正文中存在未上传完成的资源，请稍后重试')
     }
   }
 }

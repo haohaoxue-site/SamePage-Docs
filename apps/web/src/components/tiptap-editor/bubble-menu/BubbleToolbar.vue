@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import type { BubbleToolbarProps } from '../typing'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
+import { ElMessage } from 'element-plus'
+import { useTemplateRef } from 'vue'
+import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 import { useTiptapEditorLinkPanel } from '../composables/useTiptapEditorLinkPanel'
+import { createUploadedImageInsertContent } from '../helpers/documentAsset'
 import ColorPickerDropdown from './ColorPickerDropdown.vue'
 import TurnIntoDropdown from './TurnIntoDropdown.vue'
 
 const props = defineProps<BubbleToolbarProps>()
+const imageInputRef = useTemplateRef<HTMLInputElement>('imageInputRef')
 
 const linkPanel = useTiptapEditorLinkPanel(() => props.editor)
 const LinkPanel = linkPanel.LinkPanel
@@ -55,6 +60,40 @@ function toggleStrike() {
 function toggleCode() {
   runCommand(editor => editor.chain().focus().toggleCode().run())
 }
+
+function handlePickImage() {
+  imageInputRef.value?.click()
+}
+
+async function handleImageChange(event: Event) {
+  if (!props.uploadImage) {
+    return
+  }
+
+  const input = event.target
+
+  if (!(input instanceof HTMLInputElement)) {
+    return
+  }
+
+  const [file] = Array.from(input.files ?? [])
+  input.value = ''
+
+  if (!file) {
+    return
+  }
+
+  try {
+    const uploadedImage = await props.uploadImage(file)
+
+    runCommand(editor => editor.chain().focus().insertContent(
+      createUploadedImageInsertContent(uploadedImage),
+    ).run())
+  }
+  catch (error) {
+    ElMessage.error(getRequestErrorDisplayMessage(error, '图片上传失败'))
+  }
+}
 </script>
 
 <template>
@@ -68,6 +107,24 @@ function toggleCode() {
       <div class="bubble-toolbar__row">
         <TurnIntoDropdown :editor="editor" />
         <ColorPickerDropdown :editor="editor" />
+        <button
+          v-if="props.uploadImage"
+          class="bubble-btn"
+          title="图片"
+          type="button"
+          @mousedown.prevent
+          @click="handlePickImage"
+        >
+          <SvgIcon category="ui" icon="image" class="bubble-btn__icon" />
+        </button>
+        <input
+          v-if="props.uploadImage"
+          ref="imageInputRef"
+          type="file"
+          accept="image/gif,image/jpeg,image/png,image/webp"
+          class="hidden"
+          @change="handleImageChange"
+        >
 
         <div class="bubble-toolbar__divider" />
 

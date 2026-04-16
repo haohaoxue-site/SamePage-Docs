@@ -124,6 +124,43 @@ async function waitForLogicalBlockIds(editor: Editor, type: 'listItem' | 'taskIt
   })
 }
 
+async function triggerKeyDown(
+  editor: Editor,
+  key: string,
+  options?: {
+    altKey?: boolean
+    shiftKey?: boolean
+  },
+) {
+  const handled = Boolean(editor.view.someProp('handleKeyDown', handler =>
+    handler(
+      editor.view,
+      new KeyboardEvent('keydown', {
+        altKey: options?.altKey,
+        key,
+        bubbles: true,
+        cancelable: true,
+        shiftKey: options?.shiftKey,
+      }),
+    )
+      ? true
+      : undefined))
+
+  await nextTick()
+
+  return handled
+}
+
+function normalizeBlockIds(content: JSONContent[] | undefined) {
+  return JSON.parse(JSON.stringify(content ?? []), (_, value) => {
+    if (typeof value !== 'string' || !value.startsWith('block_')) {
+      return value
+    }
+
+    return 'block_normalized'
+  }) as JSONContent[]
+}
+
 describe('blockCommands', () => {
   it('正文编辑器暴露 turnIntoBlock 命令，并按目标块做确定性转换', async () => {
     const wrapper = mount(TiptapEditor, {
@@ -307,6 +344,62 @@ describe('blockCommands', () => {
         },
       },
     ])
+  })
+
+  it('正文编辑器将 Alt+Shift+ArrowUp / Alt+Shift+ArrowDown 收口到 moveBlockUp / moveBlockDown，保持键盘与命令层一致', async () => {
+    const keyboardWrapper = mount(TiptapEditor, {
+      props: {
+        content: listContent,
+        extensions: createBodyExtensions(),
+      },
+    })
+    const commandWrapper = mount(TiptapEditor, {
+      props: {
+        content: listContent,
+        extensions: createBodyExtensions(),
+      },
+    })
+
+    const keyboardEditor = await getEditor(keyboardWrapper)
+    const commandEditor = await getEditor(commandWrapper)
+
+    focusText(keyboardEditor, '第二项')
+    focusText(commandEditor, '第二项')
+
+    const keyboardMoveUpHandled = await triggerKeyDown(keyboardEditor, 'ArrowUp', {
+      altKey: true,
+      shiftKey: true,
+    })
+    const commandMoveUpHandled = (commandEditor.chain().focus() as unknown as TurnIntoBlockChain)
+      .moveBlockUp?.()
+      .run()
+
+    await nextTick()
+
+    expect(keyboardMoveUpHandled).toBe(true)
+    expect(commandMoveUpHandled).toBe(true)
+    expect(normalizeBlockIds(keyboardWrapper.emitted('update:content')?.at(-1)?.[0] as JSONContent[] | undefined)).toEqual(
+      normalizeBlockIds(commandWrapper.emitted('update:content')?.at(-1)?.[0] as JSONContent[] | undefined),
+    )
+
+    focusText(keyboardEditor, '第二项')
+    focusText(commandEditor, '第二项')
+
+    const keyboardMoveDownHandled = await triggerKeyDown(keyboardEditor, 'ArrowDown', {
+      altKey: true,
+      shiftKey: true,
+    })
+    const commandMoveDownHandled = (commandEditor.chain().focus() as unknown as TurnIntoBlockChain)
+      .moveBlockDown?.()
+      .run()
+
+    await nextTick()
+
+    expect(keyboardMoveDownHandled).toBe(true)
+    expect(commandMoveDownHandled).toBe(true)
+    expect(normalizeBlockIds(keyboardWrapper.emitted('update:content')?.at(-1)?.[0] as JSONContent[] | undefined)).toEqual(
+      normalizeBlockIds(commandWrapper.emitted('update:content')?.at(-1)?.[0] as JSONContent[] | undefined),
+    )
   })
 
   it('正文编辑器暴露 duplicateBlock 命令，复制当前逻辑块并重新分配新的 blockId', async () => {

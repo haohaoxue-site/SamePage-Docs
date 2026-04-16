@@ -10,7 +10,7 @@ import dayjs from '@/utils/dayjs'
 import {
   buildDocumentHistorySections,
   getDocumentHistoryEntryDetail,
-} from '@/views/docs/utils/document-history'
+} from '@/views/docs/utils/documentHistory'
 
 function createBodyContent(text: string): TiptapJsonContent {
   return [

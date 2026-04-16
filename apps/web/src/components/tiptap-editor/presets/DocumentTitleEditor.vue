@@ -23,6 +23,7 @@ function handleUpdateTitle(content: TiptapEditorContent) {
     class="document-title-editor"
     :content="titleEditorContent"
     :extensions="titleEditorExtensions"
+    :editable="props.editable"
     :handle-key-down="handleTitleEditorKeyDown"
     @update:content="handleUpdateTitle"
   />

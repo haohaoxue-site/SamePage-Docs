@@ -1,8 +1,8 @@
 import type { ChatSession } from './composables/useChat'
-import type { ChatMessage, ChatModelOption } from '@/apis/chat'
+import type { ChatMessage, ChatModelItem } from '@/apis/chat'
 
 export interface ChatProviderSettingsDialogProps {
-  models: ChatModelOption[]
+  models: ChatModelItem[]
   isLoadingModels: boolean
 }
 

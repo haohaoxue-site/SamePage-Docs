@@ -21,6 +21,14 @@ import { CurrentUser } from '../../decorators/current-user.decorator'
 import { RequirePermissions } from '../../decorators/require-permissions.decorator'
 import { ApiRequestResponse } from '../../utils/swagger'
 import {
+  SystemEmailConfigDto,
+  SystemEmailServiceStatusDto,
+  TestSystemEmailConfigDto,
+  TestSystemEmailConfigResponseDto,
+  UpdateSystemEmailConfigDto,
+  UpdateSystemEmailServiceStatusDto,
+} from '../system-email/system-email.dto'
+import {
   GovernanceSummaryDto,
   SystemAdminAuditLogItemDto,
   SystemAdminOverviewDto,
@@ -28,17 +36,11 @@ import {
   SystemAiConfigDto,
   SystemAiServiceStatusDto,
   SystemAuthGovernanceDto,
-  SystemEmailConfigDto,
-  SystemEmailServiceStatusDto,
-  TestSystemEmailConfigDto,
-  TestSystemEmailConfigResponseDto,
   UpdateSystemAdminUserResponseDto,
   UpdateSystemAdminUserStatusDto,
   UpdateSystemAiConfigDto,
   UpdateSystemAiServiceStatusDto,
   UpdateSystemAuthGovernanceDto,
-  UpdateSystemEmailConfigDto,
-  UpdateSystemEmailServiceStatusDto,
 } from './system-admin.dto'
 import { SystemAdminService } from './system-admin.service'
 

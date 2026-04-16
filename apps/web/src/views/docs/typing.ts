@@ -22,10 +22,41 @@ export interface ActiveDocumentDetail extends Omit<DocumentRecord, 'latestSnapsh
 }
 
 /**
+ * 文档编辑模式。
+ */
+export type DocumentEditorMode = 'default' | 'history'
+
+/**
+ * 文档作者信息。
+ */
+export interface DocumentEditorUserMeta {
+  /** 显示名称 */
+  displayName: string
+  /** 头像地址 */
+  avatarUrl: string | null
+  /** 头像回退字母 */
+  initial: string
+}
+
+/**
+ * 文档头部元信息。
+ */
+export interface DocumentEditorMeta {
+  /** 作者信息 */
+  user: DocumentEditorUserMeta
+  /** 修改时间文案 */
+  updatedLabel: string
+  /** 创建时间文案 */
+  createdLabel: string
+}
+
+/**
  * 文档编辑区域属性。
  */
 export interface DocumentEditorPaneProps {
   document: ActiveDocumentDetail | null
+  metadata: DocumentEditorMeta | null
+  mode: DocumentEditorMode
   isLoading: boolean
   paneState: DocumentPaneState
   hasFallbackDocument: boolean
@@ -47,6 +78,8 @@ export interface DocumentEditorPaneEmits {
  */
 export interface DocumentEditorProps {
   document: ActiveDocumentDetail
+  metadata: DocumentEditorMeta | null
+  mode: DocumentEditorMode
 }
 
 /**
@@ -56,6 +89,21 @@ export interface DocumentEditorEmits {
   updateTitle: [title: TiptapJsonContent]
   updateContent: [content: TiptapJsonContent]
   contentError: [error: Error]
+}
+
+/**
+ * 文档上下文操作属性。
+ */
+export interface DocumentContextActionsProps {
+  canDeleteDocument: boolean
+}
+
+/**
+ * 文档上下文操作事件。
+ */
+export interface DocumentContextActionsEmits {
+  openHistory: []
+  deleteDocument: []
 }
 
 /**
@@ -83,15 +131,15 @@ export interface DocumentEditorFallbackEmits {
 export interface DocumentHistoryPanelProps {
   document: ActiveDocumentDetail | null
   snapshots: DocumentSnapshot[]
+  selectedSnapshotId: string | null
   isLoading: boolean
-  isRestoring: boolean
 }
 
 /**
  * 文档历史面板事件。
  */
 export interface DocumentHistoryPanelEmits {
-  restore: [snapshotId: string]
+  select: [snapshotId: string]
 }
 
 /**

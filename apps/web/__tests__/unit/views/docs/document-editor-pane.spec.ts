@@ -1,6 +1,9 @@
 import type { TiptapJsonContent } from '@haohaoxue/samepage-domain'
 import type { JSONContent } from '@tiptap/core'
-import type { ActiveDocumentDetail } from '@/views/docs/typing'
+import type {
+  ActiveDocumentDetail,
+  DocumentEditorMeta,
+} from '@/views/docs/typing'
 import { DOCUMENT_PANE_STATE, TIPTAP_SCHEMA_VERSION } from '@haohaoxue/samepage-contracts'
 import { createDocumentTitleContent } from '@haohaoxue/samepage-shared'
 import { mount } from '@vue/test-utils'
@@ -41,6 +44,19 @@ function createDocument(overrides: Partial<ActiveDocumentDetail> = {}): ActiveDo
   }
 }
 
+function createEditorMeta(overrides: Partial<DocumentEditorMeta> = {}): DocumentEditorMeta {
+  return {
+    user: {
+      displayName: 'System Admin',
+      avatarUrl: null,
+      initial: 'S',
+    },
+    updatedLabel: '今天修改',
+    createdLabel: '4月13日创建',
+    ...overrides,
+  }
+}
+
 describe('documentEditorPane', () => {
   it('在可编辑状态下渲染双编辑区外壳', async () => {
     const wrapper = mount(DocumentEditorPane, {
@@ -48,12 +64,26 @@ describe('documentEditorPane', () => {
         document: createDocument({
           body: validContent as TiptapJsonContent,
         }),
+        metadata: createEditorMeta(),
+        mode: 'default',
         isLoading: false,
         paneState: 'ready',
         hasFallbackDocument: false,
       },
       global: {
         stubs: {
+          ElAvatar: defineComponent({
+            template: '<span class="el-avatar-stub"><slot /></span>',
+          }),
+          ElDropdown: defineComponent({
+            template: '<div class="el-dropdown-stub"><slot /><slot name="dropdown" /></div>',
+          }),
+          ElDropdownMenu: defineComponent({
+            template: '<div class="el-dropdown-menu-stub"><slot /></div>',
+          }),
+          ElDropdownItem: defineComponent({
+            template: '<button class="el-dropdown-item-stub"><slot /></button>',
+          }),
           ElEmpty: defineComponent({
             template: '<div class="el-empty-stub"><slot name="image" /><slot name="description" /><slot /></div>',
           }),
@@ -79,12 +109,26 @@ describe('documentEditorPane', () => {
     const wrapper = mount(DocumentEditorPane, {
       props: {
         document: createDocument(),
+        metadata: createEditorMeta(),
+        mode: 'default',
         isLoading: false,
         paneState: 'ready',
         hasFallbackDocument: false,
       },
       global: {
         stubs: {
+          ElAvatar: defineComponent({
+            template: '<span class="el-avatar-stub"><slot /></span>',
+          }),
+          ElDropdown: defineComponent({
+            template: '<div class="el-dropdown-stub"><slot /><slot name="dropdown" /></div>',
+          }),
+          ElDropdownMenu: defineComponent({
+            template: '<div class="el-dropdown-menu-stub"><slot /></div>',
+          }),
+          ElDropdownItem: defineComponent({
+            template: '<button class="el-dropdown-item-stub"><slot /></button>',
+          }),
           ElInput: defineComponent({
             props: {
               modelValue: {
@@ -119,6 +163,8 @@ describe('documentEditorPane', () => {
     const wrapper = mount(DocumentEditorPane, {
       props: {
         document: null,
+        metadata: null,
+        mode: 'default',
         isLoading: false,
         paneState: DOCUMENT_PANE_STATE.UNSUPPORTED_SCHEMA,
         hasFallbackDocument: true,

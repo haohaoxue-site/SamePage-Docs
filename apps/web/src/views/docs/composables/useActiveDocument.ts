@@ -8,8 +8,8 @@ import type {
 import type { ComputedRef } from 'vue'
 import type { ActiveDocumentDetail } from '../typing'
 import type {
-  CreateDocumentSnapshotResponseDto,
-  DocumentHeadDto,
+  CreateDocumentSnapshotResponse,
+  DocumentHead,
 } from '@/apis/document'
 import {
   DOCUMENT_PANE_STATE,
@@ -18,10 +18,13 @@ import {
   TIPTAP_SCHEMA_VERSION,
 } from '@haohaoxue/samepage-contracts'
 import {
+  collectDocumentAssetIds,
   getDocumentSaveStateLabel,
   getDocumentSnapshotSummary,
   getDocumentTitlePlainText,
   hasDocumentContent,
+  hydrateDocumentAssetAttributes,
+  stripDocumentRuntimeAttributes,
 } from '@haohaoxue/samepage-shared'
 import { ElMessage } from 'element-plus'
 import {
@@ -33,6 +36,7 @@ import {
   createDocumentSnapshot as createDocumentSnapshotRequest,
   getDocumentHead as getDocumentHeadRequest,
   getDocumentSnapshots as getDocumentSnapshotsRequest,
+  resolveDocumentAssets as resolveDocumentAssetsRequest,
   restoreDocumentSnapshot as restoreDocumentSnapshotRequest,
 } from '@/apis/document'
 import dayjs from '@/utils/dayjs'
@@ -76,7 +80,7 @@ interface UseActiveDocumentSaveStateOptions {
 interface ApplyPersistedSnapshotOptions {
   draftDocument: ActiveDocumentDetail
   requestSignature: string
-  snapshotResponse: CreateDocumentSnapshotResponseDto
+  snapshotResponse: CreateDocumentSnapshotResponse
 }
 
 /**
@@ -84,7 +88,7 @@ interface ApplyPersistedSnapshotOptions {
  */
 interface ApplyRestoredSnapshotOptions {
   documentAtRestoreStart: ActiveDocumentDetail
-  snapshotResponse: CreateDocumentSnapshotResponseDto
+  snapshotResponse: CreateDocumentSnapshotResponse
 }
 
 export function useActiveDocument({
@@ -129,9 +133,23 @@ export function useActiveDocument({
         getDocumentHeadRequest(id),
         getDocumentSnapshotsRequest(id),
       ])
-      const loadedDocument = toActiveDocument(documentHead)
+      const resolvedBodies = await hydrateDocumentBodies(id, [
+        documentHead.latestSnapshot.body,
+        ...loadedSnapshots.map(snapshot => snapshot.body),
+      ])
+      const loadedDocument = toActiveDocument({
+        ...documentHead,
+        latestSnapshot: {
+          ...documentHead.latestSnapshot,
+          body: resolvedBodies[0] ?? documentHead.latestSnapshot.body,
+        },
+      })
+      const hydratedSnapshots = loadedSnapshots.map((snapshot, index) => ({
+        ...snapshot,
+        body: resolvedBodies[index + 1] ?? snapshot.body,
+      }))
 
-      state.applyLoadedDocument(loadedDocument, loadedSnapshots)
+      state.applyLoadedDocument(loadedDocument, hydratedSnapshots)
       rememberLastOpenedDocument(id)
       ensureExpandedPath(id)
     }
@@ -162,12 +180,13 @@ export function useActiveDocument({
       state.markSaving()
 
       try {
+        const persistedBody = stripDocumentRuntimeAttributes(draftDocument.body)
         const savedDocument = await createDocumentSnapshotRequest(draftDocument.id, {
           baseRevision: draftDocument.headRevision,
           schemaVersion: draftDocument.schemaVersion,
           source: DOCUMENT_SNAPSHOT_SOURCE.AUTOSAVE,
           title: draftDocument.title,
-          body: draftDocument.body,
+          body: persistedBody,
         })
 
         state.applyPersistedSnapshot({
@@ -238,10 +257,20 @@ export function useActiveDocument({
         baseRevision: documentAtRestoreStart.headRevision,
         snapshotId,
       })
+      const [hydratedBody] = await hydrateDocumentBodies(documentAtRestoreStart.id, [
+        restoredDocument.snapshot.body,
+      ])
+      const hydratedRestoredDocument = {
+        ...restoredDocument,
+        snapshot: {
+          ...restoredDocument.snapshot,
+          body: hydratedBody ?? restoredDocument.snapshot.body,
+        },
+      }
 
       const { isNoopRestore } = state.applyRestoredSnapshot({
         documentAtRestoreStart,
-        snapshotResponse: restoredDocument,
+        snapshotResponse: hydratedRestoredDocument,
       })
 
       if (isNoopRestore) {
@@ -401,10 +430,22 @@ export function useActiveDocumentState({
     const activeDocument = currentDocument.value
 
     if (activeDocument && createDraftSignature(activeDocument) === requestSignature) {
-      const nextDocument = applySnapshotToActiveDocument(draftDocument, snapshotResponse)
+      const nextDocument: ActiveDocumentDetail = {
+        ...draftDocument,
+        latestSnapshotId: snapshotResponse.snapshot.id,
+        headRevision: snapshotResponse.headRevision,
+        summary: getDocumentSnapshotSummary(snapshotResponse.snapshot, 120, ''),
+        updatedAt: snapshotResponse.snapshot.createdAt,
+        schemaVersion: snapshotResponse.snapshot.schemaVersion,
+      }
+      const hydratedSnapshot = {
+        ...snapshotResponse.snapshot,
+        title: draftDocument.title,
+        body: draftDocument.body,
+      }
 
       currentDocument.value = nextDocument
-      snapshots.value = prependSnapshot(snapshots.value, snapshotResponse.snapshot)
+      snapshots.value = prependSnapshot(snapshots.value, hydratedSnapshot)
       save.markSaved(nextDocument, snapshotResponse.snapshot.createdAt)
       patchDocumentItem(nextDocument.id, buildTreePatch({
         title: nextDocument.title,
@@ -560,11 +601,11 @@ export function useActiveDocumentSaveState({
 export function createDraftSignature(document: Pick<ActiveDocumentDetail, 'title' | 'body'>) {
   return JSON.stringify({
     title: document.title,
-    body: document.body,
+    body: stripDocumentRuntimeAttributes(document.body),
   })
 }
 
-export function toActiveDocument(documentHead: DocumentHeadDto): ActiveDocumentDetail {
+export function toActiveDocument(documentHead: DocumentHead): ActiveDocumentDetail {
   assertSupportedSchemaVersion(documentHead.latestSnapshot.schemaVersion)
 
   return {
@@ -579,7 +620,7 @@ export function toActiveDocument(documentHead: DocumentHeadDto): ActiveDocumentD
 
 export function applySnapshotToActiveDocument(
   document: ActiveDocumentDetail,
-  snapshotResponse: CreateDocumentSnapshotResponseDto,
+  snapshotResponse: CreateDocumentSnapshotResponse,
 ): ActiveDocumentDetail {
   assertSupportedSchemaVersion(snapshotResponse.snapshot.schemaVersion)
 
@@ -593,6 +634,23 @@ export function applySnapshotToActiveDocument(
     body: snapshotResponse.snapshot.body,
     schemaVersion: snapshotResponse.snapshot.schemaVersion,
   }
+}
+
+async function hydrateDocumentBodies(documentId: string, bodies: TiptapJsonContent[]) {
+  const assetIds = Array.from(new Set(bodies.flatMap(body => collectDocumentAssetIds(body))))
+
+  if (!assetIds.length) {
+    return bodies
+  }
+
+  const resolvedAssets = await resolveDocumentAssetsRequest(documentId, {
+    assetIds,
+  })
+  const assetsById = Object.fromEntries(
+    resolvedAssets.assets.map(asset => [asset.id, asset]),
+  )
+
+  return bodies.map(body => hydrateDocumentAssetAttributes(body, assetsById))
 }
 
 export function resolveDocumentErrorState(error: unknown): DocumentPaneState {

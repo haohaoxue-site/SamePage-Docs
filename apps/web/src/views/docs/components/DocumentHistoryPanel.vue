@@ -10,18 +10,16 @@ const emits = defineEmits<DocumentHistoryPanelEmits>()
 const {
   hasDocument,
   historySections,
-  canRestoreSelectedEntry,
   isGroupExpanded,
   selectEntry,
   toggleGroup,
   isEntrySelected,
   resolveEntryDetail,
-  restoreSelectedEntry,
 } = useDocumentHistoryPanel({
   document: () => props.document,
   snapshots: () => props.snapshots,
-  isRestoring: () => props.isRestoring,
-  onRestore: snapshotId => emits('restore', snapshotId),
+  selectedSnapshotId: () => props.selectedSnapshotId,
+  onSelect: snapshotId => emits('select', snapshotId),
 })
 </script>
 
@@ -117,28 +115,6 @@ const {
                     <span>{{ entry.userDisplayName }}</span>
                   </div>
                 </button>
-
-                <div
-                  v-if="isEntrySelected(entry)"
-                  class="document-history-panel__item-actions"
-                >
-                  <div
-                    v-if="entry.isCurrentContent"
-                    class="document-history-panel__item-helper"
-                  >
-                    该历史记录已是当前内容
-                  </div>
-
-                  <button
-                    v-else
-                    type="button"
-                    class="document-history-panel__restore-button"
-                    :disabled="!canRestoreSelectedEntry"
-                    @click="restoreSelectedEntry"
-                  >
-                    {{ props.isRestoring ? '还原中...' : '还原此历史记录' }}
-                  </button>
-                </div>
               </article>
             </div>
           </div>
@@ -153,7 +129,7 @@ const {
   display: flex;
   flex-direction: column;
   width: min(100%, 20rem);
-  min-width: 0;
+  min-width: 18rem;
   border-left: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
   background:
     linear-gradient(
@@ -288,8 +264,7 @@ const {
     cursor: pointer;
     transition:
       background-color 0.16s ease,
-      box-shadow 0.16s ease,
-      transform 0.16s ease;
+      box-shadow 0.16s ease;
 
     &:hover {
       background: color-mix(in srgb, var(--brand-bg-surface) 84%, white 16%);
@@ -321,78 +296,40 @@ const {
     padding: 0.125rem 0.5rem;
     border-radius: 999px;
     background: color-mix(in srgb, var(--brand-primary) 12%, white 88%);
-    color: color-mix(in srgb, var(--brand-primary) 88%, transparent);
+    color: var(--brand-primary);
     font-size: 11px;
     font-weight: 600;
     white-space: nowrap;
   }
 
   .document-history-panel__item-detail {
-    color: var(--brand-text-primary);
-    font-size: 13px;
+    color: var(--brand-text-secondary);
+    font-size: 12px;
     line-height: 1.5;
-    word-break: break-word;
   }
 
   .document-history-panel__item-user {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    color: var(--brand-text-secondary);
+    gap: 0.375rem;
+    color: color-mix(in srgb, var(--brand-text-secondary) 84%, transparent);
     font-size: 12px;
-    line-height: 1.4;
   }
 
   .document-history-panel__item-user-dot {
     width: 0.375rem;
     height: 0.375rem;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--brand-primary) 72%, transparent);
-  }
-
-  .document-history-panel__item-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.375rem 0.875rem 0 0.875rem;
-  }
-
-  .document-history-panel__item-helper {
-    color: var(--brand-text-secondary);
-    font-size: 12px;
-    line-height: 1.4;
-  }
-
-  .document-history-panel__restore-button {
-    padding: 0.45rem 0.875rem;
-    border: 0;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--brand-primary) 88%, transparent);
-    color: white;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition:
-      opacity 0.16s ease,
-      transform 0.16s ease;
-
-    &:disabled {
-      cursor: not-allowed;
-      opacity: 0.55;
-    }
-
-    &:not(:disabled):hover {
-      transform: translateY(-1px);
-    }
+    background: color-mix(in srgb, var(--brand-primary) 62%, transparent);
   }
 }
 
 @media (max-width: 1180px) {
   .document-history-panel {
     width: 100%;
-    border-top: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
+    min-width: 0;
     border-left: 0;
+    border-top: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
   }
 }
 </style>

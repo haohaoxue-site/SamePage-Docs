@@ -1,13 +1,13 @@
 import type {
   AppearancePreference,
   AuthProviderName,
-  ConfirmBindEmailDto,
-  CurrentUserDto,
+  ConfirmBindEmailRequest,
+  CurrentUser,
   LanguagePreference,
-  UserSettingsDto,
+  UserSettings,
 } from '@haohaoxue/samepage-domain'
 import type { DeepReadonly } from 'vue'
-import type { AuthUserDto } from '@/apis/auth'
+import type { AuthUser } from '@/apis/auth'
 import { APPEARANCE_PREFERENCE, LANGUAGE_PREFERENCE, ROLES } from '@haohaoxue/samepage-contracts'
 import { resolveAppearancePreference } from '@haohaoxue/samepage-shared'
 import { usePreferredDark } from '@vueuse/core'
@@ -26,16 +26,16 @@ import { DEFAULT_ADMIN_NAVIGATION_ITEM } from '@/router/navigation'
 
 export const USER_PERSIST_KEY = 'samepage_user'
 
-type SessionUserSource = AuthUserDto | CurrentUserDto
+type SessionUserSource = AuthUser | CurrentUser
 
-function createDefaultPreferences(): UserSettingsDto['preferences'] {
+function createDefaultPreferences(): UserSettings['preferences'] {
   return {
     language: LANGUAGE_PREFERENCE.AUTO,
     appearance: APPEARANCE_PREFERENCE.AUTO,
   }
 }
 
-function cloneCurrentUser(user: SessionUserSource): AuthUserDto {
+function cloneCurrentUser(user: SessionUserSource): AuthUser {
   return {
     id: user.id,
     email: user.email,
@@ -49,14 +49,14 @@ function cloneCurrentUser(user: SessionUserSource): AuthUserDto {
   }
 }
 
-function clonePreferences(preferences: UserSettingsDto['preferences']): UserSettingsDto['preferences'] {
+function clonePreferences(preferences: UserSettings['preferences']): UserSettings['preferences'] {
   return {
     language: preferences.language,
     appearance: preferences.appearance,
   }
 }
 
-function cloneUserSettings(settings: UserSettingsDto): UserSettingsDto {
+function cloneUserSettings(settings: UserSettings): UserSettings {
   return {
     profile: {
       displayName: settings.profile.displayName,
@@ -90,19 +90,19 @@ function deepFreeze<T extends object>(value: T): DeepReadonly<T> {
 }
 
 export const useUserStore = defineStore('user', () => {
-  const _currentUser = shallowRef<AuthUserDto | null>(null)
-  const _settings = shallowRef<UserSettingsDto | null>(null)
-  const _preferences = reactive<UserSettingsDto['preferences']>(createDefaultPreferences())
+  const _currentUser = shallowRef<AuthUser | null>(null)
+  const _settings = shallowRef<UserSettings | null>(null)
+  const _preferences = reactive<UserSettings['preferences']>(createDefaultPreferences())
   const preferredDark = usePreferredDark()
   const isSavingLanguage = shallowRef(false)
   const isSavingAppearance = shallowRef(false)
-  const currentUser = computed<DeepReadonly<AuthUserDto> | null>(() =>
+  const currentUser = computed<DeepReadonly<AuthUser> | null>(() =>
     _currentUser.value ? deepFreeze(cloneCurrentUser(_currentUser.value)) : null,
   )
-  const settings = computed<DeepReadonly<UserSettingsDto> | null>(() =>
+  const settings = computed<DeepReadonly<UserSettings> | null>(() =>
     _settings.value ? deepFreeze(cloneUserSettings(_settings.value)) : null,
   )
-  const preferences = computed<DeepReadonly<UserSettingsDto['preferences']>>(() =>
+  const preferences = computed<DeepReadonly<UserSettings['preferences']>>(() =>
     deepFreeze(clonePreferences(_preferences)),
   )
 
@@ -143,7 +143,7 @@ export const useUserStore = defineStore('user', () => {
     _currentUser.value = cloneCurrentUser(nextUser)
   }
 
-  function patchCurrentUserState(partial: Partial<AuthUserDto>) {
+  function patchCurrentUserState(partial: Partial<AuthUser>) {
     if (!_currentUser.value) {
       return
     }
@@ -164,7 +164,7 @@ export const useUserStore = defineStore('user', () => {
     setSettings(nextSettings)
   }
 
-  function hydratePreferences(nextPreferences: UserSettingsDto['preferences']) {
+  function hydratePreferences(nextPreferences: UserSettings['preferences']) {
     _preferences.language = nextPreferences.language
     _preferences.appearance = nextPreferences.appearance
 
@@ -178,13 +178,13 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  function setSettings(nextSettings: UserSettingsDto) {
+  function setSettings(nextSettings: UserSettings) {
     _settings.value = cloneUserSettings(nextSettings)
     _preferences.language = nextSettings.preferences.language
     _preferences.appearance = nextSettings.preferences.appearance
   }
 
-  function patchSettings(mutator: (current: UserSettingsDto) => UserSettingsDto) {
+  function patchSettings(mutator: (current: UserSettings) => UserSettings) {
     if (!_settings.value) {
       return
     }
@@ -309,7 +309,7 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  async function bindEmail(payload: ConfirmBindEmailDto) {
+  async function bindEmail(payload: ConfirmBindEmailRequest) {
     const nextUser = await confirmBindEmail(payload)
     setCurrentUser(nextUser)
     await refreshSettings()

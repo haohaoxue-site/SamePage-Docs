@@ -1,11 +1,11 @@
 import type { CryptoConfig } from '../../config/auth.config'
 import type {
-  ChatMessageDto,
-  ChatModelItemDto,
-  ChatRuntimeConfigDto,
-  ChatSessionDetailDto,
-  ChatSessionSummaryDto,
-} from './chat.dto'
+  ChatMessage,
+  ChatModelItem,
+  ChatRuntimeConfig,
+  ChatSessionDetail,
+  ChatSessionSummary,
+} from './chat.interface'
 import {
   BadGatewayException,
   BadRequestException,
@@ -85,7 +85,7 @@ export class ChatService {
     this.encryptionKey = configService.getOrThrow<CryptoConfig>('crypto').encryptionKey
   }
 
-  async getSessions(userId: string): Promise<ChatSessionSummaryDto[]> {
+  async getSessions(userId: string): Promise<ChatSessionSummary[]> {
     const sessions = await this.prisma.chatSession.findMany({
       where: { userId },
       select: chatSessionSummarySelect,
@@ -95,10 +95,10 @@ export class ChatService {
       ],
     })
 
-    return sessions.map(toChatSessionSummaryDto)
+    return sessions.map(toChatSessionSummary)
   }
 
-  async createSession(userId: string): Promise<ChatSessionDetailDto> {
+  async createSession(userId: string): Promise<ChatSessionDetail> {
     const session = await this.prisma.chatSession.create({
       data: {
         userId,
@@ -107,11 +107,11 @@ export class ChatService {
       select: chatSessionDetailSelect,
     })
 
-    return toChatSessionDetailDto(session)
+    return toChatSessionDetail(session)
   }
 
-  async getSession(userId: string, sessionId: string): Promise<ChatSessionDetailDto> {
-    return toChatSessionDetailDto(await this.findOwnedSessionDetailOrThrow(userId, sessionId))
+  async getSession(userId: string, sessionId: string): Promise<ChatSessionDetail> {
+    return toChatSessionDetail(await this.findOwnedSessionDetailOrThrow(userId, sessionId))
   }
 
   async deleteSession(userId: string, sessionId: string): Promise<void> {
@@ -127,7 +127,7 @@ export class ChatService {
     }
   }
 
-  async getRuntimeConfig(): Promise<ChatRuntimeConfigDto> {
+  async getRuntimeConfig(): Promise<ChatRuntimeConfig> {
     const config = await this.prisma.systemAiConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
     })
@@ -141,7 +141,7 @@ export class ChatService {
     }
   }
 
-  async getModels(userId: string): Promise<ChatModelItemDto[]> {
+  async getModels(userId: string): Promise<ChatModelItem[]> {
     const provider = await this.getSystemProviderOrThrow({
       requireEnabled: false,
     })
@@ -441,7 +441,7 @@ export class ChatService {
     }
   }
 
-  private extractModelItems(payload: unknown): ChatModelItemDto[] {
+  private extractModelItems(payload: unknown): ChatModelItem[] {
     if (!payload || typeof payload !== 'object' || !('data' in payload) || !Array.isArray(payload.data)) {
       throw new BadGatewayException('模型列表响应格式不正确')
     }
@@ -459,9 +459,9 @@ export class ChatService {
         return {
           id: item.id.trim(),
           ownedBy,
-        } satisfies ChatModelItemDto
+        } satisfies ChatModelItem
       })
-      .filter((item): item is ChatModelItemDto => Boolean(item))
+      .filter((item): item is ChatModelItem => Boolean(item))
   }
 
   private parseSseEvent(event: string): string[] {
@@ -635,7 +635,7 @@ export class ChatService {
   }
 }
 
-function toChatSessionSummaryDto(session: PersistedChatSessionSummary): ChatSessionSummaryDto {
+function toChatSessionSummary(session: PersistedChatSessionSummary): ChatSessionSummary {
   return {
     id: session.id,
     title: session.title,
@@ -644,9 +644,9 @@ function toChatSessionSummaryDto(session: PersistedChatSessionSummary): ChatSess
   }
 }
 
-function toChatSessionDetailDto(session: PersistedChatSessionDetail): ChatSessionDetailDto {
+function toChatSessionDetail(session: PersistedChatSessionDetail): ChatSessionDetail {
   return {
-    ...toChatSessionSummaryDto(session),
+    ...toChatSessionSummary(session),
     messages: session.messages.map(message => ({
       role: toChatMessageRole(message.role),
       content: message.content,
@@ -654,7 +654,7 @@ function toChatSessionDetailDto(session: PersistedChatSessionDetail): ChatSessio
   }
 }
 
-function toChatMessageRole(role: ChatSessionMessageRole): ChatMessageDto['role'] {
+function toChatMessageRole(role: ChatSessionMessageRole): ChatMessage['role'] {
   return role === ChatSessionMessageRole.USER ? 'user' : 'assistant'
 }
 

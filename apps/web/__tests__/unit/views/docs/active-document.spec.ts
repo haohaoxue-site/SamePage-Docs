@@ -1,8 +1,8 @@
 import type { TiptapJsonContent } from '@haohaoxue/samepage-domain'
 import type {
-  CreateDocumentSnapshotResponseDto,
-  DocumentHeadDto,
-  DocumentSnapshotDto,
+  CreateDocumentSnapshotResponse,
+  DocumentHead,
+  DocumentSnapshot,
 } from '@/apis/document'
 import {
   DOCUMENT_SAVE_STATE,
@@ -26,7 +26,7 @@ function createBodyContent(text: string): TiptapJsonContent {
   ]
 }
 
-function createDocumentHead(overrides: Partial<DocumentHeadDto> = {}): DocumentHeadDto {
+function createDocumentHead(overrides: Partial<DocumentHead> = {}): DocumentHead {
   return {
     document: {
       id: 'doc-1',
@@ -58,7 +58,7 @@ function createDocumentHead(overrides: Partial<DocumentHeadDto> = {}): DocumentH
   }
 }
 
-function createSnapshot(overrides: Partial<DocumentSnapshotDto> = {}): DocumentSnapshotDto {
+function createSnapshot(overrides: Partial<DocumentSnapshot> = {}): DocumentSnapshot {
   return {
     id: 'snapshot-1',
     documentId: 'doc-1',
@@ -76,8 +76,8 @@ function createSnapshot(overrides: Partial<DocumentSnapshotDto> = {}): DocumentS
 }
 
 function createSnapshotResponse(
-  overrides: Partial<CreateDocumentSnapshotResponseDto> = {},
-): CreateDocumentSnapshotResponseDto {
+  overrides: Partial<CreateDocumentSnapshotResponse> = {},
+): CreateDocumentSnapshotResponse {
   return {
     snapshot: {
       id: 'snapshot-2',

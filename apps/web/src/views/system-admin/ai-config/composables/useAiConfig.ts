@@ -1,8 +1,8 @@
 import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
 import type { Ref } from 'vue'
 import type {
-  SystemAiConfigDto,
-  SystemAiServiceStatusDto,
+  SystemAiConfig,
+  SystemAiServiceStatus,
 } from '@/apis/system-admin'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, shallowRef } from 'vue'
@@ -19,8 +19,8 @@ export function useAiConfig(options: {
 }) {
   type RuleValidator = NonNullable<FormItemRule['validator']>
 
-  const currentConfig = shallowRef<SystemAiConfigDto | null>(null)
-  const currentServiceStatus = shallowRef<SystemAiServiceStatusDto | null>(null)
+  const currentConfig = shallowRef<SystemAiConfig | null>(null)
+  const currentServiceStatus = shallowRef<SystemAiServiceStatus | null>(null)
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
   const isSaving = shallowRef(false)

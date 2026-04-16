@@ -1,5 +1,7 @@
 import type { SchemaObject } from '@nestjs/swagger/dist/interfaces/open-api-spec.interface'
 
+export const RECENT_DOCUMENT_LIMIT = 8
+
 const tiptapJsonContentApiSchema: SchemaObject = {
   type: 'array',
   items: {
@@ -86,5 +88,53 @@ export const restoreDocumentSnapshotRequestApiSchema: SchemaObject = {
   properties: {
     baseRevision: { type: 'integer' },
     snapshotId: { type: 'string' },
+  },
+}
+
+export const documentAssetApiSchema: SchemaObject = {
+  type: 'object',
+  required: ['id', 'documentId', 'kind', 'status', 'mimeType', 'size', 'fileName', 'width', 'height', 'contentUrl', 'createdAt'],
+  properties: {
+    id: { type: 'string' },
+    documentId: { type: 'string' },
+    kind: { type: 'string', enum: ['image', 'file'] },
+    status: { type: 'string', enum: ['pending', 'ready', 'deleted'] },
+    mimeType: { type: 'string' },
+    size: { type: 'integer' },
+    fileName: { type: 'string' },
+    width: { type: 'integer', nullable: true },
+    height: { type: 'integer', nullable: true },
+    contentUrl: { type: 'string', nullable: true },
+    createdAt: { type: 'string' },
+  },
+}
+
+export const resolveDocumentAssetsRequestApiSchema: SchemaObject = {
+  type: 'object',
+  required: ['assetIds'],
+  properties: {
+    assetIds: {
+      type: 'array',
+      items: {
+        type: 'string',
+      },
+    },
+  },
+}
+
+export const resolveDocumentAssetsResponseApiSchema: SchemaObject = {
+  type: 'object',
+  required: ['assets', 'unresolvedAssetIds'],
+  properties: {
+    assets: {
+      type: 'array',
+      items: documentAssetApiSchema,
+    },
+    unresolvedAssetIds: {
+      type: 'array',
+      items: {
+        type: 'string',
+      },
+    },
   },
 }

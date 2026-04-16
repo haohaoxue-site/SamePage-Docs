@@ -1,16 +1,17 @@
-import type { AuthProviderName } from '@haohaoxue/samepage-domain'
+import type { AuthProviderName, AuthUser } from '@haohaoxue/samepage-domain'
 import type { Prisma, User } from '@prisma/client'
 import type { FastifyRequest } from 'fastify'
 import type { JwtConfig } from '../../config/auth.config'
 import type {
   AccessTokenPayload,
   AuthUserContext,
-  AuthUserDto,
+  BuildOAuthAuthorizationUrlOptions,
   OAuthProfile,
+  OAuthStatePayload,
   TokenExchangeResult,
 } from './auth.interface'
 import { Buffer } from 'node:buffer'
-import { createHash, createSecretKey, randomBytes, randomUUID } from 'node:crypto'
+import { createSecretKey, randomBytes, randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { AUTH_ERROR_CODE, AUTH_METHOD, AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
 import { formatAuthMethod } from '@haohaoxue/samepage-shared'
@@ -29,33 +30,22 @@ import { SignJWT } from 'jose'
 import * as client from 'openid-client'
 import { PrismaService } from '../../database/prisma.service'
 import { resolveAuthMethod, resolveAuthMethods } from '../../utils/auth-methods'
+import { normalizeEmail } from '../../utils/email'
+import { sha256Hex } from '../../utils/hash'
 import { hashPassword, verifyPassword } from '../../utils/password'
 import { RbacService } from '../rbac/rbac.service'
-import { REFRESH_TOKEN_COOKIE_NAME } from './auth.constants'
-import { authUnauthorized } from './auth.errors'
+import {
+  LOGIN_CODE_TTL_SECONDS,
+  OAUTH_FETCH_RETRY_DELAYS_MS,
+  OAUTH_LOGIN_REDIRECT_PATH,
+  OAUTH_STATE_TTL_SECONDS,
+  OAUTH_STATE_VERSION,
+  REFRESH_TOKEN_COOKIE_NAME,
+  RETRYABLE_OAUTH_FETCH_ERROR_RE,
+} from './auth.constants'
+import { authUnauthorized, buildOauthAccountData } from './auth.utils'
 import { OAuthProviderService } from './providers/oauth-provider.service'
 import { SystemAuthService } from './system-auth.service'
-
-const OAUTH_STATE_TTL_SECONDS = 10 * 60
-const LOGIN_CODE_TTL_SECONDS = 2 * 60
-const OAUTH_FETCH_RETRY_DELAYS_MS = [300, 900]
-const RETRYABLE_OAUTH_FETCH_ERROR_RE = /fetch failed|timeout/i
-const OAUTH_STATE_VERSION = 1
-const OAUTH_LOGIN_REDIRECT_PATH = '/auth/callback'
-
-interface OAuthStatePayload {
-  v: number
-  nonce: string
-  webOrigin: string
-  purpose: 'login' | 'bind'
-  redirectPath: string
-}
-
-interface BuildOAuthAuthorizationUrlOptions {
-  purpose?: 'login' | 'bind'
-  initiatorUserId?: string
-  redirectPath?: string
-}
 
 @Injectable()
 export class AuthService {
@@ -813,7 +803,7 @@ export class AuthService {
     }
   }
 
-  private async buildAuthUserDto(userId: string, authUser: AuthUserContext): Promise<AuthUserDto> {
+  private async buildAuthUser(userId: string, authUser: AuthUserContext): Promise<AuthUser> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -956,7 +946,7 @@ export class AuthService {
     return {
       accessToken,
       expiresIn: this.jwtConfig.accessTtlSeconds,
-      user: await this.buildAuthUserDto(userId, authUser),
+      user: await this.buildAuthUser(userId, authUser),
       refreshTokenCookie: this.buildRefreshCookie(rawRefreshToken),
     }
   }
@@ -995,7 +985,7 @@ export class AuthService {
   }
 
   private hash(value: string): string {
-    return createHash('sha256').update(value).digest('hex')
+    return sha256Hex(value)
   }
 
   private generateRefreshToken(): string {
@@ -1030,23 +1020,4 @@ export class AuthService {
 
     return new URL(request.url, `${protocol}://${host}`)
   }
-}
-
-function buildOauthAccountData(profile: OAuthProfile) {
-  return {
-    providerUsername: profile.username,
-    providerEmail: null,
-    providerEmailVerified: false,
-    rawProfile: profile.rawProfile as Prisma.InputJsonValue,
-  }
-}
-
-function normalizeEmail(email: string): string {
-  const normalizedEmail = email.trim().toLowerCase()
-
-  if (!normalizedEmail.length) {
-    throw new BadRequestException('邮箱不能为空')
-  }
-
-  return normalizedEmail
 }

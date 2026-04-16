@@ -1,9 +1,9 @@
 import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
 import type { Ref } from 'vue'
 import type {
-  SystemEmailConfigDto,
+  SystemEmailConfig,
   SystemEmailProvider,
-  SystemEmailServiceStatusDto,
+  SystemEmailServiceStatus,
 } from '@/apis/system-admin'
 import {
   SYSTEM_EMAIL_PROVIDER,
@@ -57,8 +57,8 @@ export function useEmail(options: {
   type RuleValidator = NonNullable<FormItemRule['validator']>
 
   const userStore = useUserStore()
-  const currentConfig = shallowRef<SystemEmailConfigDto | null>(null)
-  const currentServiceStatus = shallowRef<SystemEmailServiceStatusDto | null>(null)
+  const currentConfig = shallowRef<SystemEmailConfig | null>(null)
+  const currentServiceStatus = shallowRef<SystemEmailServiceStatus | null>(null)
   const errorMessage = shallowRef('')
   const isLoading = shallowRef(false)
   const isSaving = shallowRef(false)

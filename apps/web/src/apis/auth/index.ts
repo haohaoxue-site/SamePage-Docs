@@ -1,13 +1,13 @@
 import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type {
-  ChangePasswordDto,
-  ExchangeCodeDto,
-  LogoutResponseDto,
-  PasswordLoginDto,
-  PasswordRegisterDto,
-  RequestEmailVerificationDto,
-  RequestEmailVerificationResponseDto,
-  TokenExchangeResponseDto,
+  ChangePasswordRequest,
+  ExchangeCodeRequest,
+  LogoutResponse,
+  PasswordLoginRequest,
+  PasswordRegisterRequest,
+  RequestEmailVerificationRequest,
+  RequestEmailVerificationResponse,
+  TokenExchangeResponse,
 } from './typing'
 import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
 import { axios } from '@/utils/axios'
@@ -18,7 +18,7 @@ export function buildOAuthStartUrl(provider: AuthProviderName) {
   return `${SERVER_PATH}/auth/oauth/${provider}/start`
 }
 
-export function exchangeAuthCode(data: ExchangeCodeDto): Promise<TokenExchangeResponseDto> {
+export function exchangeAuthCode(data: ExchangeCodeRequest): Promise<TokenExchangeResponse> {
   return axios.request({
     method: 'post',
     url: '/auth/exchange-code',
@@ -27,7 +27,7 @@ export function exchangeAuthCode(data: ExchangeCodeDto): Promise<TokenExchangeRe
   })
 }
 
-export function loginWithPassword(data: PasswordLoginDto): Promise<TokenExchangeResponseDto> {
+export function loginWithPassword(data: PasswordLoginRequest): Promise<TokenExchangeResponse> {
   return axios.request({
     method: 'post',
     url: '/auth/login/password',
@@ -37,8 +37,8 @@ export function loginWithPassword(data: PasswordLoginDto): Promise<TokenExchange
 }
 
 export function requestEmailVerification(
-  data: RequestEmailVerificationDto,
-): Promise<RequestEmailVerificationResponseDto> {
+  data: RequestEmailVerificationRequest,
+): Promise<RequestEmailVerificationResponse> {
   return axios.request({
     method: 'post',
     url: '/auth/verify-email/request',
@@ -46,7 +46,7 @@ export function requestEmailVerification(
   })
 }
 
-export function registerWithPassword(data: PasswordRegisterDto): Promise<TokenExchangeResponseDto> {
+export function registerWithPassword(data: PasswordRegisterRequest): Promise<TokenExchangeResponse> {
   return axios.request({
     method: 'post',
     url: '/auth/register/password',
@@ -55,7 +55,7 @@ export function registerWithPassword(data: PasswordRegisterDto): Promise<TokenEx
   })
 }
 
-export function refreshAccessToken(): Promise<TokenExchangeResponseDto> {
+export function refreshAccessToken(): Promise<TokenExchangeResponse> {
   return axios.request({
     method: 'post',
     url: '/auth/refresh',
@@ -63,7 +63,7 @@ export function refreshAccessToken(): Promise<TokenExchangeResponseDto> {
   })
 }
 
-export function logoutAuthSession(): Promise<LogoutResponseDto> {
+export function logoutAuthSession(): Promise<LogoutResponse> {
   return axios.request({
     method: 'post',
     url: '/auth/logout',
@@ -71,7 +71,7 @@ export function logoutAuthSession(): Promise<LogoutResponseDto> {
   })
 }
 
-export function changePassword(data: ChangePasswordDto): Promise<TokenExchangeResponseDto> {
+export function changePassword(data: ChangePasswordRequest): Promise<TokenExchangeResponse> {
   return axios.request({
     method: 'post',
     url: '/auth/password/change',

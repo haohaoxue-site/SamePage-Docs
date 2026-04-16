@@ -11,7 +11,7 @@ import { UserStatus } from '@prisma/client'
 import { jwtVerify } from 'jose'
 import { PrismaService } from '../database/prisma.service'
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator'
-import { authUnauthorized } from '../modules/auth/auth.errors'
+import { authUnauthorized } from '../modules/auth/auth.utils'
 import { RbacService } from '../modules/rbac/rbac.service'
 
 @Injectable()

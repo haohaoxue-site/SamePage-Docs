@@ -12,7 +12,7 @@ export type AppearancePreference = (typeof APPEARANCE_PREFERENCE_VALUES)[number]
 export type ResolvedAppearancePreference = Exclude<AppearancePreference, 'auto'>
 export type AuditUserSummary = z.infer<typeof AuditUserSummarySchema>
 
-export interface CurrentUserDto {
+export interface CurrentUser {
   id: string
   email: string | null
   displayName: string
@@ -28,7 +28,7 @@ export interface CurrentUserDto {
 /**
  * 第三方账号绑定状态。
  */
-export interface UserOauthBindingDto {
+export interface UserOauthBinding {
   connected: boolean
   username: string | null
 }
@@ -36,7 +36,7 @@ export interface UserOauthBindingDto {
 /**
  * 当前用户设置。
  */
-export interface UserSettingsDto {
+export interface UserSettings {
   profile: {
     displayName: string
     avatarUrl: string | null
@@ -45,8 +45,8 @@ export interface UserSettingsDto {
     email: string | null
     hasPasswordAuth: boolean
     emailVerified: boolean
-    github: UserOauthBindingDto
-    linuxDo: UserOauthBindingDto
+    github: UserOauthBinding
+    linuxDo: UserOauthBinding
   }
   preferences: {
     language: LanguagePreference
@@ -54,38 +54,38 @@ export interface UserSettingsDto {
   }
 }
 
-export interface UpdateCurrentUserProfileDto {
+export interface UpdateCurrentUserProfileRequest {
   displayName: string
 }
 
-export interface UpdateCurrentUserAvatarResponseDto {
+export interface UpdateCurrentUserAvatarResponse {
   avatarUrl: string
 }
 
-export interface RequestBindEmailCodeDto {
+export interface RequestBindEmailCodeRequest {
   email: string
 }
 
-export interface RequestBindEmailCodeResponseDto {
+export interface RequestBindEmailCodeResponse {
   requested: boolean
 }
 
-export interface ConfirmBindEmailDto {
+export interface ConfirmBindEmailRequest {
   email: string
   code: string
   newPassword?: string
 }
 
-export interface DeleteCurrentUserDto {
+export interface DeleteCurrentUserRequest {
   accountConfirmation: string
   confirmationPhrase: string
 }
 
-export interface DeleteCurrentUserResponseDto {
+export interface DeleteCurrentUserResponse {
   deleted: boolean
 }
 
-export interface UpdateUserPreferencesDto {
+export interface UpdateUserPreferencesRequest {
   language?: LanguagePreference
   appearance?: AppearancePreference
 }

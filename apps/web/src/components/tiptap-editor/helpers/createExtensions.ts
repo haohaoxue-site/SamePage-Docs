@@ -1,7 +1,10 @@
 import type { Extensions } from '@tiptap/core'
+import type {
+  TiptapEditorUploadedFile,
+  TiptapEditorUploadedImage,
+} from '../typing'
 import Color from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
-import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Table } from '@tiptap/extension-table'
 import TableCell from '@tiptap/extension-table-cell'
@@ -13,12 +16,18 @@ import { TextStyle } from '@tiptap/extension-text-style'
 import StarterKit from '@tiptap/starter-kit'
 import { BlockCommands } from '../extensions/BlockCommands'
 import { BlockId } from '../extensions/BlockId'
+import { DocumentFile } from '../extensions/DocumentFile'
+import { DocumentImage } from '../extensions/DocumentImage'
+import { PastePipeline } from '../extensions/PastePipeline'
 import { ResetMarksOnPlainEnter } from '../extensions/ResetMarksOnPlainEnter'
 
 const BODY_PLACEHOLDER = '输入 / 唤起命令，或者直接开始写作。'
 const TITLE_PLACEHOLDER = '输入文档标题'
 
-export function createBodyExtensions(): Extensions {
+export function createBodyExtensions(options: {
+  uploadImage?: (file: File) => Promise<TiptapEditorUploadedImage>
+  uploadFile?: (file: File) => Promise<TiptapEditorUploadedFile>
+} = {}): Extensions {
   return [
     BlockId,
     StarterKit.configure({
@@ -45,10 +54,15 @@ export function createBodyExtensions(): Extensions {
     TableRow,
     TableHeader,
     TableCell,
-    Image.configure({
-      inline: true,
+    DocumentImage.configure({
+      inline: false,
     }),
+    DocumentFile,
     BlockCommands,
+    PastePipeline.configure({
+      uploadImage: options.uploadImage,
+      uploadFile: options.uploadFile,
+    }),
     ResetMarksOnPlainEnter,
   ]
 }

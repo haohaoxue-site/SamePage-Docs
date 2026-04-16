@@ -1,23 +1,25 @@
 import type { CryptoConfig } from '../../config/auth.config'
 import type {
-  GovernanceSummaryDto,
-  SystemAdminAuditLogItemDto,
-  SystemAdminOverviewDto,
-  SystemAdminUserItemDto,
-  SystemAiConfigDto,
-  SystemAiServiceStatusDto,
-  SystemAuthGovernanceDto,
-  SystemEmailConfigDto,
-  SystemEmailServiceStatusDto,
-  TestSystemEmailConfigDto,
-  TestSystemEmailConfigResponseDto,
-  UpdateSystemAdminUserResponseDto,
-  UpdateSystemAiConfigDto,
-  UpdateSystemAiServiceStatusDto,
-  UpdateSystemAuthGovernanceDto,
-  UpdateSystemEmailConfigDto,
-  UpdateSystemEmailServiceStatusDto,
-} from './system-admin.dto'
+  SystemEmailConfig,
+  SystemEmailServiceStatus,
+  TestSystemEmailConfigInput,
+  TestSystemEmailConfigResponse,
+  UpdateSystemEmailConfigInput,
+  UpdateSystemEmailServiceStatusInput,
+} from '../system-email/system-email.interface'
+import type {
+  GovernanceSummary,
+  SystemAdminAuditLogItem,
+  SystemAdminOverview,
+  SystemAdminUserItem,
+  SystemAiConfig,
+  SystemAiServiceStatus,
+  SystemAuthGovernance,
+  UpdateSystemAdminUserResponse,
+  UpdateSystemAiConfigInput,
+  UpdateSystemAiServiceStatusInput,
+  UpdateSystemAuthGovernanceInput,
+} from './system-admin.interface'
 import {
   BadRequestException,
   Injectable,
@@ -57,7 +59,7 @@ export class SystemAdminService {
     this.encryptionKey = configService.getOrThrow<CryptoConfig>('crypto').encryptionKey
   }
 
-  async getOverview(): Promise<SystemAdminOverviewDto> {
+  async getOverview(): Promise<SystemAdminOverview> {
     const [
       totalUsers,
       activeUsers,
@@ -86,7 +88,7 @@ export class SystemAdminService {
     }
   }
 
-  async getUsers(): Promise<SystemAdminUserItemDto[]> {
+  async getUsers(): Promise<SystemAdminUserItem[]> {
     const governance = await this.systemAuthService.getGovernanceSnapshot()
     const users = await this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
@@ -147,7 +149,7 @@ export class SystemAdminService {
     actorUserId: string,
     userId: string,
     status: UserStatus,
-  ): Promise<UpdateSystemAdminUserResponseDto> {
+  ): Promise<UpdateSystemAdminUserResponse> {
     const isSystemAdmin = await this.systemAuthService.isSystemAdminUser(userId)
 
     if (isSystemAdmin && status === UserStatus.DISABLED) {
@@ -186,7 +188,7 @@ export class SystemAdminService {
     }
   }
 
-  async getAuthGovernance(): Promise<SystemAuthGovernanceDto> {
+  async getAuthGovernance(): Promise<SystemAuthGovernance> {
     const [snapshot, emailServiceEnabled] = await Promise.all([
       this.systemAuthService.getGovernanceSnapshot(),
       this.systemEmailService.isEnabled(),
@@ -207,15 +209,15 @@ export class SystemAdminService {
 
   async updateAuthGovernance(
     actorUserId: string,
-    payload: UpdateSystemAuthGovernanceDto,
-  ): Promise<SystemAuthGovernanceDto> {
+    payload: UpdateSystemAuthGovernanceInput,
+  ): Promise<SystemAuthGovernance> {
     const nextRegistrationOptions = Object.fromEntries(
       Object.entries({
         allowPasswordRegistration: payload.allowPasswordRegistration,
         allowGithubRegistration: payload.allowGithubRegistration,
         allowLinuxDoRegistration: payload.allowLinuxDoRegistration,
       }).filter(([, value]) => value !== undefined),
-    ) as UpdateSystemAuthGovernanceDto
+    ) as UpdateSystemAuthGovernanceInput
 
     if (Object.keys(nextRegistrationOptions).length === 0) {
       throw new BadRequestException('至少更新一项注册配置')
@@ -233,18 +235,18 @@ export class SystemAdminService {
     return this.getAuthGovernance()
   }
 
-  async getEmailConfig(): Promise<SystemEmailConfigDto> {
+  async getEmailConfig(): Promise<SystemEmailConfig> {
     return this.systemEmailService.getEmailConfig()
   }
 
-  async getEmailServiceStatus(): Promise<SystemEmailServiceStatusDto> {
+  async getEmailServiceStatus(): Promise<SystemEmailServiceStatus> {
     return this.systemEmailService.getEmailServiceStatus()
   }
 
   async updateEmailConfig(
     actorUserId: string,
-    payload: UpdateSystemEmailConfigDto,
-  ): Promise<SystemEmailConfigDto> {
+    payload: UpdateSystemEmailConfigInput,
+  ): Promise<SystemEmailConfig> {
     const result = await this.systemEmailService.updateEmailConfig(actorUserId, payload)
 
     await this.createAuditLog(actorUserId, {
@@ -269,8 +271,8 @@ export class SystemAdminService {
 
   async updateEmailServiceStatus(
     actorUserId: string,
-    payload: UpdateSystemEmailServiceStatusDto,
-  ): Promise<SystemEmailServiceStatusDto> {
+    payload: UpdateSystemEmailServiceStatusInput,
+  ): Promise<SystemEmailServiceStatus> {
     const result = await this.systemEmailService.updateEmailServiceStatus(actorUserId, payload)
 
     await this.createAuditLog(actorUserId, {
@@ -287,8 +289,8 @@ export class SystemAdminService {
 
   async testEmailConfig(
     actorUserId: string,
-    payload: TestSystemEmailConfigDto,
-  ): Promise<TestSystemEmailConfigResponseDto> {
+    payload: TestSystemEmailConfigInput,
+  ): Promise<TestSystemEmailConfigResponse> {
     const result = await this.systemEmailService.sendTestEmail(payload.email)
 
     await this.createAuditLog(actorUserId, {
@@ -303,7 +305,7 @@ export class SystemAdminService {
     return result
   }
 
-  async getAiConfig(): Promise<SystemAiConfigDto> {
+  async getAiConfig(): Promise<SystemAiConfig> {
     const config = await this.prisma.systemAiConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
       include: systemAiConfigInclude,
@@ -334,7 +336,7 @@ export class SystemAdminService {
     }
   }
 
-  async getAiServiceStatus(): Promise<SystemAiServiceStatusDto> {
+  async getAiServiceStatus(): Promise<SystemAiServiceStatus> {
     const config = await this.prisma.systemAiConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
       include: systemAiConfigInclude,
@@ -350,8 +352,8 @@ export class SystemAdminService {
 
   async updateAiConfig(
     actorUserId: string,
-    payload: UpdateSystemAiConfigDto,
-  ): Promise<SystemAiConfigDto> {
+    payload: UpdateSystemAiConfigInput,
+  ): Promise<SystemAiConfig> {
     const existing = await this.prisma.systemAiConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
     })
@@ -411,8 +413,8 @@ export class SystemAdminService {
 
   async updateAiServiceStatus(
     actorUserId: string,
-    payload: UpdateSystemAiServiceStatusDto,
-  ): Promise<SystemAiServiceStatusDto> {
+    payload: UpdateSystemAiServiceStatusInput,
+  ): Promise<SystemAiServiceStatus> {
     const existing = await this.prisma.systemAiConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
     })
@@ -453,7 +455,7 @@ export class SystemAdminService {
     return this.getAiServiceStatus()
   }
 
-  async getAuditLogs(): Promise<SystemAdminAuditLogItemDto[]> {
+  async getAuditLogs(): Promise<SystemAdminAuditLogItem[]> {
     const logs = await this.prisma.adminAuditLog.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -481,7 +483,7 @@ export class SystemAdminService {
     }))
   }
 
-  async getGovernanceSummary(): Promise<GovernanceSummaryDto> {
+  async getGovernanceSummary(): Promise<GovernanceSummary> {
     const stats = await this.getDocumentStats()
 
     return {
