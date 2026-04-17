@@ -2,21 +2,27 @@ import type { Editor, JSONContent } from '@tiptap/core'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { createBodyExtensions } from '@/components/tiptap-editor/helpers/createExtensions'
-import TiptapEditor from '@/components/tiptap-editor/TiptapEditor.vue'
-
-interface TiptapEditorExposed {
-  editor: Editor | null
-}
+import TiptapEditor from '@/components/tiptap-editor/core/TiptapEditor.vue'
+import { createBodyExtensions } from '@/components/tiptap-editor/extensions/createExtensions'
+import { waitForMountedEditor } from './testUtils'
 
 interface TurnIntoBlockChain {
   turnIntoBlock?: (target: string) => {
+    run: () => boolean
+  }
+  splitCurrentBlock?: () => {
+    run: () => boolean
+  }
+  mergeBlockBackward?: () => {
     run: () => boolean
   }
   moveBlockUp?: () => {
     run: () => boolean
   }
   moveBlockDown?: () => {
+    run: () => boolean
+  }
+  moveCurrentBlockTo?: (targetBlockId: string, placement: 'before' | 'after') => {
     run: () => boolean
   }
   insertBlock?: () => {
@@ -69,13 +75,16 @@ const listContent = [
   },
 ] satisfies JSONContent[]
 
-async function getEditor(wrapper: ReturnType<typeof mount>) {
-  await vi.waitFor(() => {
-    expect((wrapper.vm as unknown as TiptapEditorExposed).editor).toBeTruthy()
-  })
-
-  return (wrapper.vm as unknown as TiptapEditorExposed).editor!
-}
+const paragraphPairContent = [
+  {
+    type: 'paragraph',
+    content: [{ type: 'text', text: '第一段' }],
+  },
+  {
+    type: 'paragraph',
+    content: [{ type: 'text', text: '第二段' }],
+  },
+] satisfies JSONContent[]
 
 function focusText(editor: Editor, text: string) {
   let selectionPosition: number | null = null
@@ -92,6 +101,27 @@ function focusText(editor: Editor, text: string) {
     }
 
     selectionPosition = pos + offset + 1
+  })
+
+  expect(selectionPosition).not.toBeNull()
+  editor.commands.setTextSelection(selectionPosition!)
+}
+
+function focusTextStart(editor: Editor, text: string) {
+  let selectionPosition: number | null = null
+
+  editor.state.doc.descendants((node, pos) => {
+    if (!node.isText || typeof node.text !== 'string') {
+      return
+    }
+
+    const offset = node.text.indexOf(text)
+
+    if (offset < 0) {
+      return
+    }
+
+    selectionPosition = pos + offset
   })
 
   expect(selectionPosition).not.toBeNull()
@@ -162,15 +192,53 @@ function normalizeBlockIds(content: JSONContent[] | undefined) {
 }
 
 describe('blockCommands', () => {
+  it('正文编辑器支持 heading-5 与 textAlign 属性写入', async () => {
+    const wrapper = mount(TiptapEditor, {
+      props: {
+        content: initialContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+
+    const editor = await waitForMountedEditor(wrapper)
+    const turnHandled = (editor.chain().focus() as unknown as TurnIntoBlockChain)
+      .turnIntoBlock?.('heading-5')
+      .run()
+
+    await nextTick()
+
+    const alignHandled = (editor.chain().focus() as {
+      setTextAlign: (value: string) => { run: () => boolean }
+    })
+      .setTextAlign('center')
+      .run()
+
+    await nextTick()
+
+    expect(turnHandled).toBe(true)
+    expect(alignHandled).toBe(true)
+    expect(wrapper.emitted('update:content')?.at(-1)?.[0]).toEqual([
+      {
+        type: 'heading',
+        attrs: {
+          id: expect.any(String),
+          level: 5,
+          textAlign: 'center',
+        },
+        content: [{ type: 'text', text: '旧内容' }],
+      },
+    ])
+  })
+
   it('正文编辑器暴露 turnIntoBlock 命令，并按目标块做确定性转换', async () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: initialContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
     const firstTurnHandled = (editor.chain().focus() as unknown as TurnIntoBlockChain)
       .turnIntoBlock?.('heading-2')
       .run()
@@ -220,11 +288,11 @@ describe('blockCommands', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: listContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
 
     focusText(editor, '第二项')
     const indentHandled = (editor.chain().focus() as unknown as TurnIntoBlockChain)
@@ -346,22 +414,79 @@ describe('blockCommands', () => {
     ])
   })
 
+  it('正文编辑器仅允许存在前序同级项的列表项继续增加缩进', async () => {
+    const wrapper = mount(TiptapEditor, {
+      props: {
+        content: listContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+
+    const editor = await waitForMountedEditor(wrapper)
+
+    focusText(editor, '第一项')
+    const firstItemIndentHandled = (editor.chain().focus() as unknown as TurnIntoBlockChain)
+      .indentBlock?.()
+      .run()
+
+    await nextTick()
+
+    expect(firstItemIndentHandled).toBe(false)
+    expect(normalizeBlockIds(editor.getJSON().content)).toMatchObject(normalizeBlockIds([
+      {
+        type: 'bulletList',
+        content: [
+          {
+            type: 'listItem',
+            content: [
+              {
+                type: 'paragraph',
+                content: [{ type: 'text', text: '第一项' }],
+              },
+            ],
+          },
+          {
+            type: 'listItem',
+            content: [
+              {
+                type: 'paragraph',
+                content: [{ type: 'text', text: '第二项' }],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        type: 'paragraph',
+      },
+    ]))
+
+    focusText(editor, '第二项')
+    const secondItemIndentHandled = (editor.chain().focus() as unknown as TurnIntoBlockChain)
+      .indentBlock?.()
+      .run()
+
+    await nextTick()
+
+    expect(secondItemIndentHandled).toBe(true)
+  })
+
   it('正文编辑器将 Alt+Shift+ArrowUp / Alt+Shift+ArrowDown 收口到 moveBlockUp / moveBlockDown，保持键盘与命令层一致', async () => {
     const keyboardWrapper = mount(TiptapEditor, {
       props: {
         content: listContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
     const commandWrapper = mount(TiptapEditor, {
       props: {
         content: listContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const keyboardEditor = await getEditor(keyboardWrapper)
-    const commandEditor = await getEditor(commandWrapper)
+    const keyboardEditor = await waitForMountedEditor(keyboardWrapper)
+    const commandEditor = await waitForMountedEditor(commandWrapper)
 
     focusText(keyboardEditor, '第二项')
     focusText(commandEditor, '第二项')
@@ -402,15 +527,138 @@ describe('blockCommands', () => {
     )
   })
 
+  it('正文编辑器将 Tab / Shift+Tab 收口到 indentBlock / outdentBlock，保持列表键盘与命令层一致', async () => {
+    const keyboardWrapper = mount(TiptapEditor, {
+      props: {
+        content: listContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+    const commandWrapper = mount(TiptapEditor, {
+      props: {
+        content: listContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+
+    const keyboardEditor = await waitForMountedEditor(keyboardWrapper)
+    const commandEditor = await waitForMountedEditor(commandWrapper)
+
+    focusText(keyboardEditor, '第二项')
+    focusText(commandEditor, '第二项')
+
+    const keyboardIndentHandled = await triggerKeyDown(keyboardEditor, 'Tab')
+    const commandIndentHandled = (commandEditor.chain().focus() as unknown as TurnIntoBlockChain)
+      .indentBlock?.()
+      .run()
+
+    await nextTick()
+
+    expect(keyboardIndentHandled).toBe(true)
+    expect(commandIndentHandled).toBe(true)
+    expect(normalizeBlockIds(keyboardEditor.getJSON().content)).toEqual(
+      normalizeBlockIds(commandEditor.getJSON().content),
+    )
+
+    focusText(keyboardEditor, '第二项')
+    focusText(commandEditor, '第二项')
+
+    const keyboardOutdentHandled = await triggerKeyDown(keyboardEditor, 'Tab', {
+      shiftKey: true,
+    })
+    const commandOutdentHandled = (commandEditor.chain().focus() as unknown as TurnIntoBlockChain)
+      .outdentBlock?.()
+      .run()
+
+    await nextTick()
+
+    expect(keyboardOutdentHandled).toBe(true)
+    expect(commandOutdentHandled).toBe(true)
+    expect(normalizeBlockIds(keyboardEditor.getJSON().content)).toEqual(
+      normalizeBlockIds(commandEditor.getJSON().content),
+    )
+  })
+
+  it('正文编辑器将 Enter / Backspace 收口到 splitCurrentBlock / mergeBlockBackward，保持块分裂与合并的键盘和命令一致', async () => {
+    const splitKeyboardWrapper = mount(TiptapEditor, {
+      props: {
+        content: initialContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+    const splitCommandWrapper = mount(TiptapEditor, {
+      props: {
+        content: initialContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+
+    const splitKeyboardEditor = await waitForMountedEditor(splitKeyboardWrapper)
+    const splitCommandEditor = await waitForMountedEditor(splitCommandWrapper)
+
+    splitKeyboardEditor.commands.focus('end')
+
+    const keyboardSplitHandled = await triggerKeyDown(splitKeyboardEditor, 'Enter')
+    const commandSplitHandled = (splitCommandEditor.chain().focus('end') as unknown as TurnIntoBlockChain)
+      .splitCurrentBlock?.()
+      .run()
+
+    await nextTick()
+
+    expect(keyboardSplitHandled).toBe(true)
+    expect(commandSplitHandled).toBe(true)
+    expect(normalizeBlockIds(splitKeyboardEditor.getJSON().content)).toEqual(
+      normalizeBlockIds(splitCommandEditor.getJSON().content),
+    )
+
+    const mergeKeyboardWrapper = mount(TiptapEditor, {
+      props: {
+        content: paragraphPairContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+    const mergeCommandWrapper = mount(TiptapEditor, {
+      props: {
+        content: paragraphPairContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+
+    const mergeKeyboardEditor = await waitForMountedEditor(mergeKeyboardWrapper)
+    const mergeCommandEditor = await waitForMountedEditor(mergeCommandWrapper)
+
+    focusTextStart(mergeKeyboardEditor, '第二段')
+    focusTextStart(mergeCommandEditor, '第二段')
+
+    const keyboardMergeHandled = await triggerKeyDown(mergeKeyboardEditor, 'Backspace')
+    const commandMergeHandled = (mergeCommandEditor.chain().focus() as unknown as TurnIntoBlockChain)
+      .mergeBlockBackward?.()
+      .run()
+
+    await nextTick()
+
+    expect(keyboardMergeHandled).toBe(true)
+    expect(commandMergeHandled).toBe(true)
+    expect(normalizeBlockIds(mergeKeyboardEditor.getJSON().content)).toEqual(
+      normalizeBlockIds(mergeCommandEditor.getJSON().content),
+    )
+    expect(mergeKeyboardEditor.getJSON().content).toMatchObject([
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: '第一段第二段' }],
+      },
+    ])
+  })
+
   it('正文编辑器暴露 duplicateBlock 命令，复制当前逻辑块并重新分配新的 blockId', async () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: listContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
 
     focusText(editor, '第一项')
     const duplicateHandled = (editor.chain().focus() as unknown as TurnIntoBlockChain)
@@ -487,11 +735,11 @@ describe('blockCommands', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: listContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
 
     focusText(editor, '第一项')
     const insertHandled = (editor.chain().focus() as unknown as TurnIntoBlockChain)
@@ -570,11 +818,11 @@ describe('blockCommands', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: listContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
     await waitForLogicalBlockIds(editor, 'listItem')
     const initialListItems = collectLogicalBlocks(editor, 'listItem')
 
@@ -607,15 +855,42 @@ describe('blockCommands', () => {
     expect(moveDownAtBoundaryHandled).toBe(false)
   })
 
+  it('正文编辑器暴露 moveCurrentBlockTo 命令，支持把当前逻辑块拖到目标块前后并保持 blockId 稳定', async () => {
+    const wrapper = mount(TiptapEditor, {
+      props: {
+        content: paragraphPairContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+
+    const editor = await waitForMountedEditor(wrapper)
+    await waitForLogicalBlockIds(editor, 'paragraph')
+    const initialParagraphs = collectLogicalBlocks(editor, 'paragraph')
+
+    focusText(editor, '第一段')
+    const moveHandled = (editor.chain().focus() as unknown as TurnIntoBlockChain)
+      .moveCurrentBlockTo?.(initialParagraphs[1].id!, 'after')
+      .run()
+
+    await nextTick()
+
+    const movedParagraphs = collectLogicalBlocks(editor, 'paragraph')
+
+    expect(moveHandled).toBe(true)
+    expect(movedParagraphs.map(item => item.text)).toEqual(['第二段', '第一段'])
+    expect(movedParagraphs.map(item => item.id)).toEqual([initialParagraphs[1].id, initialParagraphs[0].id])
+    expect(editor.state.selection.$from.parent.textContent).toBe('第一段')
+  })
+
   it('正文编辑器暴露 deleteBlock 命令，列表内选区删除整个逻辑块', async () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: listContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
 
     focusText(editor, '第一项')
     const deleteHandled = (editor.chain().focus() as unknown as TurnIntoBlockChain)

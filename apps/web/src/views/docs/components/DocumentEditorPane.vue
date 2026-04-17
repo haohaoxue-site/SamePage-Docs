@@ -22,6 +22,7 @@ const { contentError, handleContentError, handleRetryLoad, shouldShowEditor } = 
       @update-title="emits('updateTitle', $event)"
       @update-content="emits('updateContent', $event)"
       @content-error="handleContentError"
+      @request-comment="emits('requestComment', $event)"
     />
 
     <DocumentEditorFallback

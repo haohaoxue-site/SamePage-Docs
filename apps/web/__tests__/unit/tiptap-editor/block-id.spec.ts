@@ -3,13 +3,10 @@ import { TIPTAP_BLOCK_ID_PREFIX } from '@haohaoxue/samepage-contracts'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { createBlockId } from '@/components/tiptap-editor/helpers/blockId'
-import { createBodyExtensions, createTitleExtensions } from '@/components/tiptap-editor/helpers/createExtensions'
-import TiptapEditor from '@/components/tiptap-editor/TiptapEditor.vue'
-
-interface TiptapEditorExposed {
-  editor: Editor | null
-}
+import { createBlockId } from '@/components/tiptap-editor/content/blockId'
+import TiptapEditor from '@/components/tiptap-editor/core/TiptapEditor.vue'
+import { createBodyExtensions, createTitleExtensions } from '@/components/tiptap-editor/extensions/createExtensions'
+import { waitForMountedEditor } from './testUtils'
 
 const complexBodyContent = [
   {
@@ -74,14 +71,6 @@ const seededParagraphContent = [{
   },
 }] satisfies JSONContent[]
 
-async function getEditor(wrapper: ReturnType<typeof mount>) {
-  await vi.waitFor(() => {
-    expect((wrapper.vm as unknown as TiptapEditorExposed).editor).toBeTruthy()
-  })
-
-  return (wrapper.vm as unknown as TiptapEditorExposed).editor!
-}
-
 function collectBlockNodes(editor: Editor) {
   const nodes: Array<{ type: string, id?: string | null }> = []
 
@@ -117,18 +106,18 @@ describe('blockId', () => {
     const titleWrapper = mount(TiptapEditor, {
       props: {
         content: emptyContent,
-        extensions: createTitleExtensions(),
+        initialExtensions: createTitleExtensions(),
       },
     })
     const bodyWrapper = mount(TiptapEditor, {
       props: {
         content: complexBodyContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const titleEditor = await getEditor(titleWrapper)
-    const bodyEditor = await getEditor(bodyWrapper)
+    const titleEditor = await waitForMountedEditor(titleWrapper)
+    const bodyEditor = await waitForMountedEditor(bodyWrapper)
     await waitForPrefixedBodyBlockIds(bodyEditor)
 
     const bodyBlocks = collectBlockNodes(bodyEditor)
@@ -160,11 +149,11 @@ describe('blockId', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: seededParagraphContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
     await waitForPrefixedBodyBlockIds(editor)
     const initialId = collectBlockNodes(editor)
       .filter(node => node.type === 'paragraph')
@@ -211,11 +200,11 @@ describe('blockId', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: seededParagraphContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
     await waitForPrefixedBodyBlockIds(editor)
     const initialId = collectBlockNodes(editor)
       .filter(node => node.type === 'paragraph')

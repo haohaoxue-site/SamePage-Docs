@@ -1,28 +1,21 @@
-import type { Editor, JSONContent } from '@tiptap/core'
+import type { JSONContent } from '@tiptap/core'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
-import { createBodyExtensions } from '@/components/tiptap-editor/helpers/createExtensions'
-import TiptapEditor from '@/components/tiptap-editor/TiptapEditor.vue'
-
-interface TiptapEditorExposed {
-  editor: Editor | null
-}
+import TiptapEditor from '@/components/tiptap-editor/core/TiptapEditor.vue'
+import { createBodyExtensions } from '@/components/tiptap-editor/extensions/createExtensions'
+import { waitForMountedEditor } from './testUtils'
 
 describe('documentFile', () => {
   it('正文编辑器支持 file 节点并保留运行时资源 attrs', async () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: [] satisfies JSONContent[],
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    await vi.waitFor(() => {
-      expect((wrapper.vm as unknown as TiptapEditorExposed).editor).toBeTruthy()
-    })
-
-    const { editor } = wrapper.vm as unknown as TiptapEditorExposed
+    const editor = await waitForMountedEditor(wrapper)
     editor?.commands.setContent([
       {
         type: 'file',
@@ -58,5 +51,9 @@ describe('documentFile', () => {
         },
       },
     ])
+
+    expect(wrapper.find('[data-type="document-file"]').exists()).toBe(true)
+    expect(wrapper.find('[data-type="document-file"] [data-part="title"]').text()).toBe('spec.pdf')
+    expect(wrapper.find('[data-type="document-file"] [data-part="meta"]').text()).toContain('application/pdf')
   })
 })

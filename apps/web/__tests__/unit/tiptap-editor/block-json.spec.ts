@@ -1,13 +1,10 @@
-import type { Editor, JSONContent } from '@tiptap/core'
+import type { JSONContent } from '@tiptap/core'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { createBodyExtensions, createTitleExtensions } from '@/components/tiptap-editor/helpers/createExtensions'
-import TiptapEditor from '@/components/tiptap-editor/TiptapEditor.vue'
-
-interface TiptapEditorExposed {
-  editor: Editor | null
-}
+import TiptapEditor from '@/components/tiptap-editor/core/TiptapEditor.vue'
+import { createBodyExtensions, createTitleExtensions } from '@/components/tiptap-editor/extensions/createExtensions'
+import { waitForMountedEditor } from './testUtils'
 
 const initialContent = [
   {
@@ -43,15 +40,11 @@ describe('tiptapEditor', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: nextContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    await vi.waitFor(() => {
-      expect((wrapper.vm as unknown as TiptapEditorExposed).editor).toBeTruthy()
-    })
-
-    const { editor } = wrapper.vm as unknown as TiptapEditorExposed
+    const editor = await waitForMountedEditor(wrapper)
     editor?.commands.clearContent()
     await nextTick()
 
@@ -62,15 +55,11 @@ describe('tiptapEditor', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: initialContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    await vi.waitFor(() => {
-      expect((wrapper.vm as unknown as TiptapEditorExposed).editor).toBeTruthy()
-    })
-
-    const { editor } = wrapper.vm as unknown as TiptapEditorExposed
+    const editor = await waitForMountedEditor(wrapper)
     editor?.commands.setContent(nextContent)
 
     await nextTick()
@@ -92,7 +81,7 @@ describe('tiptapEditor', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: invalidContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
@@ -109,7 +98,7 @@ describe('tiptapEditor', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: titleEditorInvalidContent,
-        extensions: createTitleExtensions(),
+        initialExtensions: createTitleExtensions(),
       },
     })
 
@@ -120,19 +109,30 @@ describe('tiptapEditor', () => {
     expect(wrapper.emitted('update:content')).toBeFalsy()
   })
 
+  it('运行时替换 initialExtensions 会快速失败，要求外层重建组件', async () => {
+    const wrapper = mount(TiptapEditor, {
+      props: {
+        content: initialContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+
+    await waitForMountedEditor(wrapper)
+
+    await expect(wrapper.setProps({
+      initialExtensions: createTitleExtensions(),
+    })).rejects.toThrow('TiptapEditor 不支持运行时替换 initialExtensions，请重建组件')
+  })
+
   it('正文编辑器支持 orderedList 与 divider 命令并输出结构化 block', async () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: initialContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    await vi.waitFor(() => {
-      expect((wrapper.vm as unknown as TiptapEditorExposed).editor).toBeTruthy()
-    })
-
-    const { editor } = wrapper.vm as unknown as TiptapEditorExposed
+    const editor = await waitForMountedEditor(wrapper)
 
     const orderedListHandled = editor?.chain().focus().toggleOrderedList().run()
     const dividerHandled = editor?.chain().focus('end').setHorizontalRule().run()
@@ -182,23 +182,19 @@ describe('tiptapEditor', () => {
     ])
   })
 
-  it('正文编辑器支持 underline、link、highlight marks 并保留结构化 attrs', async () => {
+  it('正文编辑器支持 underline、link、颜色 marks 并保留结构化 attrs', async () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: initialContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    await vi.waitFor(() => {
-      expect((wrapper.vm as unknown as TiptapEditorExposed).editor).toBeTruthy()
-    })
-
-    const { editor } = wrapper.vm as unknown as TiptapEditorExposed
+    const editor = await waitForMountedEditor(wrapper)
 
     const underlineHandled = editor?.chain().focus().selectAll().toggleUnderline().run()
     const linkHandled = editor?.chain().focus().selectAll().setLink({ href: 'https://samepage.dev' }).run()
-    const highlightHandled = editor?.chain().focus().selectAll().setHighlight({ color: '#fbf3db' }).run()
+    const highlightHandled = editor?.chain().focus().selectAll().setHighlightClass('tiptap-highlight-yellow-bg').run()
 
     await nextTick()
 
@@ -224,9 +220,55 @@ describe('tiptapEditor', () => {
                 }),
               },
               {
-                type: 'highlight',
+                type: 'textStyle',
                 attrs: expect.objectContaining({
-                  color: '#fbf3db',
+                  backgroundColorClass: 'tiptap-highlight-yellow-bg',
+                }),
+              },
+            ]),
+          },
+        ],
+      },
+    ])
+  })
+
+  it('文字色和背景色会合并到同一个 textStyle mark，并渲染为单个 span', async () => {
+    const wrapper = mount(TiptapEditor, {
+      props: {
+        content: initialContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+
+    const editor = await waitForMountedEditor(wrapper)
+
+    editor?.chain().focus().selectAll().setTextColorClass('tiptap-highlight-red-text').run()
+    editor?.chain().focus().selectAll().setHighlightClass('tiptap-highlight-yellow-bg').run()
+
+    await nextTick()
+
+    const coloredSpan = wrapper.element.querySelector(
+      '.tiptap-highlight-red-text.tiptap-highlight-yellow-bg',
+    )
+
+    expect(coloredSpan?.tagName).toBe('SPAN')
+    expect(coloredSpan?.querySelector('mark')).toBeNull()
+    expect(wrapper.emitted('update:content')?.at(-1)?.[0]).toEqual([
+      {
+        type: 'paragraph',
+        attrs: {
+          id: expect.any(String),
+        },
+        content: [
+          {
+            type: 'text',
+            text: '旧内容',
+            marks: expect.arrayContaining([
+              {
+                type: 'textStyle',
+                attrs: expect.objectContaining({
+                  textColorClass: 'tiptap-highlight-red-text',
+                  backgroundColorClass: 'tiptap-highlight-yellow-bg',
                 }),
               },
             ]),
@@ -240,15 +282,11 @@ describe('tiptapEditor', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: initialContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    await vi.waitFor(() => {
-      expect((wrapper.vm as unknown as TiptapEditorExposed).editor).toBeTruthy()
-    })
-
-    const { editor } = wrapper.vm as unknown as TiptapEditorExposed
+    const editor = await waitForMountedEditor(wrapper)
     editor?.commands.setContent([
       {
         type: 'image',

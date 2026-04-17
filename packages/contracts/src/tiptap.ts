@@ -21,15 +21,3 @@ const TiptapJsonNodePayloadSchema: z.ZodType<TiptapJsonNodePayload> = z.lazy(() 
 export const TiptapSchemaVersionSchema = z.literal(TIPTAP_SCHEMA_VERSION)
 export const TiptapJsonContentPayloadSchema = z.array(TiptapJsonNodePayloadSchema)
 export const TIPTAP_BLOCK_ID_PREFIX = 'block_' as const
-export const TURN_INTO_BLOCK_TYPES = [
-  'paragraph',
-  'heading-1',
-  'heading-2',
-  'heading-3',
-  'bulletList',
-  'orderedList',
-  'codeBlock',
-  'blockquote',
-  'divider',
-  'taskList',
-] as const

@@ -1,4 +1,4 @@
-import type { TurnIntoBlockType } from '@haohaoxue/samepage-domain'
+import type { TurnIntoBlockType } from '@/components/tiptap-editor'
 import type { WorkspaceNavigationMeta } from '@/router/typing'
 import 'axios'
 import '@tiptap/core'
@@ -34,9 +34,12 @@ declare module '@tiptap/core' {
       outdentBlock: () => ReturnType
       moveBlockUp: () => ReturnType
       moveBlockDown: () => ReturnType
+      moveCurrentBlockTo: (targetBlockId: string, placement: 'before' | 'after') => ReturnType
       insertBlock: () => ReturnType
       deleteBlock: () => ReturnType
       duplicateBlock: () => ReturnType
+      splitCurrentBlock: () => ReturnType
+      mergeBlockBackward: () => ReturnType
     }
   }
 }

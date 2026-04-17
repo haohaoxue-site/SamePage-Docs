@@ -1,6 +1,6 @@
 import { createDocumentTitleContent } from '@haohaoxue/samepage-shared'
 import { describe, expect, it } from 'vitest'
-import { fromTitleEditorContent, toTitleEditorContent } from '@/components/tiptap-editor/utils'
+import { fromTitleEditorContent, toTitleEditorContent } from '@/components/tiptap-editor/core/utils'
 
 describe('titleContent', () => {
   it('在轻量标题内容和 Tiptap 标题内容之间转换', () => {

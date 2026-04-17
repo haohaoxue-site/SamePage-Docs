@@ -2,7 +2,7 @@ import type { Editor } from '@tiptap/core'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import TurnIntoDropdown from '@/components/tiptap-editor/bubble-menu/TurnIntoDropdown.vue'
+import TurnIntoDropdown from '@/components/tiptap-editor/overlays/bubble-toolbar/TurnIntoDropdown.vue'
 
 const ElPopoverStub = defineComponent({
   props: {
@@ -15,6 +15,14 @@ const ElPopoverStub = defineComponent({
   template: `
     <div class="el-popover-stub">
       <slot name="reference" />
+      <slot />
+    </div>
+  `,
+})
+
+const ElTooltipStub = defineComponent({
+  template: `
+    <div class="el-tooltip-stub">
       <slot />
     </div>
   `,
@@ -40,7 +48,7 @@ function createEditorStub() {
 }
 
 describe('turnIntoDropdown', () => {
-  it('提供分割线入口并通过 turnIntoBlock 抽象触发转换命令', async () => {
+  it('按正文、标题、列表、引用顺序渲染转换菜单，并通过 turnIntoBlock 执行转换', async () => {
     const { editor, chainApi } = createEditorStub()
     const wrapper = mount(TurnIntoDropdown, {
       props: {
@@ -49,20 +57,40 @@ describe('turnIntoDropdown', () => {
       global: {
         stubs: {
           ElPopover: ElPopoverStub,
+          ElTooltip: ElTooltipStub,
           SvgIcon: true,
         },
       },
     })
 
-    const dividerItem = wrapper.findAll('.turn-into-menu__item')
-      .find(item => item.text().includes('分割线'))
+    const rootLabels = wrapper.findAll('.tiptap-turn-into-menu__label').map(item => item.text().trim())
 
-    expect(dividerItem?.exists()).toBe(true)
+    expect(rootLabels).toEqual([
+      '正文',
+      '一级标题',
+      '二级标题',
+      '三级标题',
+      '无序列表',
+      '有序列表',
+      '任务列表',
+      '引用',
+    ])
+    expect(wrapper.findAll('.tiptap-turn-into-menu__divider')).toHaveLength(2)
+    expect(rootLabels).not.toContain('四级标题')
+    expect(rootLabels).not.toContain('五级标题')
+    expect(rootLabels).not.toContain('其他标题')
+    expect(rootLabels).not.toContain('代码块')
+    expect(rootLabels).not.toContain('分割线')
 
-    await dividerItem?.trigger('click')
+    const blockquoteItem = wrapper.findAll('.tiptap-turn-into-menu__item')
+      .find(item => item.find('.tiptap-turn-into-menu__label').text().includes('引用'))
+
+    expect(blockquoteItem?.exists()).toBe(true)
+
+    await blockquoteItem?.trigger('click')
 
     expect(chainApi.focus).toHaveBeenCalled()
-    expect(chainApi.turnIntoBlock).toHaveBeenCalledWith('divider')
+    expect(chainApi.turnIntoBlock).toHaveBeenCalledWith('blockquote')
     expect(chainApi.run).toHaveBeenCalled()
   })
 })

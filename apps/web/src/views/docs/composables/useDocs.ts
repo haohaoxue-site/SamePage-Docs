@@ -3,11 +3,13 @@ import type {
   DocumentPaneState,
   DocumentSnapshot,
 } from '@haohaoxue/samepage-domain'
+import type { TiptapEditorCommentRequest } from '@/components/tiptap-editor'
 import {
   DOCUMENT_COLLECTION,
   DOCUMENT_PANE_STATE,
 } from '@haohaoxue/samepage-contracts'
 import { isSameDocumentSnapshotContent } from '@haohaoxue/samepage-shared'
+import { ElMessage } from 'element-plus'
 import {
   computed,
   ref,
@@ -212,6 +214,7 @@ export function useDocs() {
     deleteCurrentDocument,
     updateDocumentTitle: activeDocument.updateDocumentTitle,
     updateDocumentContent: activeDocument.updateDocumentContent,
+    handleRequestComment,
   }
 
   async function navigateToDocument(
@@ -257,6 +260,11 @@ export function useDocs() {
 
   function closeHistoryMode() {
     isHistoryMode.value = false
+  }
+
+  function handleRequestComment(request: TiptapEditorCommentRequest) {
+    void request
+    ElMessage.info('评论能力稍后接入')
   }
 
   async function openDefaultDocument(options: { replace?: boolean } = {}) {

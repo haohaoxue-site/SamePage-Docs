@@ -1,21 +1,34 @@
-import type { TurnIntoBlockType } from '@haohaoxue/samepage-domain'
 import type { CommandProps, Editor } from '@tiptap/core'
-import type { CurrentBlockSelection } from '../helpers/currentBlock'
+import type { CurrentBlockSelection } from '../commands/currentBlock'
+import type { TurnIntoBlockType } from '../commands/turnInto'
 import { Extension } from '@tiptap/core'
 import { Selection } from '@tiptap/pm/state'
-import { getCurrentBlock } from '../helpers/currentBlock'
+import { findBlockById, getCurrentBlock } from '../commands/currentBlock'
 
-type HeadingTurnIntoBlockType = Extract<TurnIntoBlockType, 'heading-1' | 'heading-2' | 'heading-3'>
+type HeadingTurnIntoBlockType = Extract<TurnIntoBlockType, 'heading-1' | 'heading-2' | 'heading-3' | 'heading-4' | 'heading-5'>
 type BlockCommandContext = Pick<CommandProps, 'commands' | 'editor'>
+const EMPTY_STORED_MARKS: [] = []
+const SPLIT_MERGE_EXCLUDED_NODE_NAMES = new Set([
+  'blockquote',
+  'bulletList',
+  'orderedList',
+  'taskList',
+  'listItem',
+  'taskItem',
+  'codeBlock',
+])
 
-const HEADING_LEVEL_BY_TARGET: Record<HeadingTurnIntoBlockType, 1 | 2 | 3> = {
+const HEADING_LEVEL_BY_TARGET: Record<HeadingTurnIntoBlockType, 1 | 2 | 3 | 4 | 5> = {
   'heading-1': 1,
   'heading-2': 2,
   'heading-3': 3,
+  'heading-4': 4,
+  'heading-5': 5,
 }
 
 export const BlockCommands = Extension.create({
   name: 'BlockCommands',
+  priority: 1_000,
 
   addCommands() {
     return {
@@ -26,6 +39,8 @@ export const BlockCommands = Extension.create({
           case 'heading-1':
           case 'heading-2':
           case 'heading-3':
+          case 'heading-4':
+          case 'heading-5':
             return turnIntoHeading(props, HEADING_LEVEL_BY_TARGET[target])
           case 'bulletList':
             return turnIntoBulletList(props)
@@ -44,7 +59,7 @@ export const BlockCommands = Extension.create({
       indentBlock: () => (props) => {
         const listItemType = getActiveListItemType(props.editor)
 
-        if (!listItemType) {
+        if (!listItemType || !canIndentCurrentListItem(props.editor, listItemType)) {
           return false
         }
 
@@ -61,14 +76,20 @@ export const BlockCommands = Extension.create({
       },
       moveBlockUp: () => (props: CommandProps) => moveCurrentBlock(props, 'up'),
       moveBlockDown: () => (props: CommandProps) => moveCurrentBlock(props, 'down'),
+      moveCurrentBlockTo: (targetBlockId, placement) => (props: CommandProps) =>
+        moveCurrentBlockTo(props, targetBlockId, placement),
       insertBlock: () => (props: CommandProps) => insertBlockAfterCurrent(props),
       deleteBlock: () => (props: CommandProps) => deleteCurrentBlock(props),
       duplicateBlock: () => (props: CommandProps) => duplicateCurrentBlock(props),
+      splitCurrentBlock: () => (props: CommandProps) => splitCurrentBlock(props),
+      mergeBlockBackward: () => (props: CommandProps) => mergeBlockBackward(props),
     }
   },
 
   addKeyboardShortcuts() {
     return {
+      'Enter': () => this.editor.commands.splitCurrentBlock(),
+      'Backspace': () => this.editor.commands.mergeBlockBackward(),
       'Alt-Shift-ArrowUp': () => this.editor.commands.moveBlockUp(),
       'Alt-Shift-ArrowDown': () => this.editor.commands.moveBlockDown(),
     }
@@ -82,6 +103,8 @@ export function isTurnIntoBlockActive(editor: Editor, target: TurnIntoBlockType)
     case 'heading-1':
     case 'heading-2':
     case 'heading-3':
+    case 'heading-4':
+    case 'heading-5':
       return editor.isActive('heading', {
         level: HEADING_LEVEL_BY_TARGET[target],
       })
@@ -108,7 +131,7 @@ function turnIntoParagraph(props: BlockCommandContext) {
   return props.commands.clearNodes()
 }
 
-function turnIntoHeading(props: BlockCommandContext, level: 1 | 2 | 3) {
+function turnIntoHeading(props: BlockCommandContext, level: 1 | 2 | 3 | 4 | 5) {
   if (props.editor.isActive('heading', { level })) {
     return true
   }
@@ -201,6 +224,53 @@ function getActiveListItemType(editor: Editor) {
   return null
 }
 
+function canIndentCurrentListItem(editor: Editor, listItemType: 'listItem' | 'taskItem') {
+  const currentBlock = getCurrentBlock(editor.state.selection)
+
+  if (!currentBlock || currentBlock.node.type.name !== listItemType) {
+    return false
+  }
+
+  return currentBlock.index > 0
+}
+
+function splitCurrentBlock(props: BlockCommandContext) {
+  if (!canHandlePlainBlockBoundary(props.editor)) {
+    return false
+  }
+
+  const handled = props.commands.first(({ commands }) => [
+    () => commands.newlineInCode(),
+    () => commands.createParagraphNear(),
+    () => commands.liftEmptyBlock(),
+    () => commands.splitBlock({ keepMarks: false }),
+  ])
+
+  if (!handled || !props.editor.state.selection.empty) {
+    return handled
+  }
+
+  const transaction = props.editor.state.tr.setStoredMarks(EMPTY_STORED_MARKS)
+
+  if (transaction.storedMarksSet) {
+    props.editor.view.dispatch(transaction)
+  }
+
+  return true
+}
+
+function mergeBlockBackward(props: BlockCommandContext) {
+  if (!canMergeCurrentBlock(props.editor)) {
+    return false
+  }
+
+  return props.commands.first(({ commands }) => [
+    () => commands.undoInputRule(),
+    () => commands.joinBackward(),
+    () => commands.selectNodeBackward(),
+  ])
+}
+
 function duplicateCurrentBlock(props: CommandProps) {
   const currentBlock = getCurrentBlock(props.tr.selection)
 
@@ -228,6 +298,43 @@ function moveCurrentBlock(props: CommandProps, direction: 'up' | 'down') {
   props.tr.delete(currentBlock.from, currentBlock.to)
   props.tr.insert(targetPosition, currentBlock.node)
   setSelectionNearMovedBlock(props, targetPosition)
+
+  return true
+}
+
+function moveCurrentBlockTo(
+  props: CommandProps,
+  targetBlockId: string,
+  placement: 'before' | 'after',
+) {
+  const currentBlock = getCurrentBlock(props.tr.selection)
+
+  if (!currentBlock) {
+    return false
+  }
+
+  const targetBlock = findBlockById(props.tr.doc, targetBlockId)
+
+  if (!targetBlock || targetBlock.parent !== currentBlock.parent || targetBlock.from === currentBlock.from) {
+    return false
+  }
+
+  const deletedSize = currentBlock.to - currentBlock.from
+  let insertPosition = placement === 'before'
+    ? targetBlock.from
+    : targetBlock.to
+
+  if (currentBlock.from < insertPosition) {
+    insertPosition -= deletedSize
+  }
+
+  if (insertPosition === currentBlock.from) {
+    return false
+  }
+
+  props.tr.delete(currentBlock.from, currentBlock.to)
+  props.tr.insert(insertPosition, currentBlock.node)
+  setSelectionNearMovedBlock(props, insertPosition)
 
   return true
 }
@@ -301,4 +408,27 @@ function setSelectionNearMovedBlock(props: CommandProps, blockStartPosition: num
   }
 
   props.tr.setSelection(selection)
+}
+
+function canHandlePlainBlockBoundary(editor: Editor) {
+  if (!editor.state.selection.empty) {
+    return false
+  }
+
+  return !hasSplitMergeExcludedAncestor(editor)
+}
+
+function canMergeCurrentBlock(editor: Editor) {
+  if (!canHandlePlainBlockBoundary(editor)) {
+    return false
+  }
+
+  return editor.state.selection.$from.parentOffset === 0
+}
+
+function hasSplitMergeExcludedAncestor(editor: Editor) {
+  const { $from } = editor.state.selection
+
+  return Array.from({ length: $from.depth + 1 }, (_, depth) => $from.node(depth).type.name)
+    .some(nodeName => SPLIT_MERGE_EXCLUDED_NODE_NAMES.has(nodeName))
 }

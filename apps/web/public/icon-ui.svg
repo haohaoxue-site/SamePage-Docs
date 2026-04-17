@@ -117,15 +117,8 @@
   <symbol id="check" viewBox="0 0 24 24">
     <path d="M6 12.5L10 16.5L18 8.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" />
   </symbol>
-  <symbol id="chevron-down" viewBox="0 0 24 24">
-    <path d="M6.5 9.5L12 15L17.5 9.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-  </symbol>
   <symbol id="chevron-right" viewBox="0 0 24 24">
     <path d="M9.5 6.5L15 12L9.5 17.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-  </symbol>
-  <symbol id="code" viewBox="0 0 24 24">
-    <path d="M9.5 7L5.5 12L9.5 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-      <path d="M14.5 7L18.5 12L14.5 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
   </symbol>
   <symbol id="contrast" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8" />
@@ -172,30 +165,6 @@
       <path d="M12 10.5V15.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <circle cx="12" cy="8" r="1" fill="currentColor" />
   </symbol>
-  <symbol id="image" viewBox="0 0 24 24">
-    <rect x="4.5" y="5.5" width="15" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" />
-      <circle cx="9" cy="10" r="1.4" fill="currentColor" />
-      <path d="M7.5 16L11 12.5L13.5 15L16.5 11.5L19.5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-  </symbol>
-  <symbol id="link" viewBox="0 0 24 24">
-    <path d="M10 14L8.5 15.5C7.11929 16.8807 7.11929 19.1193 8.5 20.5C9.88071 21.8807 12.1193 21.8807 13.5 20.5L15 19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-      <path d="M14 10L15.5 8.5C16.8807 7.11929 19.1193 7.11929 20.5 8.5C21.8807 9.88071 21.8807 12.1193 20.5 13.5L19 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-      <path d="M9.5 14.5L14.5 9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-  </symbol>
-  <symbol id="list-bulleted" viewBox="0 0 24 24">
-    <circle cx="6.5" cy="8" r="1.2" fill="currentColor" />
-      <circle cx="6.5" cy="12" r="1.2" fill="currentColor" />
-      <circle cx="6.5" cy="16" r="1.2" fill="currentColor" />
-      <path d="M10 8H18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-      <path d="M10 12H18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-      <path d="M10 16H18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-  </symbol>
-  <symbol id="list-numbered" viewBox="0 0 24 24">
-    <path d="M5.2 7.2H6.8V11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
-      <path d="M5.2 16.4C5.2 15.2954 6.09543 14.4 7.2 14.4C8.30457 14.4 9.2 15.2954 9.2 16.4C9.2 17.0179 8.82121 17.5833 8.25 17.8L5.5 18.9H9.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
-      <path d="M12 8H18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-      <path d="M12 16H18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-  </symbol>
   <symbol id="lock" viewBox="0 0 24 24">
     <rect x="6" y="11" width="12" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
       <path d="M8.5 11V8.8C8.5 6.97746 9.97746 5.5 11.8 5.5H12.2C14.0225 5.5 15.5 6.97746 15.5 8.8V11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
@@ -219,10 +188,6 @@
   <symbol id="plus" viewBox="0 0 24 24">
     <path d="M12 6V18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
       <path d="M6 12H18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
-  </symbol>
-  <symbol id="quotes" viewBox="0 0 24 24">
-    <path d="M7.5 10C7.5 8.61929 8.61929 7.5 10 7.5V9C9.44772 9 9 9.44772 9 10V10.5H10.75C11.1642 10.5 11.5 10.8358 11.5 11.25V13.75C11.5 14.4404 10.9404 15 10.25 15H8.75C8.05964 15 7.5 14.4404 7.5 13.75V10Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-      <path d="M12.5 10C12.5 8.61929 13.6193 7.5 15 7.5V9C14.4477 9 14 9.44772 14 10V10.5H15.75C16.1642 10.5 16.5 10.8358 16.5 11.25V13.75C16.5 14.4404 15.9404 15 15.25 15H13.75C13.0596 15 12.5 14.4404 12.5 13.75V10Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
   </symbol>
   <symbol id="settings-outline" viewBox="0 0 24 24">
     <path d="M5 7H19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
@@ -259,10 +224,6 @@
     <path d="M18.5 12C18.5 15.5899 15.5899 18.5 12 18.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M5.5 12C5.5 8.41015 8.41015 5.5 12 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-opacity="0.35" />
       <path d="M15.5 6.5C16.7745 7.16339 17.8366 8.22546 18.5 9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-  </symbol>
-  <symbol id="task" viewBox="0 0 24 24">
-    <rect x="5.5" y="5.5" width="13" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" />
-      <path d="M8.5 12L11 14.5L15.5 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
   </symbol>
   <symbol id="time" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8" />

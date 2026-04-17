@@ -9,6 +9,7 @@ import type {
   TiptapJsonContent,
   TiptapSchemaVersion,
 } from '@haohaoxue/samepage-domain'
+import type { TiptapEditorCommentRequest } from '@/components/tiptap-editor'
 
 /**
  * 文档页本地编辑态。
@@ -68,6 +69,7 @@ export interface DocumentEditorPaneProps {
 export interface DocumentEditorPaneEmits {
   updateTitle: [title: TiptapJsonContent]
   updateContent: [content: TiptapJsonContent]
+  requestComment: [request: TiptapEditorCommentRequest]
   createDocument: []
   openFallbackDocument: []
   retryLoad: []
@@ -89,6 +91,7 @@ export interface DocumentEditorEmits {
   updateTitle: [title: TiptapJsonContent]
   updateContent: [content: TiptapJsonContent]
   contentError: [error: Error]
+  requestComment: [request: TiptapEditorCommentRequest]
 }
 
 /**

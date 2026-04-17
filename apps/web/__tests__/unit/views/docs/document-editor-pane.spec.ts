@@ -187,4 +187,44 @@ describe('documentEditorPane', () => {
     expect(wrapper.text()).toContain('文档 schema 版本不受支持')
     expect(wrapper.text()).toContain('打开可用文档')
   })
+
+  it('继续上抛文档层发出的评论请求事件', async () => {
+    const wrapper = mount(DocumentEditorPane, {
+      props: {
+        document: createDocument({
+          body: validContent as TiptapJsonContent,
+        }),
+        metadata: createEditorMeta(),
+        mode: 'default',
+        isLoading: false,
+        paneState: 'ready',
+        hasFallbackDocument: false,
+      },
+      global: {
+        stubs: {
+          DocumentEditor: defineComponent({
+            emits: ['request-comment'],
+            template: `
+              <button
+                class="document-editor-stub"
+                type="button"
+                @click="$emit('request-comment', { source: 'block-menu' })"
+              >
+                请求评论
+              </button>
+            `,
+          }),
+          DocumentEditorFallback: defineComponent({
+            template: '<div class="document-editor-fallback-stub" />',
+          }),
+        },
+      },
+    })
+
+    await wrapper.get('.document-editor-stub').trigger('click')
+
+    expect(wrapper.emitted('requestComment')).toEqual([
+      [{ source: 'block-menu' }],
+    ])
+  })
 })

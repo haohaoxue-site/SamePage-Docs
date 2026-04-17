@@ -44,6 +44,7 @@ const {
   deleteCurrentDocument,
   updateDocumentTitle,
   updateDocumentContent,
+  handleRequestComment,
 } = useDocs()
 </script>
 
@@ -113,6 +114,7 @@ const {
           :has-fallback-document="hasFallbackDocument"
           @update-title="updateDocumentTitle"
           @update-content="updateDocumentContent"
+          @request-comment="handleRequestComment"
           @create-document="createRootDocument"
           @open-fallback-document="openDefaultDocument"
           @retry-load="reloadCurrentDocument"
@@ -164,6 +166,7 @@ const {
         :has-fallback-document="hasFallbackDocument"
         @update-title="updateDocumentTitle"
         @update-content="updateDocumentContent"
+        @request-comment="handleRequestComment"
         @create-document="createRootDocument"
         @open-fallback-document="openDefaultDocument"
         @retry-load="reloadCurrentDocument"
@@ -222,7 +225,7 @@ const {
   .docs-view__sidebar {
     flex-shrink: 0;
     width: 100%;
-    max-width: 21rem;
+    max-width: 16rem;
     border-right: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
     background: var(--brand-bg-sidebar);
   }

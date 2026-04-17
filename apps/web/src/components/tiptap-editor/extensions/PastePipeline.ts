@@ -1,10 +1,14 @@
 import type { Editor } from '@tiptap/core'
-import type { TiptapEditorUploadedFile, TiptapEditorUploadedImage } from '../typing'
+import type { TiptapEditorUploadedFile, TiptapEditorUploadedImage } from '../content/typing'
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { ElMessage } from 'element-plus'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
-import { createFilePasteContent, createPlainTextPasteContent } from '../helpers/pasteContent'
+import {
+  parseStructuredClipboardContent,
+  SAMEPAGE_BLOCK_CLIPBOARD_TYPE,
+} from '../content/blockClipboard'
+import { createFilePasteContent, createPlainTextPasteContent } from '../content/pasteContent'
 
 export interface PastePipelineOptions {
   uploadImage?: (file: File) => Promise<TiptapEditorUploadedImage>
@@ -44,6 +48,14 @@ function handleEditorPaste(editor: Editor, event: ClipboardEvent, options: Paste
     event.preventDefault()
     void handleFilePaste(editor, files, options)
     return true
+  }
+
+  const structuredContent = parseStructuredClipboardContent(
+    event.clipboardData.getData(SAMEPAGE_BLOCK_CLIPBOARD_TYPE),
+  )
+
+  if (structuredContent?.length) {
+    return editor.chain().focus().insertContent(structuredContent).run()
   }
 
   const html = event.clipboardData.getData('text/html').trim()

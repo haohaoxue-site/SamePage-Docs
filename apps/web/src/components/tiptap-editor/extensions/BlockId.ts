@@ -1,6 +1,6 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { EditorState, Transaction } from '@tiptap/pm/state'
-import type { BodyBlockIdNodeType } from '../helpers/blockId'
+import type { BodyBlockIdNodeType } from '../content/blockId'
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import {
@@ -9,7 +9,7 @@ import {
 
   createBlockId,
   isBlockId,
-} from '../helpers/blockId'
+} from '../content/blockId'
 
 const BLOCK_ID_TRANSACTION_META = 'samepageBlockIdTransaction'
 

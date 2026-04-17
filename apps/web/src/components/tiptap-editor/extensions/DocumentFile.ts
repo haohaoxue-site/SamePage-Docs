@@ -1,5 +1,9 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 
+const DOCUMENT_FILE_NODE_TYPE = 'document-file'
+const DOCUMENT_FILE_NODE_PART_TITLE = 'title'
+const DOCUMENT_FILE_NODE_PART_META = 'meta'
+
 export const DocumentFile = Node.create({
   name: 'file',
   group: 'block',
@@ -82,7 +86,7 @@ export const DocumentFile = Node.create({
   parseHTML() {
     return [
       {
-        tag: 'div[data-type="document-file"][data-asset-id]',
+        tag: `div[data-type="${DOCUMENT_FILE_NODE_TYPE}"][data-asset-id]`,
       },
     ]
   },
@@ -103,12 +107,11 @@ export const DocumentFile = Node.create({
     return [
       'div',
       mergeAttributes({
-        'data-type': 'document-file',
-        'class': 'document-file-node',
+        'data-type': DOCUMENT_FILE_NODE_TYPE,
         'contenteditable': 'false',
       }, HTMLAttributes),
-      ['div', { class: 'document-file-node__title' }, fileName],
-      ['div', { class: 'document-file-node__meta' }, metaParts.join(' · ') || '附件'],
+      ['div', { 'data-part': DOCUMENT_FILE_NODE_PART_TITLE }, fileName],
+      ['div', { 'data-part': DOCUMENT_FILE_NODE_PART_META }, metaParts.join(' · ') || '附件'],
     ]
   },
 })

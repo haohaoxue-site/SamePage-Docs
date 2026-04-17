@@ -1,18 +1,19 @@
 import type { Editor, JSONContent } from '@tiptap/core'
 import type { DocumentAsset } from '@/apis/document'
-import type { TiptapEditorExposed } from '@/components/tiptap-editor/typing'
 import { Slice } from '@tiptap/pm/model'
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { createBodyExtensions } from '@/components/tiptap-editor/helpers/createExtensions'
-import TiptapEditor from '@/components/tiptap-editor/TiptapEditor.vue'
+import TiptapEditor from '@/components/tiptap-editor/core/TiptapEditor.vue'
+import { createBodyExtensions } from '@/components/tiptap-editor/extensions/createExtensions'
+import { waitForMountedEditor } from './testUtils'
 
 const emptyParagraphContent = [{
   type: 'paragraph',
 }] satisfies JSONContent[]
 
 interface PastePayload {
+  extraData?: Record<string, string>
   files?: File[]
   html?: string
   text?: string
@@ -21,14 +22,6 @@ interface PastePayload {
 afterEach(() => {
   vi.restoreAllMocks()
 })
-
-async function getEditor(wrapper: ReturnType<typeof mount>) {
-  await vi.waitFor(() => {
-    expect((wrapper.vm as unknown as TiptapEditorExposed).editor).toBeTruthy()
-  })
-
-  return (wrapper.vm as unknown as TiptapEditorExposed).editor!
-}
 
 function getLatestContent(wrapper: ReturnType<typeof mount>) {
   return wrapper.emitted('update:content')?.at(-1)?.[0] as JSONContent[] | undefined
@@ -40,6 +33,10 @@ async function triggerPaste(editor: Editor, payload: PastePayload) {
   const clipboardData = {
     files: payload.files ?? [],
     getData: (type: string) => {
+      if (payload.extraData?.[type]) {
+        return payload.extraData[type]
+      }
+
       if (type === 'text/html') {
         return payload.html ?? ''
       }
@@ -77,11 +74,11 @@ describe('pastePipeline', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: emptyParagraphContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
     const handled = await triggerPaste(editor, {
       text: '第一行\n第二行',
     })
@@ -121,11 +118,11 @@ describe('pastePipeline', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: emptyParagraphContent,
-        extensions: createBodyExtensions(),
+        initialExtensions: createBodyExtensions(),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
     const handled = await triggerPaste(editor, {
       html: '<h2>标题</h2><p><strong>正文</strong></p>',
       text: '标题\n正文',
@@ -157,6 +154,63 @@ describe('pastePipeline', () => {
     ])
   })
 
+  it('正文编辑器优先恢复站内结构化 clipboard 载荷，而不是退化为 HTML 或纯文本', async () => {
+    const wrapper = mount(TiptapEditor, {
+      props: {
+        content: emptyParagraphContent,
+        initialExtensions: createBodyExtensions(),
+      },
+    })
+
+    const editor = await waitForMountedEditor(wrapper)
+    const handled = await triggerPaste(editor, {
+      extraData: {
+        'application/x-samepage-block+json': JSON.stringify([
+          {
+            type: 'heading',
+            attrs: {
+              id: 'block_samepaste01',
+              level: 5,
+            },
+            content: [{ type: 'text', text: '结构化标题' }],
+          },
+          {
+            type: 'paragraph',
+            attrs: {
+              id: 'block_samepaste01',
+            },
+            content: [{ type: 'text', text: '结构化正文' }],
+          },
+        ]),
+      },
+      html: '<p>HTML 回退</p>',
+      text: '纯文本回退',
+    })
+    const latestContent = getLatestContent(wrapper)
+
+    expect(handled).toBe(true)
+    expect(latestContent).toEqual([
+      {
+        type: 'heading',
+        attrs: {
+          id: expect.any(String),
+          level: 5,
+        },
+        content: [{ type: 'text', text: '结构化标题' }],
+      },
+      {
+        type: 'paragraph',
+        attrs: {
+          id: expect.any(String),
+        },
+        content: [{ type: 'text', text: '结构化正文' }],
+      },
+    ])
+    expect(latestContent?.[0]?.attrs?.id).not.toBe('block_samepaste01')
+    expect(latestContent?.[1]?.attrs?.id).not.toBe('block_samepaste01')
+    expect(latestContent?.[0]?.attrs?.id).not.toBe(latestContent?.[1]?.attrs?.id)
+  })
+
   it('正文编辑器将文件 paste 收口为单次事务，插入新 block 并在 undo 后整体回滚', async () => {
     const uploadImage = vi.fn(async (): Promise<DocumentAsset> => ({
       id: 'asset_1',
@@ -175,13 +229,13 @@ describe('pastePipeline', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: emptyParagraphContent,
-        extensions: createBodyExtensions({
+        initialExtensions: createBodyExtensions({
           uploadImage,
         }),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
     const handled = await triggerPaste(editor, {
       files: [
         new File(['fake-image'], 'cover.png', {
@@ -243,13 +297,13 @@ describe('pastePipeline', () => {
     const wrapper = mount(TiptapEditor, {
       props: {
         content: emptyParagraphContent,
-        extensions: createBodyExtensions({
+        initialExtensions: createBodyExtensions({
           uploadFile,
         }),
       },
     })
 
-    const editor = await getEditor(wrapper)
+    const editor = await waitForMountedEditor(wrapper)
     const handled = await triggerPaste(editor, {
       files: [
         new File(['fake-pdf'], 'spec.pdf', {
