@@ -1,12 +1,57 @@
 import type { Editor } from '@tiptap/core'
 import type { CurrentBlockSelection } from '../../commands/currentBlock'
 
+const FLASHED_BLOCK_CLASS = 'tiptap-block-flash-target'
+const flashedBlockTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>()
+
 export function findBlockElement(editor: Editor, blockId: string) {
   if (!(editor.view.dom instanceof HTMLElement)) {
     return null
   }
 
-  return editor.view.dom.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`)
+  return editor.view.dom.querySelector<HTMLElement>(`[data-block-id="${blockId}"], [id="${blockId}"]`)
+}
+
+export function scrollDocumentBlockIntoView(editor: Editor, blockId: string) {
+  const blockElement = findBlockElement(editor, blockId)
+
+  if (!blockElement) {
+    return false
+  }
+
+  blockElement.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+    inline: 'nearest',
+  })
+
+  return true
+}
+
+export function flashDocumentBlock(editor: Editor, blockId: string) {
+  const blockElement = findBlockElement(editor, blockId)
+
+  if (!blockElement) {
+    return false
+  }
+
+  const previousTimer = flashedBlockTimers.get(blockElement)
+
+  if (previousTimer) {
+    clearTimeout(previousTimer)
+  }
+
+  blockElement.classList.remove(FLASHED_BLOCK_CLASS)
+  void blockElement.offsetWidth
+  blockElement.classList.add(FLASHED_BLOCK_CLASS)
+
+  const nextTimer = setTimeout(() => {
+    blockElement.classList.remove(FLASHED_BLOCK_CLASS)
+    flashedBlockTimers.delete(blockElement)
+  }, 1600)
+
+  flashedBlockTimers.set(blockElement, nextTimer)
+  return true
 }
 
 export function resolveCurrentBlockElement(editor: Editor, currentBlock: CurrentBlockSelection) {

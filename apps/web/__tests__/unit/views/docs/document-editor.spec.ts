@@ -34,6 +34,7 @@ describe('documentEditor', () => {
         document: createDocument(),
         metadata: null,
         mode: 'default',
+        activeBlockId: null,
       },
       global: {
         stubs: {
@@ -64,5 +65,43 @@ describe('documentEditor', () => {
     expect(wrapper.emitted('requestComment')).toEqual([
       [{ source: 'bubble-toolbar' }],
     ])
+  })
+
+  it('把 URL 对应的 activeBlockId 继续传给正文编辑器，用于块链接定位', () => {
+    const bodyEditorProps: Record<string, unknown>[] = []
+
+    mount(DocumentEditor, {
+      props: {
+        document: createDocument(),
+        metadata: null,
+        mode: 'default',
+        activeBlockId: 'block_h2',
+      },
+      global: {
+        stubs: {
+          DocumentTitleEditor: defineComponent({
+            template: '<div class="document-title-editor-stub" />',
+          }),
+          DocumentBodyEditor: defineComponent({
+            props: {
+              activeBlockId: {
+                type: String,
+                required: false,
+                default: null,
+              },
+            },
+            mounted() {
+              bodyEditorProps.push({ ...this.$props })
+            },
+            template: '<div class="document-body-editor-stub" />',
+          }),
+          SvgIcon: defineComponent({
+            template: '<span class="svg-icon-stub" />',
+          }),
+        },
+      },
+    })
+
+    expect(bodyEditorProps[0]?.activeBlockId).toBe('block_h2')
   })
 })

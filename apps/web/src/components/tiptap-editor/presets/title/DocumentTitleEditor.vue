@@ -28,19 +28,3 @@ function handleUpdateTitle(content: TiptapEditorContent) {
     @update:content="handleUpdateTitle"
   />
 </template>
-
-<style scoped lang="scss">
-.document-title-editor {
-  --tiptap-content-min-height: auto;
-  --tiptap-prosemirror-min-height: auto;
-  --tiptap-prosemirror-height: auto;
-  --tiptap-prosemirror-color: var(--brand-text-primary);
-  --tiptap-prosemirror-font-size: 1.6rem;
-  --tiptap-prosemirror-font-weight: 700;
-  --tiptap-prosemirror-line-height: 1.2;
-  --tiptap-prosemirror-letter-spacing: -0.02em;
-  --tiptap-placeholder-color: var(--brand-text-placeholder);
-  min-height: auto;
-  height: auto;
-}
-</style>

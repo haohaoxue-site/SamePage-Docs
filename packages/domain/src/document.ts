@@ -44,6 +44,37 @@ export type DocumentRecord = z.infer<typeof DocumentRecordSchema>
 export type DocumentSnapshot = z.infer<typeof DocumentSnapshotSchema>
 export type DocumentHead = z.infer<typeof DocumentHeadSchema>
 export type DocumentAsset = z.infer<typeof DocumentAssetSchema>
+export type DocumentBlockHeadingLevel = 1 | 2 | 3 | 4 | 5
+
+/**
+ * 文档块索引条目。
+ */
+export interface DocumentBlockIndexEntry {
+  /** 块 ID */
+  blockId: string
+  /** 父块 ID */
+  parentBlockId: string | null
+  /** 嵌套深度 */
+  depth: number
+  /** 节点类型 */
+  nodeType: string
+  /** 纯文本投影 */
+  plainText: string
+  /** 标题层级 */
+  headingLevel: DocumentBlockHeadingLevel | null
+}
+
+/**
+ * 文档大纲条目。
+ */
+export interface DocumentOutlineItem {
+  /** 块 ID */
+  blockId: string
+  /** 标题文本 */
+  plainText: string
+  /** 标题层级 */
+  headingLevel: DocumentBlockHeadingLevel
+}
 
 /**
  * 创建文档响应。

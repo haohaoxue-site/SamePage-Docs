@@ -12,6 +12,7 @@ const {
   previewDocument,
   snapshots,
   activeDocumentId,
+  activeBlockId,
   documentEditorMode,
   documentEditorMeta,
   canDeleteCurrentDocument,
@@ -109,6 +110,7 @@ const {
           :document="previewDocument"
           :metadata="documentEditorMeta"
           :mode="documentEditorMode"
+          :active-block-id="activeBlockId"
           :is-loading="isDocumentItemLoading"
           :pane-state="documentPaneState"
           :has-fallback-document="hasFallbackDocument"
@@ -161,6 +163,7 @@ const {
         :document="previewDocument"
         :metadata="documentEditorMeta"
         :mode="documentEditorMode"
+        :active-block-id="activeBlockId"
         :is-loading="isDocumentItemLoading"
         :pane-state="documentPaneState"
         :has-fallback-document="hasFallbackDocument"

@@ -433,4 +433,65 @@ describe('editorBoundary', () => {
     expect(readonlyWrapper.find('.tiptap-editor__prosemirror p').attributes('data-placeholder')).toBeUndefined()
     expect(readonlyWrapper.find('.tiptap-editor__prosemirror p').classes()).not.toContain('is-editor-empty')
   })
+
+  it('正文编辑器为非全文空的空段落和空标题展示对应 placeholder', async () => {
+    const paragraphWrapper = mount(DocumentBodyEditor, {
+      props: {
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: '已有内容' }],
+          },
+          {
+            type: 'paragraph',
+          },
+        ],
+      },
+      global: {
+        stubs: {
+          BubbleToolbar: defineComponent({
+            template: '<div class="bubble-toolbar-stub" />',
+          }),
+          BlockTriggerMenu: createBlockTriggerMenuStub(vi.fn(() => true)),
+        },
+      },
+    })
+    const headingWrapper = mount(DocumentBodyEditor, {
+      props: {
+        content: [
+          {
+            type: 'heading',
+            attrs: {
+              level: 3,
+            },
+          },
+        ],
+      },
+      global: {
+        stubs: {
+          BubbleToolbar: defineComponent({
+            template: '<div class="bubble-toolbar-stub" />',
+          }),
+          BlockTriggerMenu: createBlockTriggerMenuStub(vi.fn(() => true)),
+        },
+      },
+    })
+
+    const paragraphEditor = await waitForNestedEditor(paragraphWrapper)
+    const headingEditor = await waitForNestedEditor(headingWrapper)
+
+    paragraphEditor.commands.focus('end')
+    headingEditor.commands.focus('end')
+    await nextTick()
+
+    const paragraphNodes = paragraphWrapper.findAll('.tiptap-editor__prosemirror p')
+    const headingNode = headingWrapper.find('.tiptap-editor__prosemirror h3')
+
+    expect(paragraphNodes).toHaveLength(2)
+    expect(paragraphNodes[1]?.attributes('data-placeholder')).toBe('按 space（空格）以启用 AI，或按“/”启用命令')
+    expect(paragraphNodes[1]?.classes()).toContain('is-empty')
+    expect(paragraphNodes[1]?.classes()).not.toContain('is-editor-empty')
+    expect(headingNode.attributes('data-placeholder')).toBe('标题3')
+    expect(headingNode.classes()).toContain('is-empty')
+  })
 })

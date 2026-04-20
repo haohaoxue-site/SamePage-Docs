@@ -15,6 +15,11 @@ export interface DocumentBodyEditorProps {
    */
   content: TiptapEditorContent
   /**
+   * 激活块 ID
+   * @description 用于块链接或外层导航后的精确定位
+   */
+  activeBlockId?: string | null
+  /**
    * 是否可编辑
    * @description 历史预览时关闭编辑能力
    */

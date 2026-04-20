@@ -6,12 +6,18 @@ import type {
 } from '../../core/typing'
 import type { BlockTriggerMenuExposed } from '../../overlays/block-trigger/typing'
 import type { DocumentBodyEditorProps } from './typing'
-import { computed } from 'vue'
+import {
+  computed,
+  nextTick,
+  shallowRef,
+  watch,
+} from 'vue'
 import {
   uploadDocumentFile,
   uploadDocumentImage,
 } from '@/apis/document'
 import { createBodyExtensions } from '../../extensions/createExtensions'
+import { scrollDocumentBlockIntoView } from '../../overlays/block-trigger/blockTriggerDom'
 import { isTriggerMenuSelection } from './triggerSelection'
 
 export function useDocumentBodyEditor(options: {
@@ -25,6 +31,45 @@ export function useDocumentBodyEditor(options: {
     uploadFile: handleUploadFile,
   })
   const bodyEditor = computed(() => options.bodyEditor.value)
+  const pendingActiveBlockId = shallowRef<string | null>(null)
+  const isResolvingActiveBlock = shallowRef(false)
+
+  watch(
+    [
+      bodyEditor,
+      () => options.props.activeBlockId,
+    ],
+    async ([editor, activeBlockId]) => {
+      pendingActiveBlockId.value = activeBlockId ?? null
+
+      if (!editor || !activeBlockId) {
+        return
+      }
+
+      await scrollToPendingActiveBlock(editor)
+    },
+    {
+      immediate: true,
+      flush: 'post',
+    },
+  )
+
+  watch(
+    [
+      bodyEditor,
+      () => options.props.content,
+    ],
+    async ([editor]) => {
+      if (!editor || !pendingActiveBlockId.value) {
+        return
+      }
+
+      await scrollToPendingActiveBlock(editor)
+    },
+    {
+      flush: 'post',
+    },
+  )
 
   const handleBodyEditorKeyDown: TiptapEditorHandleKeyDown = (_, event) => {
     const editor = bodyEditor.value
@@ -75,5 +120,28 @@ export function useDocumentBodyEditor(options: {
     }
 
     return uploadDocumentFile(options.props.documentId, file)
+  }
+
+  async function scrollToPendingActiveBlock(editor: Editor) {
+    const blockId = pendingActiveBlockId.value
+
+    if (!blockId || isResolvingActiveBlock.value) {
+      return
+    }
+
+    isResolvingActiveBlock.value = true
+
+    try {
+      await nextTick()
+
+      if (!scrollDocumentBlockIntoView(editor, blockId)) {
+        return
+      }
+
+      pendingActiveBlockId.value = null
+    }
+    finally {
+      isResolvingActiveBlock.value = false
+    }
   }
 }

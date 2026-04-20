@@ -51,6 +51,7 @@ export const BlockId = Extension.create<BlockIdOptions>({
               }
 
               return {
+                id: blockId,
                 [this.options.dataAttributeName]: blockId,
               }
             },

@@ -23,6 +23,7 @@ import {
   useRouter,
 } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { resolveDocumentBlockIdFromHash } from '@/utils/documentBlockAnchor'
 import {
   buildDocumentEditorMeta,
   buildHistoryPreviewDocument,
@@ -44,6 +45,7 @@ export function useDocs() {
   const router = useRouter()
   const userStore = useUserStore()
   const activeDocumentId = computed(() => typeof route.params.id === 'string' ? route.params.id : null)
+  const activeBlockId = computed(() => resolveDocumentBlockIdFromHash(route.hash))
   const isSelectingInitialDocument = shallowRef(false)
   const isHistoryMode = shallowRef(false)
   const selectedHistorySnapshotId = shallowRef<string | null>(null)
@@ -182,6 +184,7 @@ export function useDocs() {
     previewDocument,
     snapshots: activeDocument.snapshots,
     activeDocumentId,
+    activeBlockId,
     documentEditorMode,
     documentEditorMeta,
     canDeleteCurrentDocument,
@@ -236,6 +239,7 @@ export function useDocs() {
     await router[options.replace ? 'replace' : 'push']({
       name: 'docs',
       ...(documentId ? { params: { id: documentId } } : {}),
+      hash: '',
     })
 
     return true

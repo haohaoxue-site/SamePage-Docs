@@ -1,6 +1,9 @@
 import type {
   DocumentAsset,
+  DocumentBlockHeadingLevel,
+  DocumentBlockIndexEntry,
   DocumentCollectionId,
+  DocumentOutlineItem,
   DocumentSaveState,
   DocumentSnapshot,
   DocumentSpaceScope,
@@ -80,6 +83,40 @@ export function getDocumentSnapshotSummary(
   fallback = '暂无摘要',
 ): string {
   return summarizeDocumentContent(snapshot.body, maxLength, fallback)
+}
+
+export function buildDocumentBlockIndex(content: TiptapJsonContent): DocumentBlockIndexEntry[] {
+  const blockIndex: DocumentBlockIndexEntry[] = []
+
+  for (const node of content) {
+    if (!isTiptapJsonNode(node)) {
+      continue
+    }
+
+    collectDocumentBlockIndex(node, blockIndex, [])
+  }
+
+  return blockIndex
+}
+
+export function buildDocumentOutline(blockIndex: DocumentBlockIndexEntry[]): DocumentOutlineItem[] {
+  return blockIndex
+    .filter((entry): entry is DocumentBlockIndexEntry & { headingLevel: DocumentBlockHeadingLevel } => entry.headingLevel !== null)
+    .map(entry => ({
+      blockId: entry.blockId,
+      plainText: entry.plainText,
+      headingLevel: entry.headingLevel,
+    }))
+}
+
+export function searchDocumentBlocks(blockIndex: DocumentBlockIndexEntry[], query: string): DocumentBlockIndexEntry[] {
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+
+  if (!normalizedQuery) {
+    return []
+  }
+
+  return blockIndex.filter(entry => entry.plainText.toLocaleLowerCase().includes(normalizedQuery))
 }
 
 export function hasDocumentContent(content: TiptapJsonContent): boolean {
@@ -176,6 +213,40 @@ function walkTiptapNode(node: TiptapJsonNode | undefined, textParts: string[]) {
 
 function isTiptapJsonNode(value: unknown): value is TiptapJsonNode {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function collectDocumentBlockIndex(
+  node: TiptapJsonNode,
+  blockIndex: DocumentBlockIndexEntry[],
+  ancestorBlockIds: string[],
+) {
+  const blockId = readBlockId(node)
+  const nextAncestorBlockIds = blockId
+    ? [...ancestorBlockIds, blockId]
+    : ancestorBlockIds
+
+  if (blockId) {
+    blockIndex.push({
+      blockId,
+      parentBlockId: ancestorBlockIds.at(-1) ?? null,
+      depth: ancestorBlockIds.length,
+      nodeType: typeof node.type === 'string' ? node.type : 'unknown',
+      plainText: getDocumentPlainText([node]),
+      headingLevel: readHeadingLevel(node),
+    })
+  }
+
+  if (!Array.isArray(node.content)) {
+    return
+  }
+
+  for (const child of node.content) {
+    if (!isTiptapJsonNode(child)) {
+      continue
+    }
+
+    collectDocumentBlockIndex(child, blockIndex, nextAncestorBlockIds)
+  }
 }
 
 function collectNodeAssetIds(node: TiptapJsonNode | undefined, assetIds: Set<string>) {
@@ -275,6 +346,24 @@ function readAssetId(node: TiptapJsonNode): string | null {
   const assetId = node.attrs?.assetId
 
   return typeof assetId === 'string' && assetId.length ? assetId : null
+}
+
+function readBlockId(node: TiptapJsonNode): string | null {
+  const blockId = node.attrs?.id
+
+  return typeof blockId === 'string' && blockId.length ? blockId : null
+}
+
+function readHeadingLevel(node: TiptapJsonNode): DocumentBlockHeadingLevel | null {
+  if (node.type !== 'heading') {
+    return null
+  }
+
+  const level = node.attrs?.level
+
+  return level === 1 || level === 2 || level === 3 || level === 4 || level === 5
+    ? level
+    : null
 }
 
 function hasNodeWithMissingAssetId(node: TiptapJsonNode): boolean {

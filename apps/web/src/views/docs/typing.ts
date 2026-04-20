@@ -58,6 +58,8 @@ export interface DocumentEditorPaneProps {
   document: ActiveDocumentDetail | null
   metadata: DocumentEditorMeta | null
   mode: DocumentEditorMode
+  /** 当前 URL 对应的块 ID */
+  activeBlockId?: string | null
   isLoading: boolean
   paneState: DocumentPaneState
   hasFallbackDocument: boolean
@@ -82,6 +84,8 @@ export interface DocumentEditorProps {
   document: ActiveDocumentDetail
   metadata: DocumentEditorMeta | null
   mode: DocumentEditorMode
+  /** 当前 URL 对应的块 ID */
+  activeBlockId?: string | null
 }
 
 /**

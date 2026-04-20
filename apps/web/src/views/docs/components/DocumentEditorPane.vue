@@ -19,6 +19,7 @@ const { contentError, handleContentError, handleRetryLoad, shouldShowEditor } = 
       :document="props.document"
       :metadata="props.metadata"
       :mode="props.mode"
+      :active-block-id="props.activeBlockId"
       @update-title="emits('updateTitle', $event)"
       @update-content="emits('updateContent', $event)"
       @content-error="handleContentError"
@@ -44,5 +45,7 @@ const { contentError, handleContentError, handleRetryLoad, shouldShowEditor } = 
   flex: 1 1 0%;
   flex-direction: column;
   min-height: 0;
+  padding-bottom: clamp(1.5rem, 3vw, 2rem);
+  box-sizing: border-box;
 }
 </style>

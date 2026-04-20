@@ -1,8 +1,10 @@
-import type { Extensions } from '@tiptap/core'
+import type { Editor, Extensions } from '@tiptap/core'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type {
   TiptapEditorUploadedFile,
   TiptapEditorUploadedImage,
 } from '../content/typing'
+import { isNodeEmpty } from '@tiptap/core'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Table } from '@tiptap/extension-table'
 import TableCell from '@tiptap/extension-table-cell'
@@ -21,6 +23,7 @@ import { TextAlign } from '../extensions/TextAlign'
 import { TextColorClass } from '../extensions/TextColorClass'
 
 const BODY_PLACEHOLDER = '输入 / 唤起命令，或者直接开始写作。'
+const BODY_EMPTY_LINE_PLACEHOLDER = '按 space（空格）以启用 AI，或按“/”启用命令'
 const TITLE_PLACEHOLDER = '输入文档标题'
 
 export function createBodyExtensions(options: {
@@ -38,7 +41,7 @@ export function createBodyExtensions(options: {
       },
     }),
     Placeholder.configure({
-      placeholder: BODY_PLACEHOLDER,
+      placeholder: ({ editor, node }) => resolveBodyPlaceholder(editor, node),
     }),
     TextStyle,
     TextColorClass,
@@ -63,6 +66,38 @@ export function createBodyExtensions(options: {
       uploadFile: options.uploadFile,
     }),
   ]
+}
+
+function resolveBodyPlaceholder(editor: Editor, node: ProseMirrorNode) {
+  if (node.type.name === 'heading') {
+    return resolveHeadingPlaceholder(node.attrs?.level)
+  }
+
+  if (node.type.name !== 'paragraph') {
+    return ''
+  }
+
+  if (isOnlyEmptyParagraphDocument(editor)) {
+    return BODY_PLACEHOLDER
+  }
+
+  return BODY_EMPTY_LINE_PLACEHOLDER
+}
+
+function resolveHeadingPlaceholder(level: unknown) {
+  if (typeof level === 'number' && Number.isInteger(level) && level > 0) {
+    return `标题${level}`
+  }
+
+  return '标题'
+}
+
+function isOnlyEmptyParagraphDocument(editor: Editor) {
+  const firstChild = editor.state.doc.firstChild
+
+  return editor.state.doc.childCount === 1
+    && firstChild?.type.name === 'paragraph'
+    && isNodeEmpty(firstChild)
 }
 
 export function createTitleExtensions(): Extensions {

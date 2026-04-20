@@ -6,10 +6,12 @@ import { shallowRef, useTemplateRef } from 'vue'
 import TiptapEditor from '../../core/TiptapEditor.vue'
 import BlockTriggerMenu from '../../overlays/block-trigger/BlockTriggerMenu.vue'
 import BubbleToolbar from '../../overlays/bubble-toolbar/BubbleToolbar.vue'
+import EditorOutline from '../../overlays/outline/EditorOutline.vue'
 import { useDocumentBodyEditor } from './useDocumentBodyEditor'
 
 const props = withDefaults(defineProps<DocumentBodyEditorProps>(), {
   editable: true,
+  activeBlockId: null,
   documentId: null,
 })
 const emits = defineEmits<DocumentBodyEditorEmits>()
@@ -49,6 +51,12 @@ const {
       @editor-change="handleBodyEditorChange"
     />
 
+    <EditorOutline
+      v-if="bodyEditor"
+      :editor="bodyEditor"
+      :content="props.content"
+    />
+
     <BlockTriggerMenu
       v-if="bodyEditor && props.editable"
       ref="blockTriggerMenu"
@@ -59,15 +67,3 @@ const {
     />
   </section>
 </template>
-
-<style scoped lang="scss">
-.document-body-editor {
-  flex: 1 1 0%;
-  min-height: 0;
-
-  &__surface {
-    flex: 1 1 0%;
-    min-height: 0;
-  }
-}
-</style>

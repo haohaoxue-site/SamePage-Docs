@@ -99,7 +99,8 @@ describe('documentEditorPane', () => {
 
     await vi.waitFor(() => {
       expect(wrapper.find('.document-editor__title').exists()).toBe(true)
-      expect(wrapper.find('.document-editor__body').exists()).toBe(true)
+      expect(wrapper.find('.document-editor__body-frame').exists()).toBe(true)
+      expect(wrapper.find('.document-editor__body-editor').exists()).toBe(true)
     })
 
     expect(wrapper.find('input').exists()).toBe(false)
