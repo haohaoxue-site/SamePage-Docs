@@ -1,8 +1,6 @@
 import process from 'node:process'
 import { z } from 'zod'
 
-const LEADING_OR_TRAILING_SLASHES_RE = /^\/+|\/+$/g
-
 const optionalString = z
   .string()
   .trim()
@@ -10,8 +8,6 @@ const optionalString = z
   .transform(value => value?.length ? value : undefined)
 
 const envSchema = z.object({
-  SWAGGER_PATH: z.string().trim().default('docs').transform(value => value.replace(LEADING_OR_TRAILING_SLASHES_RE, '') || 'docs'),
-  SWAGGER_TITLE: z.string().trim().default('SamePage API'),
   DATABASE_URL: z.string().trim().default('postgresql://postgres:postgres@localhost:5432/samepage_docs'),
   APP_SECRET: z.string().trim().min(32, 'APP_SECRET 至少需要 32 个字符'),
   GITHUB_CLIENT_ID: optionalString,

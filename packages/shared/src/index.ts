@@ -1,4 +1,5 @@
 export * from './auth'
 export * from './document'
+export * from './document-share'
 export * from './system-email'
 export * from './user'

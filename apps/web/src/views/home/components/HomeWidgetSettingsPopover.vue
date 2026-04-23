@@ -35,14 +35,14 @@ const emits = defineEmits<HomeWidgetSettingsPopoverEmits>()
         </div>
       </div>
 
-      <div class="space-y-2">
-        <div
+      <ul class="home-widget-settings__list">
+        <li
           v-for="widget in widgets"
           :key="widget.id"
           class="home-widget-settings__item"
         >
           <div class="min-w-0 flex-1">
-            <div class="text-sm font-semibold text-main">
+            <div class="home-widget-settings__item-title">
               {{ widget.title }}
             </div>
             <div class="home-widget-settings__description">
@@ -54,8 +54,8 @@ const emits = defineEmits<HomeWidgetSettingsPopoverEmits>()
             :model-value="visibleWidgetSet.has(widget.id)"
             @change="emits('toggle', widget.id)"
           />
-        </div>
-      </div>
+        </li>
+      </ul>
     </div>
   </ElPopover>
 </template>
@@ -66,8 +66,8 @@ const emits = defineEmits<HomeWidgetSettingsPopoverEmits>()
     border-color: color-mix(in srgb, var(--brand-border-base) 80%, transparent);
     color: var(--brand-text-secondary);
     background: var(--brand-bg-surface-raised);
-    width: 2.5rem !important;
-    height: 2.5rem !important;
+    width: 2.5rem;
+    height: 2.5rem;
 
     &:hover {
       border-color: color-mix(in srgb, var(--brand-primary) 20%, transparent);
@@ -87,6 +87,14 @@ const emits = defineEmits<HomeWidgetSettingsPopoverEmits>()
     line-height: 1.25rem;
   }
 
+  .home-widget-settings__list {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
   .home-widget-settings__item {
     display: flex;
     align-items: flex-start;
@@ -96,6 +104,12 @@ const emits = defineEmits<HomeWidgetSettingsPopoverEmits>()
     border: 1px solid color-mix(in srgb, var(--brand-border-base) 70%, transparent);
     border-radius: 1rem;
     background: var(--brand-bg-surface);
+  }
+
+  .home-widget-settings__item-title {
+    color: var(--brand-text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
   }
 }
 </style>

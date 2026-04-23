@@ -2,6 +2,7 @@
 import type { FormInstance } from 'element-plus'
 import type { UserProfileSectionEmits, UserProfileSectionProps } from '../typing'
 import { useTemplateRef } from 'vue'
+import EntityAvatar from '@/components/entity-avatar/EntityAvatar.vue'
 import { useUserProfileSection } from '../composables/useUserProfileSection'
 import UserSettingsSectionHeader from './UserSettingsSectionHeader.vue'
 
@@ -11,7 +12,6 @@ const displayNameModel = defineModel<string>('displayName', { required: true })
 const profileFormRef = useTemplateRef<FormInstance>('profileFormRef')
 const fileInputRef = useTemplateRef<HTMLInputElement>('fileInputRef')
 const {
-  avatarInitial,
   displayNameRules,
   form,
   handleFileChange,
@@ -36,15 +36,15 @@ const {
     />
 
     <div class="user-profile-section__hero">
-      <ElAvatar :size="72" class="user-profile-section__avatar">
-        <img
-          v-if="props.avatarUrl"
-          :src="props.avatarUrl"
-          :alt="`${form.displayName} 的头像`"
-          referrerpolicy="no-referrer"
-        >
-        <span v-else>{{ avatarInitial }}</span>
-      </ElAvatar>
+      <EntityAvatar
+        :name="form.displayName"
+        :src="props.avatarUrl"
+        :alt="`${form.displayName} 的头像`"
+        :size="72"
+        shape="circle"
+        kind="user"
+        class="user-profile-section__avatar"
+      />
 
       <div class="user-profile-section__hero-actions">
         <ElButton :loading="props.isUploading" @click="handlePickAvatar">
@@ -111,10 +111,7 @@ const {
   }
 
   &__avatar {
-    color: var(--brand-text-primary);
-    font-size: 1.5rem;
-    font-weight: 700;
-    background: color-mix(in srgb, var(--brand-primary) 16%, var(--brand-bg-surface));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-border-base) 70%, transparent);
   }
 
   &__hero-actions {

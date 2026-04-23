@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "postinstall": "prisma generate",
-    "predev": "prisma generate",
+    "predev": "pnpm prisma:sync",
+    "predev:debug": "pnpm prisma:sync",
     "dev": "node --watch --import @swc-node/register/esm-register src/main.ts",
     "dev:debug": "node --watch --inspect --import @swc-node/register/esm-register src/main.ts",
     "dev:prod": "node dist/main.js",
@@ -14,6 +15,7 @@
     "lint:fix": "eslint . --fix",
     "prisma:generate": "prisma generate",
     "prisma:db:push": "prisma db push",
+    "prisma:sync": "prisma db push && prisma generate",
     "type-check": "tsc --noEmit -p tsconfig.json --pretty false && tsc --noEmit -p tsconfig.spec.json --pretty false",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest --passWithNoTests"
@@ -30,7 +32,6 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.18",
     "@nestjs/platform-fastify": "^11.1.18",
-    "@nestjs/swagger": "^11.2.7",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",

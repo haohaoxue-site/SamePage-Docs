@@ -1,3 +1,5 @@
+import type { IsoDateTimeString } from './common'
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
@@ -6,8 +8,8 @@ export interface ChatMessage {
 export interface ChatSessionSummary {
   id: string
   title: string
-  createdAt: string
-  updatedAt: string
+  createdAt: IsoDateTimeString
+  updatedAt: IsoDateTimeString
 }
 
 export interface ChatSessionDetail extends ChatSessionSummary {
@@ -21,6 +23,10 @@ export interface ChatModelSelection {
 export interface ChatModelItem {
   id: string
   ownedBy: string | null
+}
+
+export interface ChatModelListResponse {
+  models: ChatModelItem[]
 }
 
 export interface ChatRuntimeConfig {

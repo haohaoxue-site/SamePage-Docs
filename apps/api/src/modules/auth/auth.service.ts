@@ -1,126 +1,59 @@
-import type { AuthProviderName, AuthUser } from '@haohaoxue/samepage-domain'
+import type { AuthProviderName } from '@haohaoxue/samepage-domain'
 import type { Prisma, User } from '@prisma/client'
 import type { FastifyRequest } from 'fastify'
-import type { JwtConfig } from '../../config/auth.config'
 import type {
-  AccessTokenPayload,
-  AuthUserContext,
   BuildOAuthAuthorizationUrlOptions,
   OAuthProfile,
   OAuthStatePayload,
   TokenExchangeResult,
 } from './auth.interface'
 import { Buffer } from 'node:buffer'
-import { createSecretKey, randomBytes, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
-import { AUTH_ERROR_CODE, AUTH_METHOD, AUTH_PROVIDER } from '@haohaoxue/samepage-contracts'
+import {
+  AUTH_PROVIDER,
+  OAUTH_REDIRECT_BIND_STATUS,
+  OAUTH_REDIRECT_ERROR_CODE,
+  OAUTH_REDIRECT_QUERY,
+} from '@haohaoxue/samepage-contracts'
 import { formatAuthMethod } from '@haohaoxue/samepage-shared'
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
-import {
-  AuthProvider,
-  UserStatus,
-} from '@prisma/client'
-import { parse, serialize } from 'cookie'
-import { SignJWT } from 'jose'
+import { AuthProvider, UserStatus } from '@prisma/client'
 import * as client from 'openid-client'
 import { PrismaService } from '../../database/prisma.service'
-import { resolveAuthMethod, resolveAuthMethods } from '../../utils/auth-methods'
+import { resolveAuthMethod } from '../../utils/auth-methods'
 import { normalizeEmail } from '../../utils/email'
-import { sha256Hex } from '../../utils/hash'
 import { hashPassword, verifyPassword } from '../../utils/password'
-import { RbacService } from '../rbac/rbac.service'
+import { resolveUniqueUserCode } from '../users/users.utils'
+import { PersonalWorkspacesService } from '../workspaces/personal-workspaces.service'
+import { AuthSessionsService } from './auth-sessions.service'
 import {
-  LOGIN_CODE_TTL_SECONDS,
   OAUTH_FETCH_RETRY_DELAYS_MS,
   OAUTH_LOGIN_REDIRECT_PATH,
   OAUTH_STATE_TTL_SECONDS,
   OAUTH_STATE_VERSION,
-  REFRESH_TOKEN_COOKIE_NAME,
   RETRYABLE_OAUTH_FETCH_ERROR_RE,
 } from './auth.constants'
-import { authUnauthorized, buildOauthAccountData } from './auth.utils'
+import { buildOauthAccountData } from './auth.utils'
 import { OAuthProviderService } from './providers/oauth-provider.service'
 import { SystemAuthService } from './system-auth.service'
 
+type OAuthRedirectErrorCode = (typeof OAUTH_REDIRECT_ERROR_CODE)[keyof typeof OAUTH_REDIRECT_ERROR_CODE]
+
 @Injectable()
 export class AuthService {
-  private readonly jwtConfig
-  private readonly accessSecretKey
-  private readonly isProduction
-
   constructor(
-    private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
-    private readonly rbacService: RbacService,
     private readonly oauthProviderService: OAuthProviderService,
     private readonly systemAuthService: SystemAuthService,
-  ) {
-    this.jwtConfig = this.configService.getOrThrow<JwtConfig>('jwt')
-    this.accessSecretKey = createSecretKey(Buffer.from(this.jwtConfig.accessSecret, 'utf8'))
-    this.isProduction = this.configService.getOrThrow<boolean>('server.isProduction')
-  }
-
-  async requestEmailVerification(email: string): Promise<void> {
-    await this.systemAuthService.issueRegistrationVerification(email)
-  }
-
-  async registerWithPassword(
-    email: string,
-    code: string,
-    displayName: string,
-    password: string,
-    request: FastifyRequest,
-  ): Promise<TokenExchangeResult> {
-    const normalizedDisplayName = displayName.trim()
-
-    if (!normalizedDisplayName.length) {
-      throw new BadRequestException('显示名称不能为空')
-    }
-
-    await this.systemAuthService.assertRegistrationAllowed(AUTH_METHOD.PASSWORD)
-    const passwordHash = await hashPassword(password)
-
-    const user = await this.prisma.$transaction(async (tx) => {
-      const { email: verifiedEmail } = await this.systemAuthService.consumeRegistrationVerificationCode(
-        email,
-        code,
-        tx,
-      )
-      const existingUser = await tx.user.findUnique({
-        where: { email: verifiedEmail },
-        select: { id: true },
-      })
-
-      if (existingUser) {
-        throw new BadRequestException('该邮箱已存在账号，请直接登录')
-      }
-
-      const createdUser = await tx.user.create({
-        data: {
-          email: verifiedEmail,
-          displayName: normalizedDisplayName,
-        },
-      })
-
-      await tx.localCredential.create({
-        data: {
-          userId: createdUser.id,
-          passwordHash,
-          emailVerifiedAt: new Date(),
-          passwordUpdatedAt: new Date(),
-        },
-      })
-
-      return createdUser
-    })
-
-    return this.issueAuthSession(user.id, request)
-  }
+    private readonly personalWorkspacesService: PersonalWorkspacesService,
+    private readonly authSessionsService: AuthSessionsService,
+  ) {}
 
   async loginWithPassword(
     email: string,
@@ -164,7 +97,7 @@ export class AuthService {
       throw new UnauthorizedException('邮箱或密码错误')
     }
 
-    return this.issueAuthSession(credential.user.id, request)
+    return this.authSessionsService.issueAuthSession(credential.user.id, request)
   }
 
   async changePassword(
@@ -218,7 +151,67 @@ export class AuthService {
       })
     })
 
-    return this.issueAuthSession(userId, request)
+    return this.authSessionsService.issueAuthSession(userId, request)
+  }
+
+  async buildOAuthBindingAuthorizationUrl(
+    userId: string,
+    provider: AuthProviderName,
+    request: FastifyRequest,
+  ): Promise<string> {
+    return this.buildOAuthAuthorizationUrl(provider, request, {
+      purpose: 'bind',
+      initiatorUserId: userId,
+      redirectPath: '/user',
+    })
+  }
+
+  async disconnectOauthBinding(
+    userId: string,
+    provider: AuthProviderName,
+  ): Promise<void> {
+    const dbProvider = provider === AUTH_PROVIDER.GITHUB
+      ? AuthProvider.GITHUB
+      : AuthProvider.LINUX_DO
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        localCredential: {
+          select: {
+            userId: true,
+          },
+        },
+        oauthAccounts: {
+          where: {
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            provider: true,
+          },
+        },
+      },
+    })
+
+    if (!user) {
+      throw new NotFoundException(`User "${userId}" not found`)
+    }
+
+    const targetAccount = user.oauthAccounts.find(item => item.provider === dbProvider)
+
+    if (!targetAccount) {
+      throw new BadRequestException('当前账号未绑定该第三方平台')
+    }
+
+    const remainingOauthCount = user.oauthAccounts.length - 1
+
+    if (!user.localCredential && remainingOauthCount <= 0) {
+      throw new BadRequestException('解绑后至少需要保留一种登录方式')
+    }
+
+    await this.prisma.oauthAccount.delete({
+      where: { id: targetAccount.id },
+    })
   }
 
   async buildOAuthAuthorizationUrl(
@@ -319,8 +312,8 @@ export class AuthService {
       await this.bindOAuthToUser(runtimeProvider.dbProvider, profile, oauthState.initiatorUserId)
 
       const redirectUrl = new URL(statePayload.redirectPath, statePayload.webOrigin)
-      redirectUrl.searchParams.set('bind_status', 'success')
-      redirectUrl.searchParams.set('provider', provider)
+      redirectUrl.searchParams.set(OAUTH_REDIRECT_QUERY.BIND_STATUS, OAUTH_REDIRECT_BIND_STATUS.SUCCESS)
+      redirectUrl.searchParams.set(OAUTH_REDIRECT_QUERY.PROVIDER, provider)
       return redirectUrl.toString()
     }
 
@@ -330,132 +323,22 @@ export class AuthService {
     )
 
     const webCallbackUrl = new URL(statePayload.redirectPath, statePayload.webOrigin).toString()
-    const loginCode = await this.createLoginCode(user.id, webCallbackUrl)
+    const loginCode = await this.authSessionsService.createLoginCode(user.id, webCallbackUrl)
     const redirectUrl = new URL(webCallbackUrl)
-    redirectUrl.searchParams.set('code', loginCode)
+    redirectUrl.searchParams.set(OAUTH_REDIRECT_QUERY.LOGIN_CODE, loginCode)
 
     return redirectUrl.toString()
   }
 
-  async exchangeCodeForTokens(
-    rawCode: string,
+  buildOAuthFailureRedirect(
+    provider: AuthProviderName,
     request: FastifyRequest,
-  ): Promise<TokenExchangeResult> {
-    const codeHash = this.hash(rawCode)
-
-    const loginCode = await this.prisma.authLoginCode.findUnique({
-      where: { codeHash },
-      include: {
-        user: true,
-      },
-    })
-
-    if (!loginCode) {
-      throw new UnauthorizedException('Invalid login code')
-    }
-
-    if (loginCode.consumedAt || loginCode.expiresAt.getTime() <= Date.now()) {
-      throw new UnauthorizedException('Login code expired or consumed')
-    }
-
-    const consumed = await this.prisma.authLoginCode.updateMany({
-      where: {
-        id: loginCode.id,
-        consumedAt: null,
-      },
-      data: { consumedAt: new Date() },
-    })
-
-    if (consumed.count !== 1) {
-      throw new UnauthorizedException('Login code already consumed')
-    }
-
-    return this.issueAuthSession(loginCode.user.id, request)
-  }
-
-  async refreshTokens(request: FastifyRequest): Promise<TokenExchangeResult> {
-    const refreshToken = this.extractRefreshTokenFromCookie(request)
-
-    if (!refreshToken) {
-      throw authUnauthorized(AUTH_ERROR_CODE.REFRESH_TOKEN_MISSING, '刷新凭证不存在')
-    }
-
-    const refreshTokenHash = this.hash(refreshToken)
-
-    const tokenRecord = await this.prisma.authRefreshToken.findUnique({
-      where: { tokenHash: refreshTokenHash },
-      include: {
-        user: true,
-      },
-    })
-
-    if (!tokenRecord || tokenRecord.revokedAt || tokenRecord.expiresAt.getTime() <= Date.now()) {
-      throw authUnauthorized(AUTH_ERROR_CODE.REFRESH_TOKEN_INVALID, '登录状态已失效')
-    }
-
-    const rotatedSession = await this.rotateRefreshSession(tokenRecord, request)
-    await this.rbacService.syncBootstrapRolesForUser(tokenRecord.user.id)
-    const authUser = await this.buildAuthUserContext(tokenRecord.user.id)
-    await this.touchUserLastLogin(tokenRecord.user.id)
-    const accessToken = await this.signAccessToken(authUser)
-
-    return this.buildTokenExchangeResult(tokenRecord.user.id, authUser, accessToken, rotatedSession.rawToken)
-  }
-
-  async logout(request: FastifyRequest): Promise<{ clearCookie: string }> {
-    const refreshToken = this.extractRefreshTokenFromCookie(request)
-
-    if (refreshToken) {
-      await this.prisma.authRefreshToken.updateMany({
-        where: {
-          tokenHash: this.hash(refreshToken),
-          revokedAt: null,
-        },
-        data: {
-          revokedAt: new Date(),
-        },
-      })
-    }
-
-    return {
-      clearCookie: this.clearRefreshCookie(),
-    }
-  }
-
-  buildLogoutCookieHeader(): string {
-    return this.clearRefreshCookie()
-  }
-
-  private async issueAuthSession(userId: string, request: FastifyRequest): Promise<TokenExchangeResult> {
-    await this.rbacService.syncBootstrapRolesForUser(userId)
-    const authUser = await this.buildAuthUserContext(userId)
-    await this.touchUserLastLogin(userId)
-    const accessToken = await this.signAccessToken(authUser)
-    const session = await this.createRefreshSession(userId, request)
-
-    return this.buildTokenExchangeResult(userId, authUser, accessToken, session.rawToken)
-  }
-
-  private async createLoginCode(userId: string, redirectUri: string): Promise<string> {
-    const loginCode = randomBytes(32).toString('base64url')
-
-    await this.prisma.authLoginCode.create({
-      data: {
-        userId,
-        codeHash: this.hash(loginCode),
-        redirectUri,
-        expiresAt: new Date(Date.now() + LOGIN_CODE_TTL_SECONDS * 1000),
-      },
-    })
-
-    return loginCode
-  }
-
-  buildOAuthFailureRedirect(provider: AuthProviderName, request: FastifyRequest, errorMessage: string): string {
+    errorCode: OAuthRedirectErrorCode,
+  ): string {
     const state = this.resolveCurrentUrl(request).searchParams.get('state')
 
     if (!state) {
-      return `${OAUTH_LOGIN_REDIRECT_PATH}?error=${encodeURIComponent(errorMessage)}`
+      return `${OAUTH_LOGIN_REDIRECT_PATH}?${OAUTH_REDIRECT_QUERY.ERROR_CODE}=${encodeURIComponent(errorCode)}`
     }
 
     try {
@@ -463,17 +346,17 @@ export class AuthService {
       const redirectUrl = new URL(payload.redirectPath, payload.webOrigin)
 
       if (payload.purpose === 'bind') {
-        redirectUrl.searchParams.set('bind_status', 'error')
-        redirectUrl.searchParams.set('provider', provider)
-        redirectUrl.searchParams.set('bind_message', errorMessage)
+        redirectUrl.searchParams.set(OAUTH_REDIRECT_QUERY.BIND_STATUS, OAUTH_REDIRECT_BIND_STATUS.ERROR)
+        redirectUrl.searchParams.set(OAUTH_REDIRECT_QUERY.PROVIDER, provider)
+        redirectUrl.searchParams.set(OAUTH_REDIRECT_QUERY.BIND_ERROR_CODE, errorCode)
         return redirectUrl.toString()
       }
 
-      redirectUrl.searchParams.set('error', errorMessage)
+      redirectUrl.searchParams.set(OAUTH_REDIRECT_QUERY.ERROR_CODE, errorCode)
       return redirectUrl.toString()
     }
     catch {
-      return `${OAUTH_LOGIN_REDIRECT_PATH}?error=${encodeURIComponent(errorMessage)}`
+      return `${OAUTH_LOGIN_REDIRECT_PATH}?${OAUTH_REDIRECT_QUERY.ERROR_CODE}=${encodeURIComponent(errorCode)}`
     }
   }
 
@@ -532,13 +415,25 @@ export class AuthService {
       })
 
       if (!existingAccount.user.avatarUrl && profile.avatarUrl) {
-        return this.prisma.user.update({
+        const updatedUser = await this.prisma.user.update({
           where: { id: existingAccount.user.id },
           data: {
             avatarUrl: profile.avatarUrl,
           },
         })
+
+        await this.personalWorkspacesService.provisionPersonalWorkspaceForUser({
+          userId: updatedUser.id,
+          userCode: updatedUser.userCode,
+        })
+
+        return updatedUser
       }
+
+      await this.personalWorkspacesService.provisionPersonalWorkspaceForUser({
+        userId: existingAccount.user.id,
+        userCode: existingAccount.user.userCode,
+      })
 
       return existingAccount.user
     }
@@ -546,12 +441,26 @@ export class AuthService {
     await this.systemAuthService.assertRegistrationAllowed(resolveAuthMethod(provider))
 
     return this.prisma.$transaction(async (tx) => {
+      const userCode = await resolveUniqueUserCode({
+        isUserCodeTaken: async candidate =>
+          Boolean(await tx.user.findUnique({
+            where: { userCode: candidate },
+            select: { id: true },
+          })),
+      })
+
       const targetUser = await tx.user.create({
         data: {
           displayName: profile.displayName ?? profile.username ?? `user-${randomUUID().slice(0, 8)}`,
           avatarUrl: profile.avatarUrl,
+          userCode,
         },
       })
+
+      await this.personalWorkspacesService.provisionPersonalWorkspaceForUser({
+        userId: targetUser.id,
+        userCode: targetUser.userCode,
+      }, tx)
 
       await tx.oauthAccount.create({
         data: {
@@ -779,231 +688,6 @@ export class AuthService {
     }
 
     return RETRYABLE_OAUTH_FETCH_ERROR_RE.test(error.message)
-  }
-
-  private async buildAuthUserContext(userId: string): Promise<AuthUserContext> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        status: true,
-      },
-    })
-
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      throw authUnauthorized(AUTH_ERROR_CODE.SESSION_USER_INACTIVE, '当前账号不可用')
-    }
-
-    const roleAndPermissions = await this.rbacService.getUserRoleAndPermissions(userId)
-
-    return {
-      id: userId,
-      roles: roleAndPermissions.roles,
-      permissions: roleAndPermissions.permissions,
-    }
-  }
-
-  private async buildAuthUser(userId: string, authUser: AuthUserContext): Promise<AuthUser> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        displayName: true,
-        avatarUrl: true,
-        localCredential: {
-          select: {
-            mustChangePassword: true,
-            emailVerifiedAt: true,
-          },
-        },
-        oauthAccounts: {
-          where: {
-            deletedAt: null,
-          },
-          select: {
-            provider: true,
-            providerEmailVerified: true,
-          },
-        },
-      },
-    })
-
-    if (!user) {
-      throw authUnauthorized(AUTH_ERROR_CODE.SESSION_USER_INACTIVE, '当前账号不可用')
-    }
-
-    return {
-      id: user.id,
-      email: user.email,
-      displayName: user.displayName,
-      avatarUrl: user.avatarUrl,
-      roles: authUser.roles,
-      permissions: authUser.permissions,
-      authMethods: resolveAuthMethods(Boolean(user.localCredential), user.oauthAccounts),
-      mustChangePassword: user.localCredential?.mustChangePassword ?? false,
-      emailVerified: Boolean(user.localCredential?.emailVerifiedAt) || user.oauthAccounts.some(item => item.providerEmailVerified === true),
-    }
-  }
-
-  private async touchUserLastLogin(userId: string) {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        lastLoginAt: new Date(),
-      },
-    })
-  }
-
-  private async signAccessToken(authUser: AuthUserContext): Promise<string> {
-    const payload: AccessTokenPayload = {
-      tokenType: 'access',
-      roles: authUser.roles,
-      permissions: authUser.permissions,
-    }
-
-    return new SignJWT(payload)
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-      .setSubject(authUser.id)
-      .setIssuer(this.jwtConfig.issuer)
-      .setAudience(this.jwtConfig.audience)
-      .setIssuedAt()
-      .setExpirationTime(`${this.jwtConfig.accessTtlSeconds}s`)
-      .setJti(randomUUID())
-      .sign(this.accessSecretKey)
-  }
-
-  private async createRefreshSession(userId: string, request: FastifyRequest, familyId = randomUUID()): Promise<{ rawToken: string, tokenId: string, familyId: string }> {
-    const tokenId = randomUUID()
-    const rawToken = this.generateRefreshToken()
-    const tokenHash = this.hash(rawToken)
-
-    await this.prisma.authRefreshToken.create({
-      data: {
-        id: tokenId,
-        userId,
-        tokenHash,
-        familyId,
-        expiresAt: new Date(Date.now() + this.jwtConfig.refreshTtlSeconds * 1000),
-        createdIp: this.extractRequestIp(request),
-        userAgent: request.headers['user-agent'],
-      },
-    })
-
-    return { rawToken, tokenId, familyId }
-  }
-
-  private async rotateRefreshSession(
-    tokenRecord: {
-      id: string
-      userId: string
-      familyId: string
-    },
-    request: FastifyRequest,
-  ): Promise<{ rawToken: string }> {
-    return this.prisma.$transaction(async (tx) => {
-      const tokenId = randomUUID()
-      const rawToken = this.generateRefreshToken()
-      const tokenHash = this.hash(rawToken)
-
-      await tx.authRefreshToken.create({
-        data: {
-          id: tokenId,
-          userId: tokenRecord.userId,
-          familyId: tokenRecord.familyId,
-          tokenHash,
-          expiresAt: new Date(Date.now() + this.jwtConfig.refreshTtlSeconds * 1000),
-          createdIp: this.extractRequestIp(request),
-          userAgent: request.headers['user-agent'],
-        },
-      })
-
-      const updated = await tx.authRefreshToken.updateMany({
-        where: {
-          id: tokenRecord.id,
-          revokedAt: null,
-        },
-        data: {
-          revokedAt: new Date(),
-          replacedById: tokenId,
-        },
-      })
-
-      if (updated.count !== 1) {
-        throw new UnauthorizedException('Refresh token already rotated')
-      }
-
-      return { rawToken }
-    })
-  }
-
-  private async buildTokenExchangeResult(
-    userId: string,
-    authUser: AuthUserContext,
-    accessToken: string,
-    rawRefreshToken: string,
-  ): Promise<TokenExchangeResult> {
-    return {
-      accessToken,
-      expiresIn: this.jwtConfig.accessTtlSeconds,
-      user: await this.buildAuthUser(userId, authUser),
-      refreshTokenCookie: this.buildRefreshCookie(rawRefreshToken),
-    }
-  }
-
-  private get refreshCookieOptions() {
-    return {
-      path: '/api/auth',
-      httpOnly: true,
-      sameSite: 'lax' as const,
-      secure: this.isProduction,
-    }
-  }
-
-  private buildRefreshCookie(refreshToken: string): string {
-    return serialize(REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
-      ...this.refreshCookieOptions,
-      maxAge: this.jwtConfig.refreshTtlSeconds,
-    })
-  }
-
-  private clearRefreshCookie(): string {
-    return serialize(REFRESH_TOKEN_COOKIE_NAME, '', {
-      ...this.refreshCookieOptions,
-      maxAge: 0,
-    })
-  }
-
-  private extractRefreshTokenFromCookie(request: FastifyRequest): string | undefined {
-    const cookieHeader = request.headers.cookie
-
-    if (!cookieHeader) {
-      return undefined
-    }
-
-    return parse(cookieHeader)[REFRESH_TOKEN_COOKIE_NAME]
-  }
-
-  private hash(value: string): string {
-    return sha256Hex(value)
-  }
-
-  private generateRefreshToken(): string {
-    return randomBytes(32).toString('base64url')
-  }
-
-  private extractRequestIp(request: FastifyRequest): string | undefined {
-    const forwardedFor = request.headers['x-forwarded-for']
-
-    if (Array.isArray(forwardedFor)) {
-      return forwardedFor[0]?.split(',').map(part => part.trim()).filter(Boolean)[0]
-    }
-
-    if (typeof forwardedFor === 'string') {
-      return forwardedFor.split(',').map(part => part.trim()).filter(Boolean)[0]
-    }
-
-    return request.ip
   }
 
   private resolveCurrentUrl(request: FastifyRequest): URL {

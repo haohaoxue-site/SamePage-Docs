@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FormInstance } from 'element-plus'
+import type { SystemEmailProvider } from '@/apis/system-admin'
 import { useTemplateRef } from 'vue'
 import { formatDateTime } from '@/utils/dayjs'
 import { useEmail } from './composables/useEmail'
@@ -37,6 +38,18 @@ const {
   emailConfigFormRef,
   testEmailFormRef,
 })
+
+function handleProviderChange(value: string | number | boolean | undefined) {
+  if (typeof value !== 'string') {
+    return
+  }
+
+  if (!providerCards.value.some(provider => provider.provider === value)) {
+    return
+  }
+
+  selectProvider(value as SystemEmailProvider)
+}
 </script>
 
 <template>
@@ -51,25 +64,31 @@ const {
               服务商模板
             </h2>
 
-            <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <button
+            <ElRadioGroup
+              v-model="form.provider"
+              class="admin-email-config__provider-group mt-4"
+              @change="handleProviderChange"
+            >
+              <ElRadio
                 v-for="provider in providerCards"
                 :key="provider.provider"
-                type="button"
-                class="admin-email-config__provider-card"
-                :class="{
-                  'is-active': form.provider === provider.provider,
-                  'is-disabled': provider.disabled,
-                }"
+                :label="provider.provider"
+                :value="provider.provider"
                 :disabled="provider.disabled"
-                @click="selectProvider(provider.provider)"
+                border
+                class="admin-email-config__provider-option"
               >
-                <div class="flex justify-between gap-4 text-main">
-                  <strong>{{ provider.title }}</strong>
-                </div>
-                <small>Host: {{ provider.defaults.smtpHost }} / Port: {{ provider.defaults.smtpPort }}</small>
-              </button>
-            </div>
+                <span class="admin-email-config__provider-title">
+                  {{ provider.title }}
+                </span>
+                <span class="admin-email-config__provider-meta">
+                  Host: {{ provider.defaults.smtpHost }} / Port: {{ provider.defaults.smtpPort }}
+                </span>
+                <span class="admin-email-config__provider-description">
+                  {{ provider.description }}
+                </span>
+              </ElRadio>
+            </ElRadioGroup>
           </div>
 
           <div class="admin-email-config__section">
@@ -185,63 +204,43 @@ const {
                 <span class="text-xs text-secondary">已保存的发件信息</span>
               </div>
 
-              <dl class="flex flex-col gap-3.5">
-                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
-                  <dt class="text-[13px] text-secondary">
-                    当前模板
-                  </dt>
-                  <dd class="m-0 break-all text-sm text-main md:text-right">
+              <ElDescriptions :column="1" direction="vertical" size="small" class="admin-email-config__summary">
+                <ElDescriptionsItem label="当前模板">
+                  <span class="admin-email-config__summary-value">
                     {{ currentProviderTitle }}
-                  </dd>
-                </div>
-                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
-                  <dt class="text-[13px] text-secondary">
-                    SMTP 主机
-                  </dt>
-                  <dd class="m-0 break-all text-sm text-main md:text-right">
+                  </span>
+                </ElDescriptionsItem>
+                <ElDescriptionsItem label="SMTP 主机">
+                  <span class="admin-email-config__summary-value admin-email-config__summary-value--break-all">
                     {{ currentConfig?.smtpHost || '-' }}
-                  </dd>
-                </div>
-                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
-                  <dt class="text-[13px] text-secondary">
-                    发件账号
-                  </dt>
-                  <dd class="m-0 break-all text-sm text-main md:text-right">
+                  </span>
+                </ElDescriptionsItem>
+                <ElDescriptionsItem label="发件账号">
+                  <span class="admin-email-config__summary-value admin-email-config__summary-value--break-all">
                     {{ currentConfig?.smtpUsername || '-' }}
-                  </dd>
-                </div>
-                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
-                  <dt class="text-[13px] text-secondary">
-                    发件人
-                  </dt>
-                  <dd class="m-0 break-all text-sm text-main md:text-right">
+                  </span>
+                </ElDescriptionsItem>
+                <ElDescriptionsItem label="发件人">
+                  <span class="admin-email-config__summary-value">
                     {{ currentConfig?.fromName || '-' }}
-                  </dd>
-                </div>
-                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
-                  <dt class="text-[13px] text-secondary">
-                    发件邮箱
-                  </dt>
-                  <dd class="m-0 break-all text-sm text-main md:text-right">
+                  </span>
+                </ElDescriptionsItem>
+                <ElDescriptionsItem label="发件邮箱">
+                  <span class="admin-email-config__summary-value admin-email-config__summary-value--break-all">
                     {{ currentConfig?.fromEmail || '-' }}
-                  </dd>
-                </div>
-                <div class="admin-email-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
-                  <dt class="text-[13px] text-secondary">
-                    发件密码
-                  </dt>
-                  <dd class="m-0 break-all text-sm text-main md:text-right">
+                  </span>
+                </ElDescriptionsItem>
+                <ElDescriptionsItem label="发件密码">
+                  <span class="admin-email-config__summary-value">
                     {{ currentConfig?.hasPassword ? '已保存，页面不展示原值' : '暂未保存' }}
-                  </dd>
-                </div>
-              </dl>
-
-              <div class="admin-email-config__updated-at flex items-center justify-between gap-4">
-                <span class="text-[13px] text-secondary">最近更新</span>
-                <span class="text-right text-sm font-semibold text-main">
-                  {{ currentConfig?.updatedAt ? formatDateTime(currentConfig.updatedAt) : '暂无' }}
-                </span>
-              </div>
+                  </span>
+                </ElDescriptionsItem>
+                <ElDescriptionsItem label="最近更新">
+                  <span class="admin-email-config__summary-value">
+                    {{ currentConfig?.updatedAt ? formatDateTime(currentConfig.updatedAt) : '暂无' }}
+                  </span>
+                </ElDescriptionsItem>
+              </ElDescriptions>
             </section>
           </div>
         </ElCard>
@@ -323,12 +322,22 @@ const {
     margin-top: 1.75rem;
   }
 
-  &__provider-card {
+  &__provider-group {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.75rem;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  &__provider-option {
+    width: 100%;
+    height: auto;
+    margin: 0;
     text-align: left;
-    padding: 1rem;
-    border: 1px solid color-mix(in srgb, var(--brand-border-base) 78%, transparent);
     border-radius: 1rem;
-    background: var(--brand-bg-surface);
     transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 
     &:not(.is-disabled):hover {
@@ -337,7 +346,7 @@ const {
       box-shadow: 0 16px 28px -24px color-mix(in srgb, var(--brand-primary) 55%, transparent);
     }
 
-    &.is-active {
+    &.is-checked {
       border-color: color-mix(in srgb, var(--brand-primary) 60%, transparent);
       transform: translateY(-1px);
       background: color-mix(in srgb, var(--brand-primary) 6%, var(--brand-bg-surface));
@@ -349,13 +358,33 @@ const {
       cursor: not-allowed;
     }
 
-    p,
-    small {
-      display: block;
-      margin: 0.5rem 0 0;
-      color: var(--brand-text-secondary);
-      line-height: 1.6;
+    :deep(.el-radio__input) {
+      display: none;
     }
+
+    :deep(.el-radio__label) {
+      display: grid;
+      gap: 0.45rem;
+      width: 100%;
+      padding: 1rem;
+      color: inherit;
+      line-height: 1.6;
+      white-space: normal;
+    }
+  }
+
+  &__provider-title {
+    color: var(--brand-text-primary);
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  &__provider-meta,
+  &__provider-description {
+    color: var(--brand-text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.6;
   }
 
   &__service-panel {
@@ -392,20 +421,39 @@ const {
     }
   }
 
-  &__summary-row {
-    padding-bottom: 0.875rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--brand-border-base) 82%, transparent);
+  &__summary {
+    :deep(.el-descriptions__body) {
+      background: transparent;
+    }
 
-    &:last-child {
+    :deep(.el-descriptions__table) {
+      width: 100%;
+    }
+
+    :deep(.el-descriptions__cell) {
+      padding-bottom: 1rem;
+    }
+
+    :deep(.el-descriptions__cell:last-child) {
       padding-bottom: 0;
-      border-bottom: none;
+    }
+
+    :deep(.el-descriptions__label) {
+      margin-bottom: 0.375rem;
+      color: var(--brand-text-secondary);
+      font-size: 13px;
     }
   }
 
-  &__updated-at {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid color-mix(in srgb, var(--brand-border-base) 82%, transparent);
+  &__summary-value {
+    display: block;
+    color: var(--brand-text-primary);
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+
+  &__summary-value--break-all {
+    word-break: break-all;
   }
 }
 </style>

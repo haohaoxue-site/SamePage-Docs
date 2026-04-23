@@ -22,9 +22,9 @@ export function useGovernance() {
         icon: 'flow',
       },
       {
-        label: '共享文档',
+        label: '分享文档',
         value: summary.value.sharedDocuments,
-        detail: '已共享文档数',
+        detail: '已开启分享的文档数',
         iconCategory: SvgIconCategory.UI,
         icon: 'share',
       },

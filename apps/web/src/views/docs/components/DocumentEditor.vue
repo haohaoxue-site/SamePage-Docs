@@ -5,7 +5,7 @@ import { useDocumentEditor } from '../composables/useDocumentEditor'
 
 const props = defineProps<DocumentEditorProps>()
 const emits = defineEmits<DocumentEditorEmits>()
-const { isHistoryMode } = useDocumentEditor(props)
+const { isHistoryMode, isReadOnlyMode } = useDocumentEditor(props)
 </script>
 
 <template>
@@ -14,7 +14,7 @@ const { isHistoryMode } = useDocumentEditor(props)
       <DocumentTitleEditor
         class="document-editor__title-surface"
         :title="props.document.title"
-        :editable="!isHistoryMode"
+        :editable="!isReadOnlyMode"
         @update:title="emits('updateTitle', $event)"
       />
 
@@ -31,7 +31,8 @@ const { isHistoryMode } = useDocumentEditor(props)
         :document-id="props.document.id"
         :content="props.document.body"
         :active-block-id="props.activeBlockId"
-        :editable="!isHistoryMode"
+        :editable="!isReadOnlyMode"
+        :show-outline="!isReadOnlyMode"
         @update:content="emits('updateContent', $event)"
         @content-error="emits('contentError', $event)"
         @request-comment="emits('requestComment', $event)"

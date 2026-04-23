@@ -6,24 +6,23 @@ import type {
   DocumentOutlineItem,
   DocumentSaveState,
   DocumentSnapshot,
-  DocumentSpaceScope,
+  DocumentVisibility,
   OwnedDocumentCollectionId,
   TiptapJsonContent,
   TiptapJsonNode,
+  WorkspaceType,
 } from '@haohaoxue/samepage-domain'
 import {
+  DOCUMENT_COLLECTION,
   DOCUMENT_COLLECTION_LABELS,
   DOCUMENT_COLLECTION_VALUES,
   DOCUMENT_SAVE_STATE,
-  OWNED_DOCUMENT_COLLECTION_BY_SPACE_SCOPE,
+  DOCUMENT_VISIBILITY,
+  WORKSPACE_TYPE,
 } from '@haohaoxue/samepage-contracts'
 
 export function isDocumentCollectionId(value: string): value is DocumentCollectionId {
   return DOCUMENT_COLLECTION_VALUES.includes(value as DocumentCollectionId)
-}
-
-export function resolveOwnedDocumentCollectionId(scope: DocumentSpaceScope): OwnedDocumentCollectionId {
-  return OWNED_DOCUMENT_COLLECTION_BY_SPACE_SCOPE[scope]
 }
 
 export function formatDocumentCollectionLabel(collectionId: DocumentCollectionId): string {
@@ -32,6 +31,28 @@ export function formatDocumentCollectionLabel(collectionId: DocumentCollectionId
 
 export function formatDocumentLocation(collectionId: DocumentCollectionId, ancestorTitles: string[]): string {
   return [formatDocumentCollectionLabel(collectionId), ...ancestorTitles].join('/')
+}
+
+export function buildDocumentPath(documentId: string): string {
+  return `/docs/${documentId}`
+}
+
+export function resolveOwnedDocumentCollectionId(input: {
+  workspaceType: WorkspaceType | string | undefined
+  visibility: DocumentVisibility | string | undefined
+}): OwnedDocumentCollectionId {
+  return input.workspaceType === WORKSPACE_TYPE.TEAM && input.visibility === DOCUMENT_VISIBILITY.WORKSPACE
+    ? DOCUMENT_COLLECTION.TEAM
+    : DOCUMENT_COLLECTION.PERSONAL
+}
+
+export function resolveRootDocumentVisibility(input: {
+  workspaceType: WorkspaceType | string | undefined
+  collectionId: OwnedDocumentCollectionId
+}): DocumentVisibility {
+  return input.workspaceType === WORKSPACE_TYPE.TEAM && input.collectionId === DOCUMENT_COLLECTION.TEAM
+    ? DOCUMENT_VISIBILITY.WORKSPACE
+    : DOCUMENT_VISIBILITY.PRIVATE
 }
 
 export function createDocumentTitleContent(title: string): TiptapJsonContent {

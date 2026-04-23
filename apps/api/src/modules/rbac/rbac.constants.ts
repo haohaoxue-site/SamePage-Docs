@@ -15,6 +15,22 @@ export const DEFAULT_RBAC_SEED = {
       description: '删除当前用户账号',
     },
     {
+      code: PERMISSIONS.USER_LOOKUP_BY_CODE,
+      description: '按协作 ID 精确查找用户',
+    },
+    {
+      code: PERMISSIONS.WORKSPACE_READ_SELF,
+      description: '读取当前用户工作区信息',
+    },
+    {
+      code: PERMISSIONS.WORKSPACE_CREATE_SELF,
+      description: '创建当前用户团队空间',
+    },
+    {
+      code: PERMISSIONS.WORKSPACE_UPDATE_SELF,
+      description: '更新当前用户团队空间信息',
+    },
+    {
       code: PERMISSIONS.SYSTEM_ADMIN_OVERVIEW_READ,
       description: '查看系统后台概览',
     },
@@ -63,7 +79,15 @@ export const DEFAULT_RBAC_SEED = {
     {
       code: ROLES.USER,
       name: '普通用户',
-      permissions: [PERMISSIONS.USER_READ_SELF, PERMISSIONS.USER_UPDATE_SELF, PERMISSIONS.USER_DELETE_SELF],
+      permissions: [
+        PERMISSIONS.USER_READ_SELF,
+        PERMISSIONS.USER_UPDATE_SELF,
+        PERMISSIONS.USER_DELETE_SELF,
+        PERMISSIONS.USER_LOOKUP_BY_CODE,
+        PERMISSIONS.WORKSPACE_READ_SELF,
+        PERMISSIONS.WORKSPACE_CREATE_SELF,
+        PERMISSIONS.WORKSPACE_UPDATE_SELF,
+      ],
     },
     {
       code: ROLES.SYSTEM_ADMIN,
@@ -71,6 +95,10 @@ export const DEFAULT_RBAC_SEED = {
       permissions: [
         PERMISSIONS.USER_READ_SELF,
         PERMISSIONS.USER_UPDATE_SELF,
+        PERMISSIONS.USER_LOOKUP_BY_CODE,
+        PERMISSIONS.WORKSPACE_READ_SELF,
+        PERMISSIONS.WORKSPACE_CREATE_SELF,
+        PERMISSIONS.WORKSPACE_UPDATE_SELF,
         PERMISSIONS.SYSTEM_ADMIN_OVERVIEW_READ,
         PERMISSIONS.SYSTEM_ADMIN_USER_LIST,
         PERMISSIONS.SYSTEM_ADMIN_USER_UPDATE_STATUS,

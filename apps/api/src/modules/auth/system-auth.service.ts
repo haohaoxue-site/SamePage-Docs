@@ -1,21 +1,17 @@
 import type { AuthMethodName } from '@haohaoxue/samepage-domain'
-import type { AuthProvider, LocalCredential, Prisma, SystemAuthConfig, User } from '@prisma/client'
+import type { LocalCredential, SystemAuthConfig, User } from '@prisma/client'
 import type { BootstrapConfig } from '../../config/auth.config'
-import { randomInt } from 'node:crypto'
 import { AUTH_METHOD } from '@haohaoxue/samepage-contracts'
 import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../database/prisma.service'
-import { resolveAuthMethod } from '../../utils/auth-methods'
-import { sha256Hex } from '../../utils/hash'
 import { generateTemporaryPassword, hashPassword } from '../../utils/password'
 import { RbacService } from '../rbac/rbac.service'
 import { SystemEmailService } from '../system-email/system-email.service'
-import { AuthMailerService } from './auth-mailer.service'
+import { resolveUniqueUserCode } from '../users/users.utils'
+import { PersonalWorkspacesService } from '../workspaces/personal-workspaces.service'
 
 const SYSTEM_AUTH_CONFIG_ID = 'default'
-const EMAIL_VERIFICATION_TTL_SECONDS = 10 * 60
-const EMAIL_VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000
 
 export interface RegistrationOptions {
   allowPasswordRegistration: boolean
@@ -31,8 +27,8 @@ export class SystemAuthService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rbacService: RbacService,
-    private readonly authMailerService: AuthMailerService,
     private readonly systemEmailService: SystemEmailService,
+    private readonly personalWorkspacesService: PersonalWorkspacesService,
     configService: ConfigService,
   ) {
     this.bootstrapConfig = configService.getOrThrow<BootstrapConfig>('bootstrap')
@@ -150,130 +146,9 @@ export class SystemAuthService implements OnModuleInit {
     }
   }
 
-  async issueRegistrationVerification(email: string): Promise<void> {
-    await this.assertRegistrationAllowed(AUTH_METHOD.PASSWORD)
-
-    const normalizedEmail = email.trim().toLowerCase()
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: normalizedEmail },
-      select: { id: true },
-    })
-
-    if (existingUser) {
-      throw new BadRequestException('该邮箱已存在账号，请直接登录')
-    }
-
-    const latestVerification = await this.prisma.authEmailVerificationToken.findFirst({
-      where: {
-        email: normalizedEmail,
-        purpose: 'REGISTER_VERIFY',
-        consumedAt: null,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
-
-    if (latestVerification && Date.now() - latestVerification.createdAt.getTime() < EMAIL_VERIFICATION_RESEND_INTERVAL_MS) {
-      throw new BadRequestException('验证码发送过于频繁，请稍后再试')
-    }
-
-    await this.prisma.authEmailVerificationToken.updateMany({
-      where: {
-        email: normalizedEmail,
-        purpose: 'REGISTER_VERIFY',
-        consumedAt: null,
-      },
-      data: {
-        consumedAt: new Date(),
-      },
-    })
-
-    const code = String(randomInt(100000, 1000000))
-
-    await this.prisma.authEmailVerificationToken.create({
-      data: {
-        email: normalizedEmail,
-        tokenHash: this.hash(code),
-        purpose: 'REGISTER_VERIFY',
-        expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_SECONDS * 1000),
-      },
-    })
-
-    await this.authMailerService.sendRegistrationCodeEmail({
-      email: normalizedEmail,
-      code,
-    })
-  }
-
-  async consumeRegistrationVerificationCode(
-    email: string,
-    code: string,
-    tx: Prisma.TransactionClient | PrismaService = this.prisma,
-  ): Promise<{ email: string }> {
-    const normalizedEmail = email.trim().toLowerCase()
-    const normalizedCode = code.trim()
-    const token = await tx.authEmailVerificationToken.findFirst({
-      where: {
-        email: normalizedEmail,
-        purpose: 'REGISTER_VERIFY',
-        consumedAt: null,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
-
-    if (!token || token.expiresAt.getTime() <= Date.now()) {
-      throw new BadRequestException('验证码已失效，请重新获取')
-    }
-
-    if (token.tokenHash !== this.hash(normalizedCode)) {
-      throw new BadRequestException('验证码错误')
-    }
-
-    const consumed = await tx.authEmailVerificationToken.updateMany({
-      where: {
-        id: token.id,
-        consumedAt: null,
-      },
-      data: {
-        consumedAt: new Date(),
-      },
-    })
-
-    if (consumed.count !== 1) {
-      throw new BadRequestException('验证码已失效，请重新获取')
-    }
-
-    return {
-      email: token.email,
-    }
-  }
-
   async isSystemAdminUser(userId: string): Promise<boolean> {
     const config = await this.getOrCreateConfig()
     return config.systemAdminUserId === userId
-  }
-
-  async isNewUserRegistrationAllowedByOAuth(
-    provider: AuthProvider,
-    normalizedEmail: string | undefined,
-    emailVerified: boolean | undefined,
-  ): Promise<boolean> {
-    const existingAccount = normalizedEmail
-      ? await this.prisma.user.findUnique({
-          where: { email: normalizedEmail },
-          select: { id: true },
-        })
-      : null
-
-    if (existingAccount && emailVerified) {
-      return true
-    }
-
-    await this.assertRegistrationAllowed(resolveAuthMethod(provider))
-    return true
   }
 
   private async ensureSystemAdminUser(email: string): Promise<User> {
@@ -283,7 +158,7 @@ export class SystemAuthService implements OnModuleInit {
     })
 
     if (existingUser) {
-      return this.prisma.user.update({
+      const user = await this.prisma.user.update({
         where: { id: existingUser.id },
         data: {
           email: normalizedEmail,
@@ -291,14 +166,39 @@ export class SystemAuthService implements OnModuleInit {
           displayName: existingUser.displayName || 'System Admin',
         },
       })
+
+      await this.personalWorkspacesService.provisionPersonalWorkspaceForUser({
+        userId: user.id,
+        userCode: user.userCode,
+      })
+
+      return user
     }
 
-    return this.prisma.user.create({
-      data: {
-        email: normalizedEmail,
-        displayName: 'System Admin',
-        status: 'ACTIVE',
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const userCode = await resolveUniqueUserCode({
+        isUserCodeTaken: async candidate =>
+          Boolean(await tx.user.findUnique({
+            where: { userCode: candidate },
+            select: { id: true },
+          })),
+      })
+
+      const user = await tx.user.create({
+        data: {
+          email: normalizedEmail,
+          displayName: 'System Admin',
+          status: 'ACTIVE',
+          userCode,
+        },
+      })
+
+      await this.personalWorkspacesService.provisionPersonalWorkspaceForUser({
+        userId: user.id,
+        userCode: user.userCode,
+      }, tx)
+
+      return user
     })
   }
 
@@ -365,9 +265,5 @@ export class SystemAuthService implements OnModuleInit {
         where: { id: SYSTEM_AUTH_CONFIG_ID },
       })
     }
-  }
-
-  private hash(value: string): string {
-    return sha256Hex(value)
   }
 }

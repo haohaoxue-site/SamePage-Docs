@@ -1,5 +1,18 @@
 import { z } from 'zod'
 
+export const USER_CODE_PREFIX = 'SP-'
+export const USER_CODE_LENGTH = 7
+export const USER_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+export const USER_CODE_REGEX = /^SP-[2-9A-HJ-NP-Z]{7}$/i
+export const USER_STATUS = {
+  ACTIVE: 'ACTIVE',
+  DISABLED: 'DISABLED',
+} as const
+export const USER_STATUS_VALUES = [
+  USER_STATUS.ACTIVE,
+  USER_STATUS.DISABLED,
+] as const
+
 export const LANGUAGE_PREFERENCE = {
   AUTO: 'auto',
   ZH_CN: 'zh-CN',
@@ -40,9 +53,19 @@ export const ACCOUNT_DELETION_CONFIRMATION_PHRASE = '删除我的账号'
 
 export const LanguagePreferenceSchema = z.enum(LANGUAGE_PREFERENCE_VALUES)
 export const AppearancePreferenceSchema = z.enum(APPEARANCE_PREFERENCE_VALUES)
+export const UserCodeSchema = z.string().regex(USER_CODE_REGEX)
+export const UserStatusSchema = z.enum(USER_STATUS_VALUES)
 
 export const AuditUserSummarySchema = z.object({
   id: z.string(),
   displayName: z.string(),
   avatarUrl: z.string().nullable(),
+}).strict()
+
+export const UserCollabIdentitySchema = z.object({
+  id: z.string(),
+  email: z.string().nullable(),
+  displayName: z.string(),
+  avatarUrl: z.string().nullable(),
+  userCode: UserCodeSchema,
 }).strict()

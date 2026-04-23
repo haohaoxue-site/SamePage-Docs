@@ -1,3 +1,9 @@
+import type {
+  ChatModelListResponse,
+  ChatRuntimeConfig,
+  ChatSessionDetail,
+  ChatSessionSummary,
+} from '@haohaoxue/samepage-domain'
 import type { FastifyReply } from 'fastify'
 import type { AuthUserContext } from '../auth/auth.interface'
 import {
@@ -10,88 +16,65 @@ import {
   Post,
   Res,
 } from '@nestjs/common'
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger'
 import { CurrentUser } from '../../decorators/current-user.decorator'
-import { ApiRequestResponse } from '../../utils/swagger'
-import {
-  ChatModelListResponseDto,
-  ChatRuntimeConfigDto,
-  ChatSessionDetailDto,
-  ChatSessionSummaryDto,
-  CreateChatCompletionRequestDto,
-} from './chat.dto'
+import { ChatSessionsService } from './chat-sessions.service'
+import { CreateChatCompletionRequestDto } from './chat.dto'
 import { ChatService } from './chat.service'
 
-@ApiTags('chat')
-@ApiBearerAuth()
 @Controller('chat')
 export class ChatController {
   private readonly logger = new Logger(ChatController.name)
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly chatSessionsService: ChatSessionsService,
+  ) {}
 
-  @ApiOperation({ summary: '获取聊天会话列表' })
-  @ApiRequestResponse([ChatSessionSummaryDto])
   @Get('sessions')
   async getSessions(
     @CurrentUser() authUser: AuthUserContext,
-  ): Promise<ChatSessionSummaryDto[]> {
-    return this.chatService.getSessions(authUser.id)
+  ): Promise<ChatSessionSummary[]> {
+    return this.chatSessionsService.getSessions(authUser.id)
   }
 
-  @ApiOperation({ summary: '创建聊天会话' })
-  @ApiRequestResponse(ChatSessionDetailDto)
   @Post('sessions')
   async createSession(
     @CurrentUser() authUser: AuthUserContext,
-  ): Promise<ChatSessionDetailDto> {
-    return this.chatService.createSession(authUser.id)
+  ): Promise<ChatSessionDetail> {
+    return this.chatSessionsService.createSession(authUser.id)
   }
 
-  @ApiOperation({ summary: '获取聊天会话详情' })
-  @ApiRequestResponse(ChatSessionDetailDto)
   @Get('sessions/:id')
   async getSession(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') sessionId: string,
-  ): Promise<ChatSessionDetailDto> {
-    return this.chatService.getSession(authUser.id, sessionId)
+  ): Promise<ChatSessionDetail> {
+    return this.chatSessionsService.getSession(authUser.id, sessionId)
   }
 
-  @ApiOperation({ summary: '删除聊天会话' })
-  @ApiRequestResponse(null)
   @Delete('sessions/:id')
   async deleteSession(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') sessionId: string,
   ): Promise<null> {
-    await this.chatService.deleteSession(authUser.id, sessionId)
+    await this.chatSessionsService.deleteSession(authUser.id, sessionId)
     return null
   }
 
-  @ApiOperation({ summary: '获取当前聊天服务状态' })
-  @ApiRequestResponse(ChatRuntimeConfigDto)
   @Get('config')
-  async getRuntimeConfig(): Promise<ChatRuntimeConfigDto> {
+  async getRuntimeConfig(): Promise<ChatRuntimeConfig> {
     return this.chatService.getRuntimeConfig()
   }
 
-  @ApiOperation({ summary: '获取聊天模型列表' })
-  @ApiRequestResponse(ChatModelListResponseDto)
   @Get('models')
   async getModels(
     @CurrentUser() authUser: AuthUserContext,
-  ): Promise<ChatModelListResponseDto> {
+  ): Promise<ChatModelListResponse> {
     return {
       models: await this.chatService.getModels(authUser.id),
     }
   }
 
-  @ApiOperation({ summary: '流式聊天补全' })
   @Post('completions')
   async createCompletion(
     @CurrentUser() authUser: AuthUserContext,
@@ -123,7 +106,7 @@ export class ChatController {
         },
       })
 
-      await this.chatService.persistAssistantMessage(sessionId, assistantContent, nextAssistantOrder)
+      await this.chatSessionsService.persistAssistantMessage(sessionId, assistantContent, nextAssistantOrder)
       hasPersistedAssistantMessage = true
       reply.raw.write('data: [DONE]\n\n')
     }
@@ -134,7 +117,7 @@ export class ChatController {
 
       if (!hasPersistedAssistantMessage && assistantContent.trim()) {
         try {
-          await this.chatService.persistAssistantMessage(sessionId, assistantContent, nextAssistantOrder)
+          await this.chatSessionsService.persistAssistantMessage(sessionId, assistantContent, nextAssistantOrder)
           hasPersistedAssistantMessage = true
         }
         catch (persistError) {

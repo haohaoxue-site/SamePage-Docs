@@ -1,11 +1,13 @@
 import type {
+  DocumentCollectionId,
   DocumentItem,
   DocumentTreeGroup,
+  OwnedDocumentCollectionId,
+  WorkspaceType,
 } from '@haohaoxue/samepage-domain'
 import type { ComputedRef } from 'vue'
 import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
-import { formatDocumentCollectionLabel } from '@haohaoxue/samepage-shared'
-import { useLocalStorage } from '@vueuse/core'
+import { formatDocumentCollectionLabel, resolveRootDocumentVisibility } from '@haohaoxue/samepage-shared'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, shallowRef } from 'vue'
 import {
@@ -13,6 +15,7 @@ import {
   deleteDocument as deleteDocumentRequest,
   getDocuments,
 } from '@/apis/document'
+import { useUiStore } from '@/stores/ui'
 import {
   collectDocumentItemIds,
   findDocumentPath,
@@ -20,9 +23,6 @@ import {
   resolvePreferredDocumentId,
   updateDocumentBranch,
 } from '../utils/documentTree'
-
-const EXPANDED_DOCUMENT_STORAGE_KEY = 'samepage_docs_expanded_documents'
-const LAST_OPENED_DOCUMENT_STORAGE_KEY = 'samepage_docs_last_opened_document'
 
 /**
  * 文档跳转选项。
@@ -37,8 +37,18 @@ interface NavigateToDocumentOptions {
  */
 interface UseDocumentTreeOptions {
   activeDocumentId: ComputedRef<string | null>
+  currentWorkspaceId: ComputedRef<string | null>
+  currentWorkspaceType: ComputedRef<WorkspaceType>
   confirmNavigation: () => Promise<boolean>
   navigateToDocument: (documentId: string | null, options?: NavigateToDocumentOptions) => Promise<boolean>
+}
+
+/**
+ * 文档树加载选项。
+ */
+interface LoadDocumentTreeOptions {
+  /** 是否静默加载 */
+  silent?: boolean
 }
 
 /**
@@ -46,35 +56,60 @@ interface UseDocumentTreeOptions {
  */
 interface UseDocumentTreeStateOptions {
   activeDocumentId: ComputedRef<string | null>
+  currentWorkspaceId: ComputedRef<string | null>
 }
 
 export function useDocumentTree({
   activeDocumentId,
+  currentWorkspaceId,
+  currentWorkspaceType,
   confirmNavigation,
   navigateToDocument,
 }: UseDocumentTreeOptions) {
   const isDocumentLoading = shallowRef(false)
   const isCreating = shallowRef(false)
   const isDeleting = shallowRef(false)
+  let treeRequestId = 0
   const state = useDocumentTreeState({
     activeDocumentId,
+    currentWorkspaceId,
   })
 
   const isMutatingTree = computed(() => isCreating.value || isDeleting.value)
 
-  async function loadTree() {
-    isDocumentLoading.value = true
+  async function loadTree(options: LoadDocumentTreeOptions = {}) {
+    const workspaceId = currentWorkspaceId.value
+    const requestId = ++treeRequestId
+    const shouldShowLoading = !options.silent
+
+    if (!workspaceId) {
+      isDocumentLoading.value = false
+      state.applyLoadedTree([])
+      return
+    }
+
+    if (shouldShowLoading) {
+      isDocumentLoading.value = true
+    }
 
     try {
-      state.applyLoadedTree(await getDocuments())
+      const groups = await getDocuments(workspaceId)
+
+      if (!isActiveTreeRequest(requestId, workspaceId)) {
+        return
+      }
+
+      state.applyLoadedTree(groups)
     }
     finally {
-      isDocumentLoading.value = false
+      if (shouldShowLoading && isActiveTreeRequest(requestId, workspaceId)) {
+        isDocumentLoading.value = false
+      }
     }
   }
 
-  async function createRootDocument() {
-    await createDocument(null)
+  async function createRootDocumentIn(collectionId: OwnedDocumentCollectionId = DOCUMENT_COLLECTION.PERSONAL) {
+    await createDocument(null, collectionId)
   }
 
   async function createChildDocument(parentDocumentId = activeDocumentId.value) {
@@ -84,7 +119,7 @@ export function useDocumentTree({
 
     const parentPath = findDocumentPath(state.treeGroups.value, parentDocumentId)
 
-    if (!parentPath || parentPath.collectionId !== DOCUMENT_COLLECTION.PERSONAL) {
+    if (!parentPath || !isOwnedDocumentCollection(parentPath.collectionId)) {
       return
     }
 
@@ -95,16 +130,16 @@ export function useDocumentTree({
     const targetPath = findDocumentPath(state.treeGroups.value, documentId)
     const targetDocument = targetPath?.nodes.at(-1)
 
-    if (!targetPath || !targetDocument || targetPath.collectionId !== DOCUMENT_COLLECTION.PERSONAL) {
+    if (!targetPath || !targetDocument || !isOwnedDocumentCollection(targetPath.collectionId)) {
       return
     }
 
     const confirmed = await ElMessageBox.confirm(
-      `将删除「${targetDocument.title}」及其所有子文档，此操作不可恢复。`,
-      '删除文档',
+      `将把「${targetDocument.title}」及其所有子文档移到回收站，你可以稍后在回收站恢复。`,
+      '移到回收站',
       {
         type: 'warning',
-        confirmButtonText: '删除',
+        confirmButtonText: '移到回收站',
         cancelButtonText: '取消',
       },
     ).then(() => true).catch(() => false)
@@ -133,17 +168,23 @@ export function useDocumentTree({
         })
       }
 
-      ElMessage.success('文档已删除')
+      ElMessage.success('文档已移到回收站')
     }
     catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : '删除文档失败')
+      ElMessage.error(error instanceof Error ? error.message : '移到回收站失败')
     }
     finally {
       isDeleting.value = false
     }
   }
 
-  async function createDocument(parentId: string | null) {
+  async function createDocument(parentId: string | null, collectionId: OwnedDocumentCollectionId = DOCUMENT_COLLECTION.PERSONAL) {
+    const workspaceId = currentWorkspaceId.value
+
+    if (!workspaceId) {
+      return
+    }
+
     const canNavigate = await confirmNavigation()
 
     if (!canNavigate) {
@@ -155,7 +196,16 @@ export function useDocumentTree({
     try {
       const createdDocument = await createDocumentRequest({
         title: '未命名',
+        workspaceId,
         parentId,
+        ...(parentId
+          ? {}
+          : {
+              visibility: resolveRootDocumentVisibility({
+                workspaceType: currentWorkspaceType.value,
+                collectionId,
+              }),
+            }),
       })
       await loadTree()
       await navigateToDocument(createdDocument.id, {
@@ -182,18 +232,28 @@ export function useDocumentTree({
     ensureExpandedPath: state.ensureExpandedPath,
     patchDocumentItem: state.patchDocumentItem,
     rememberLastOpenedDocument: state.rememberLastOpenedDocument,
-    createRootDocument,
+    createRootDocument: createRootDocumentIn,
     createChildDocument,
     deleteDocument,
+  }
+
+  function isActiveTreeRequest(requestId: number, workspaceId: string | null) {
+    return requestId === treeRequestId && currentWorkspaceId.value === workspaceId
   }
 }
 
 export function useDocumentTreeState({
   activeDocumentId,
+  currentWorkspaceId,
 }: UseDocumentTreeStateOptions) {
+  const uiStore = useUiStore()
   const treeGroups = shallowRef<DocumentTreeGroup[]>([])
-  const expandedDocumentIds = useLocalStorage<string[]>(EXPANDED_DOCUMENT_STORAGE_KEY, [])
-  const lastOpenedDocumentId = useLocalStorage<string | null>(LAST_OPENED_DOCUMENT_STORAGE_KEY, null)
+  const expandedDocumentIds = computed(() =>
+    uiStore.getDocumentTreeState(currentWorkspaceId.value).expandedDocumentIds,
+  )
+  const lastOpenedDocumentId = computed(() =>
+    uiStore.getDocumentTreeState(currentWorkspaceId.value).lastOpenedDocumentId,
+  )
 
   const expandedDocumentIdSet = computed(() => new Set(expandedDocumentIds.value))
   const activePath = computed(() => activeDocumentId.value ? findDocumentPath(treeGroups.value, activeDocumentId.value) : null)
@@ -229,7 +289,7 @@ export function useDocumentTreeState({
       nextExpandedIds.add(documentId)
     }
 
-    expandedDocumentIds.value = Array.from(nextExpandedIds)
+    uiStore.setExpandedDocumentIds(currentWorkspaceId.value, Array.from(nextExpandedIds))
   }
 
   function ensureExpandedPath(documentId: string | null) {
@@ -249,22 +309,39 @@ export function useDocumentTreeState({
       nextExpandedIds.add(document.id)
     }
 
-    expandedDocumentIds.value = Array.from(nextExpandedIds)
+    uiStore.setExpandedDocumentIds(currentWorkspaceId.value, Array.from(nextExpandedIds))
   }
 
   function pruneExpandedDocumentIds(documentIds: Set<string>) {
-    expandedDocumentIds.value = expandedDocumentIds.value.filter(id => !documentIds.has(id))
+    uiStore.setExpandedDocumentIds(
+      currentWorkspaceId.value,
+      expandedDocumentIds.value.filter(id => !documentIds.has(id)),
+    )
   }
 
   function patchDocumentItem(documentId: string, input: Partial<DocumentItem>) {
-    treeGroups.value = treeGroups.value.map(group => ({
-      ...group,
-      nodes: updateDocumentBranch(group.nodes, documentId, input),
-    }))
+    const currentGroups = treeGroups.value
+
+    for (let index = 0; index < currentGroups.length; index += 1) {
+      const group = currentGroups[index]
+      const nextNodes = updateDocumentBranch(group.nodes, documentId, input)
+
+      if (nextNodes === group.nodes) {
+        continue
+      }
+
+      const nextGroups = currentGroups.slice()
+      nextGroups[index] = {
+        ...group,
+        nodes: nextNodes,
+      }
+      treeGroups.value = nextGroups
+      return
+    }
   }
 
   function rememberLastOpenedDocument(documentId: string) {
-    lastOpenedDocumentId.value = documentId
+    uiStore.setLastOpenedDocumentId(currentWorkspaceId.value, documentId)
   }
 
   return {
@@ -281,4 +358,8 @@ export function useDocumentTreeState({
     patchDocumentItem,
     rememberLastOpenedDocument,
   }
+}
+
+function isOwnedDocumentCollection(collectionId: DocumentCollectionId): collectionId is OwnedDocumentCollectionId {
+  return collectionId !== DOCUMENT_COLLECTION.SHARED
 }

@@ -1,25 +1,25 @@
-import type { CryptoConfig } from '../../config/auth.config'
-import type {
-  SystemEmailConfig,
-  SystemEmailServiceStatus,
-  TestSystemEmailConfigInput,
-  TestSystemEmailConfigResponse,
-  UpdateSystemEmailConfigInput,
-  UpdateSystemEmailServiceStatusInput,
-} from '../system-email/system-email.interface'
 import type {
   GovernanceSummary,
   SystemAdminAuditLogItem,
   SystemAdminOverview,
   SystemAdminUserItem,
+  SystemAdminUserStatus,
   SystemAiConfig,
   SystemAiServiceStatus,
   SystemAuthGovernance,
+  SystemEmailConfig,
+  SystemEmailServiceStatus,
+  TestSystemEmailConfigRequest,
+  TestSystemEmailConfigResponse,
   UpdateSystemAdminUserResponse,
-  UpdateSystemAiConfigInput,
-  UpdateSystemAiServiceStatusInput,
-  UpdateSystemAuthGovernanceInput,
-} from './system-admin.interface'
+  UpdateSystemAiConfigRequest,
+  UpdateSystemAiServiceStatusRequest,
+  UpdateSystemAuthGovernanceRequest,
+  UpdateSystemEmailConfigRequest,
+  UpdateSystemEmailServiceStatusRequest,
+} from '@haohaoxue/samepage-domain'
+import type { CryptoConfig } from '../../config/auth.config'
+import { WORKSPACE_MEMBER_STATUS, WORKSPACE_TYPE } from '@haohaoxue/samepage-contracts'
 import {
   BadRequestException,
   Injectable,
@@ -27,7 +27,6 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import {
-  DocumentMemberRole,
   DocumentStatus,
   Prisma,
   UserStatus,
@@ -38,6 +37,13 @@ import { resolveAuthMethods } from '../../utils/auth-methods'
 import { decryptAes256Gcm, encryptAes256Gcm, isEncryptedValue } from '../../utils/crypto'
 import { SystemAuthService } from '../auth/system-auth.service'
 import { SystemEmailService } from '../system-email/system-email.service'
+import {
+  toSystemAdminAuditLogItem,
+  toSystemAdminUserItem,
+  toSystemAiConfig,
+  toSystemAiServiceStatus,
+  toSystemAuthGovernance,
+} from './system-admin.utils'
 
 const DEFAULT_SYSTEM_AI_BASE_URL = 'https://api.openai.com/v1'
 const systemAiConfigInclude = {
@@ -97,6 +103,7 @@ export class SystemAdminService {
         id: true,
         email: true,
         displayName: true,
+        userCode: true,
         avatarUrl: true,
         status: true,
         createdAt: true,
@@ -114,32 +121,40 @@ export class SystemAdminService {
             provider: true,
           },
         },
-        documentMemberships: {
+        workspaceMemberships: {
           where: {
-            role: DocumentMemberRole.VIEWER,
+            status: WORKSPACE_MEMBER_STATUS.ACTIVE,
+            workspace: {
+              type: WORKSPACE_TYPE.PERSONAL,
+            },
           },
+          take: 1,
           select: {
-            documentId: true,
-          },
-        },
-        _count: {
-          select: {
-            ownedDocuments: true,
+            workspace: {
+              select: {
+                _count: {
+                  select: {
+                    documents: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
     })
 
-    return users.map(user => ({
+    return users.map(user => toSystemAdminUserItem({
       id: user.id,
       email: user.email,
       displayName: user.displayName,
+      userCode: user.userCode,
       avatarUrl: user.avatarUrl,
       status: user.status,
       isSystemAdmin: user.id === governance.config.systemAdminUserId,
       authMethods: resolveAuthMethods(Boolean(user.localCredential), user.oauthAccounts),
-      ownedDocumentCount: user._count.ownedDocuments,
-      sharedDocumentCount: user.documentMemberships.length,
+      ownedDocumentCount: user.workspaceMemberships[0]?.workspace._count.documents ?? 0,
+      sharedDocumentCount: 0,
       createdAt: user.createdAt,
       lastLoginAt: user.lastLoginAt,
     }))
@@ -148,7 +163,7 @@ export class SystemAdminService {
   async updateUserStatus(
     actorUserId: string,
     userId: string,
-    status: UserStatus,
+    status: SystemAdminUserStatus,
   ): Promise<UpdateSystemAdminUserResponse> {
     const isSystemAdmin = await this.systemAuthService.isSystemAdminUser(userId)
 
@@ -162,7 +177,7 @@ export class SystemAdminService {
 
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: { status },
+      data: { status: status as UserStatus },
       select: {
         id: true,
         status: true,
@@ -183,7 +198,7 @@ export class SystemAdminService {
 
     return {
       id: user.id,
-      status: user.status,
+      status: user.status as SystemAdminUserStatus,
       isSystemAdmin,
     }
   }
@@ -194,7 +209,7 @@ export class SystemAdminService {
       this.systemEmailService.isEnabled(),
     ])
 
-    return {
+    return toSystemAuthGovernance({
       allowPasswordRegistration: snapshot.config.allowPasswordRegistration,
       allowGithubRegistration: snapshot.config.allowGithubRegistration,
       allowLinuxDoRegistration: snapshot.config.allowLinuxDoRegistration,
@@ -204,12 +219,12 @@ export class SystemAdminService {
       systemAdminMustChangePassword: snapshot.localCredential?.mustChangePassword ?? false,
       systemAdminLastLoginAt: snapshot.systemAdminUser?.lastLoginAt ?? null,
       systemAdminPasswordUpdatedAt: snapshot.localCredential?.passwordUpdatedAt ?? null,
-    }
+    })
   }
 
   async updateAuthGovernance(
     actorUserId: string,
-    payload: UpdateSystemAuthGovernanceInput,
+    payload: UpdateSystemAuthGovernanceRequest,
   ): Promise<SystemAuthGovernance> {
     const nextRegistrationOptions = Object.fromEntries(
       Object.entries({
@@ -217,7 +232,7 @@ export class SystemAdminService {
         allowGithubRegistration: payload.allowGithubRegistration,
         allowLinuxDoRegistration: payload.allowLinuxDoRegistration,
       }).filter(([, value]) => value !== undefined),
-    ) as UpdateSystemAuthGovernanceInput
+    ) as UpdateSystemAuthGovernanceRequest
 
     if (Object.keys(nextRegistrationOptions).length === 0) {
       throw new BadRequestException('至少更新一项注册配置')
@@ -245,7 +260,7 @@ export class SystemAdminService {
 
   async updateEmailConfig(
     actorUserId: string,
-    payload: UpdateSystemEmailConfigInput,
+    payload: UpdateSystemEmailConfigRequest,
   ): Promise<SystemEmailConfig> {
     const result = await this.systemEmailService.updateEmailConfig(actorUserId, payload)
 
@@ -271,7 +286,7 @@ export class SystemAdminService {
 
   async updateEmailServiceStatus(
     actorUserId: string,
-    payload: UpdateSystemEmailServiceStatusInput,
+    payload: UpdateSystemEmailServiceStatusRequest,
   ): Promise<SystemEmailServiceStatus> {
     const result = await this.systemEmailService.updateEmailServiceStatus(actorUserId, payload)
 
@@ -289,7 +304,7 @@ export class SystemAdminService {
 
   async testEmailConfig(
     actorUserId: string,
-    payload: TestSystemEmailConfigInput,
+    payload: TestSystemEmailConfigRequest,
   ): Promise<TestSystemEmailConfigResponse> {
     const result = await this.systemEmailService.sendTestEmail(payload.email)
 
@@ -325,15 +340,14 @@ export class SystemAdminService {
 
     const decryptedApiKey = this.decryptApiKey(config.apiKey)
 
-    return {
+    return toSystemAiConfig({
       id: config.id,
       baseUrl: config.baseUrl,
-      hasApiKey: Boolean(decryptedApiKey),
-      maskedApiKey: maskApiKey(decryptedApiKey),
       updatedAt: config.updatedAt,
       updatedBy: config.updatedBy,
       updatedByUser: toAuditUserSummary(config.updatedByUser),
-    }
+      decryptedApiKey,
+    })
   }
 
   async getAiServiceStatus(): Promise<SystemAiServiceStatus> {
@@ -342,17 +356,17 @@ export class SystemAdminService {
       include: systemAiConfigInclude,
     })
 
-    return {
+    return toSystemAiServiceStatus({
       enabled: config?.enabled ?? false,
       updatedAt: config?.updatedAt ?? null,
       updatedBy: config?.updatedBy ?? null,
       updatedByUser: toAuditUserSummary(config?.updatedByUser),
-    }
+    })
   }
 
   async updateAiConfig(
     actorUserId: string,
-    payload: UpdateSystemAiConfigInput,
+    payload: UpdateSystemAiConfigRequest,
   ): Promise<SystemAiConfig> {
     const existing = await this.prisma.systemAiConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
@@ -413,7 +427,7 @@ export class SystemAdminService {
 
   async updateAiServiceStatus(
     actorUserId: string,
-    payload: UpdateSystemAiServiceStatusInput,
+    payload: UpdateSystemAiServiceStatusRequest,
   ): Promise<SystemAiServiceStatus> {
     const existing = await this.prisma.systemAiConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
@@ -427,12 +441,12 @@ export class SystemAdminService {
     }
 
     if (!existing) {
-      return {
+      return toSystemAiServiceStatus({
         enabled: false,
         updatedAt: null,
         updatedBy: null,
         updatedByUser: null,
-      }
+      })
     }
 
     await this.prisma.systemAiConfig.update({
@@ -470,7 +484,7 @@ export class SystemAdminService {
       },
     })
 
-    return logs.map(log => ({
+    return logs.map(log => toSystemAdminAuditLogItem({
       id: log.id,
       action: log.action,
       targetType: log.targetType,
@@ -488,24 +502,20 @@ export class SystemAdminService {
 
     return {
       ...stats,
-      lockedStatus: DocumentStatus.LOCKED,
+      lockedStatus: DocumentStatus.LOCKED as GovernanceSummary['lockedStatus'],
       note: '系统管理员默认只看文档元数据与风险态势，不直接查看正文内容，也不直接处置用户资产。',
     }
   }
 
   private async getDocumentStats() {
-    const [totalDocuments, lockedDocuments, sharedDocumentGroups] = await Promise.all([
+    const [totalDocuments, lockedDocuments] = await Promise.all([
       this.prisma.document.count(),
       this.prisma.document.count({ where: { status: DocumentStatus.LOCKED } }),
-      this.prisma.documentMember.groupBy({
-        by: ['documentId'],
-        where: { role: DocumentMemberRole.VIEWER },
-      }),
     ])
 
     return {
       totalDocuments,
-      sharedDocuments: sharedDocumentGroups.length,
+      sharedDocuments: 0,
       lockedDocuments,
     }
   }
@@ -554,15 +564,6 @@ export class SystemAdminService {
       },
     })
   }
-}
-
-function maskApiKey(apiKey: string | null | undefined) {
-  if (!apiKey) {
-    return null
-  }
-
-  const suffix = apiKey.slice(-4)
-  return `••••••••${suffix}`
 }
 
 function asRecord(value: Prisma.JsonValue | null): Record<string, unknown> | null {

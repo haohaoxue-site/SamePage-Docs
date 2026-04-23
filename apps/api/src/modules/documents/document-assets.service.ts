@@ -17,12 +17,15 @@ import { PrismaService } from '../../database/prisma.service'
 import { sha256Hex } from '../../utils/hash'
 import { StorageService } from '../storage/storage.service'
 import { DocumentAccessService } from './document-access.service'
+import { DocumentShareRecipientsService } from './document-share-recipients.service'
 
 const DOCUMENT_ASSET_BUCKET = 'document-asset'
 const DOCUMENT_IMAGE_MAX_SIZE_BYTES = 15 * 1024 * 1024
 const DOCUMENT_FILE_MAX_SIZE_BYTES = 50 * 1024 * 1024
 const DOCUMENT_ASSET_CONTENT_AUDIENCE = 'samepage-document-asset'
 const DOCUMENT_ASSET_CONTENT_TOKEN_TYPE = 'document-asset-content'
+const DOCUMENT_SHARED_ASSET_CONTENT_TOKEN_TYPE = 'document-share-asset-content'
+const DOCUMENT_SHARED_RECIPIENT_ASSET_CONTENT_TOKEN_TYPE = 'document-share-recipient-asset-content'
 const DOCUMENT_ASSET_CONTENT_URL_TTL_SECONDS = 60 * 5
 const DOCUMENT_FILE_EXTENSION_PREFIX = /^\./
 const DOCUMENT_FILE_EXTENSION_PATTERN = /^[a-z0-9]{1,16}$/
@@ -50,6 +53,29 @@ interface DocumentAssetContentTokenPayload {
   [key: string]: unknown
 }
 
+interface SharedDocumentAssetContentTokenPayload {
+  shareId: string
+  documentId: string
+  assetId: string
+  tokenType: typeof DOCUMENT_SHARED_ASSET_CONTENT_TOKEN_TYPE
+  [key: string]: unknown
+}
+
+interface SharedDocumentRecipientAssetContentTokenPayload {
+  recipientId: string
+  documentId: string
+  assetId: string
+  tokenType: typeof DOCUMENT_SHARED_RECIPIENT_ASSET_CONTENT_TOKEN_TYPE
+  [key: string]: unknown
+}
+
+interface DocumentAssetAccessScope {
+  documentId: string
+  kind: 'document' | 'share' | 'recipient'
+  shareId?: string
+  recipientId?: string
+}
+
 const documentAssetSelect = {
   id: true,
   documentId: true,
@@ -74,6 +100,7 @@ export class DocumentAssetsService {
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly documentAccessService: DocumentAccessService,
+    private readonly documentShareRecipientsService: DocumentShareRecipientsService,
     configService: ConfigService,
   ) {
     this.jwtConfig = configService.getOrThrow<JwtConfig>('jwt')
@@ -196,34 +223,46 @@ export class DocumentAssetsService {
     assetIds: string[]
   }): Promise<ResolveDocumentAssetsResponse> {
     await this.documentAccessService.assertCanReadDocument(input.actorId, input.documentId)
+    return await this.resolveAssetsForScope({
+      documentId: input.documentId,
+      kind: 'document',
+    }, input.assetIds)
+  }
 
-    const uniqueAssetIds = Array.from(new Set(input.assetIds.filter(Boolean)))
+  async resolveSharedAssets(input: {
+    actorId: string
+    shareId: string
+    documentId: string
+    assetIds: string[]
+  }): Promise<ResolveDocumentAssetsResponse> {
+    const share = await this.documentShareRecipientsService.assertCanReadSharedDocument(
+      input.actorId,
+      input.shareId,
+      input.documentId,
+    )
+    return await this.resolveAssetsForScope({
+      documentId: share.documentId,
+      kind: 'share',
+      shareId: input.shareId,
+    }, input.assetIds)
+  }
 
-    if (!uniqueAssetIds.length) {
-      return {
-        assets: [],
-        unresolvedAssetIds: [],
-      }
-    }
-
-    const assets = await this.prisma.documentAsset.findMany({
-      where: {
-        documentId: input.documentId,
-        id: {
-          in: uniqueAssetIds,
-        },
-        deletedAt: null,
-        status: DocumentAssetStatus.READY,
-      },
-      select: documentAssetSelect,
-    })
-
-    const assetsById = new Map(assets.map(asset => [asset.id, asset]))
-
-    return {
-      assets: await Promise.all(assets.map(asset => this.toDocumentAsset(asset))),
-      unresolvedAssetIds: uniqueAssetIds.filter(assetId => !assetsById.has(assetId)),
-    }
+  async resolveSharedRecipientAssets(input: {
+    actorId: string
+    recipientId: string
+    documentId: string
+    assetIds: string[]
+  }): Promise<ResolveDocumentAssetsResponse> {
+    const recipient = await this.documentShareRecipientsService.assertCanReadSharedRecipientDocument(
+      input.actorId,
+      input.recipientId,
+      input.documentId,
+    )
+    return await this.resolveAssetsForScope({
+      documentId: recipient.documentId,
+      kind: 'recipient',
+      recipientId: input.recipientId,
+    }, input.assetIds)
   }
 
   async getAssetContent(input: {
@@ -241,6 +280,79 @@ export class DocumentAssetsService {
       where: {
         id: input.assetId,
         documentId: input.documentId,
+        document: {
+          trashedAt: null,
+        },
+        deletedAt: null,
+        status: DocumentAssetStatus.READY,
+      },
+      select: documentAssetSelect,
+    })
+
+    if (!asset) {
+      throw new NotFoundException('资源不存在')
+    }
+
+    return this.storageService.getObject({
+      bucket: asset.bucket,
+      key: asset.objectKey,
+    })
+  }
+
+  async getSharedAssetContent(input: {
+    shareId: string
+    documentId: string
+    assetId: string
+    token: string
+  }): Promise<StorageObject> {
+    const payload = await this.verifySharedContentToken(input.token)
+
+    if (payload.shareId !== input.shareId || payload.documentId !== input.documentId || payload.assetId !== input.assetId) {
+      throw new NotFoundException('资源不存在')
+    }
+
+    const asset = await this.prisma.documentAsset.findFirst({
+      where: {
+        id: input.assetId,
+        documentId: payload.documentId,
+        document: {
+          trashedAt: null,
+        },
+        deletedAt: null,
+        status: DocumentAssetStatus.READY,
+      },
+      select: documentAssetSelect,
+    })
+
+    if (!asset) {
+      throw new NotFoundException('资源不存在')
+    }
+
+    return this.storageService.getObject({
+      bucket: asset.bucket,
+      key: asset.objectKey,
+    })
+  }
+
+  async getSharedRecipientAssetContent(input: {
+    recipientId: string
+    documentId: string
+    assetId: string
+    token: string
+  }): Promise<StorageObject> {
+    const payload = await this.verifySharedRecipientContentToken(input.token)
+
+    if (payload.recipientId !== input.recipientId || payload.documentId !== input.documentId || payload.assetId !== input.assetId) {
+      throw new NotFoundException('资源不存在')
+    }
+
+    const asset = await this.prisma.documentAsset.findFirst({
+      where: {
+        id: input.assetId,
+        documentId: payload.documentId,
+        document: {
+          trashedAt: null,
+        },
         deletedAt: null,
         status: DocumentAssetStatus.READY,
       },
@@ -261,7 +373,7 @@ export class DocumentAssetsService {
     documentId: string
     assetIds: string[]
   }): Promise<void> {
-    const uniqueAssetIds = Array.from(new Set(input.assetIds.filter(Boolean)))
+    const uniqueAssetIds = normalizeRequestedAssetIds(input.assetIds)
 
     if (!uniqueAssetIds.length) {
       return
@@ -273,6 +385,9 @@ export class DocumentAssetsService {
         id: {
           in: uniqueAssetIds,
         },
+        document: {
+          trashedAt: null,
+        },
         deletedAt: null,
         status: DocumentAssetStatus.READY,
       },
@@ -283,7 +398,55 @@ export class DocumentAssetsService {
     }
   }
 
-  private async toDocumentAsset(asset: PersistedDocumentAsset): Promise<DocumentAsset> {
+  private async resolveAssetsForScope(
+    scope: DocumentAssetAccessScope,
+    assetIds: string[],
+  ): Promise<ResolveDocumentAssetsResponse> {
+    const uniqueAssetIds = normalizeRequestedAssetIds(assetIds)
+
+    if (!uniqueAssetIds.length) {
+      return {
+        assets: [],
+        unresolvedAssetIds: [],
+      }
+    }
+
+    const assets = await this.findReadyAssets(scope.documentId, uniqueAssetIds)
+    const assetsById = new Map(assets.map(asset => [asset.id, asset]))
+    const orderedAssets = uniqueAssetIds
+      .map(assetId => assetsById.get(assetId))
+      .filter((asset): asset is PersistedDocumentAsset => Boolean(asset))
+
+    return {
+      assets: await Promise.all(orderedAssets.map(asset => this.toDocumentAsset(asset, scope))),
+      unresolvedAssetIds: uniqueAssetIds.filter(assetId => !assetsById.has(assetId)),
+    }
+  }
+
+  private async findReadyAssets(documentId: string, assetIds: string[]): Promise<PersistedDocumentAsset[]> {
+    return await this.prisma.documentAsset.findMany({
+      where: {
+        documentId,
+        id: {
+          in: assetIds,
+        },
+        document: {
+          trashedAt: null,
+        },
+        deletedAt: null,
+        status: DocumentAssetStatus.READY,
+      },
+      select: documentAssetSelect,
+    })
+  }
+
+  private async toDocumentAsset(
+    asset: PersistedDocumentAsset,
+    scope: DocumentAssetAccessScope = {
+      documentId: asset.documentId,
+      kind: 'document',
+    },
+  ): Promise<DocumentAsset> {
     return {
       id: asset.id,
       documentId: asset.documentId,
@@ -294,22 +457,66 @@ export class DocumentAssetsService {
       fileName: asset.originalFileName,
       width: asset.width,
       height: asset.height,
-      contentUrl: await this.createContentUrl(asset.documentId, asset.id),
+      contentUrl: await this.createContentUrl(scope, asset.id),
       createdAt: asset.createdAt.toISOString(),
     }
   }
 
-  private async createContentUrl(documentId: string, assetId: string): Promise<string> {
+  private async createContentUrl(scope: DocumentAssetAccessScope, assetId: string): Promise<string> {
+    if (scope.kind === 'share') {
+      const token = await this.createSharedContentToken({
+        shareId: scope.shareId!,
+        documentId: scope.documentId,
+        assetId,
+        tokenType: DOCUMENT_SHARED_ASSET_CONTENT_TOKEN_TYPE,
+      })
+
+      return `${SERVER_PATH}/document-shares/${scope.shareId}/documents/${scope.documentId}/assets/${assetId}/content?token=${encodeURIComponent(token)}`
+    }
+
+    if (scope.kind === 'recipient') {
+      const token = await this.createSharedRecipientContentToken({
+        recipientId: scope.recipientId!,
+        documentId: scope.documentId,
+        assetId,
+        tokenType: DOCUMENT_SHARED_RECIPIENT_ASSET_CONTENT_TOKEN_TYPE,
+      })
+
+      return `${SERVER_PATH}/document-share-recipients/${scope.recipientId}/documents/${scope.documentId}/assets/${assetId}/content?token=${encodeURIComponent(token)}`
+    }
+
     const token = await this.createContentToken({
-      documentId,
+      documentId: scope.documentId,
       assetId,
       tokenType: DOCUMENT_ASSET_CONTENT_TOKEN_TYPE,
     })
 
-    return `${SERVER_PATH}/documents/${documentId}/assets/${assetId}/content?token=${encodeURIComponent(token)}`
+    return `${SERVER_PATH}/documents/${scope.documentId}/assets/${assetId}/content?token=${encodeURIComponent(token)}`
   }
 
   private async createContentToken(payload: DocumentAssetContentTokenPayload): Promise<string> {
+    return await new SignJWT(payload)
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer(this.jwtConfig.issuer)
+      .setAudience(DOCUMENT_ASSET_CONTENT_AUDIENCE)
+      .setIssuedAt()
+      .setExpirationTime(`${DOCUMENT_ASSET_CONTENT_URL_TTL_SECONDS}s`)
+      .sign(this.secretKey)
+  }
+
+  private async createSharedContentToken(payload: SharedDocumentAssetContentTokenPayload): Promise<string> {
+    return await new SignJWT(payload)
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer(this.jwtConfig.issuer)
+      .setAudience(DOCUMENT_ASSET_CONTENT_AUDIENCE)
+      .setIssuedAt()
+      .setExpirationTime(`${DOCUMENT_ASSET_CONTENT_URL_TTL_SECONDS}s`)
+      .sign(this.secretKey)
+  }
+
+  private async createSharedRecipientContentToken(
+    payload: SharedDocumentRecipientAssetContentTokenPayload,
+  ): Promise<string> {
     return await new SignJWT(payload)
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuer(this.jwtConfig.issuer)
@@ -332,6 +539,62 @@ export class DocumentAssetsService {
 
       if (
         payload.tokenType !== DOCUMENT_ASSET_CONTENT_TOKEN_TYPE
+        || typeof payload.documentId !== 'string'
+        || typeof payload.assetId !== 'string'
+      ) {
+        throw new NotFoundException('资源不存在')
+      }
+
+      return payload
+    }
+    catch {
+      throw new NotFoundException('资源不存在')
+    }
+  }
+
+  private async verifySharedContentToken(token: string): Promise<SharedDocumentAssetContentTokenPayload> {
+    try {
+      const { payload } = await jwtVerify<SharedDocumentAssetContentTokenPayload>(
+        token,
+        this.secretKey,
+        {
+          issuer: this.jwtConfig.issuer,
+          audience: DOCUMENT_ASSET_CONTENT_AUDIENCE,
+        },
+      )
+
+      if (
+        payload.tokenType !== DOCUMENT_SHARED_ASSET_CONTENT_TOKEN_TYPE
+        || typeof payload.shareId !== 'string'
+        || typeof payload.documentId !== 'string'
+        || typeof payload.assetId !== 'string'
+      ) {
+        throw new NotFoundException('资源不存在')
+      }
+
+      return payload
+    }
+    catch {
+      throw new NotFoundException('资源不存在')
+    }
+  }
+
+  private async verifySharedRecipientContentToken(
+    token: string,
+  ): Promise<SharedDocumentRecipientAssetContentTokenPayload> {
+    try {
+      const { payload } = await jwtVerify<SharedDocumentRecipientAssetContentTokenPayload>(
+        token,
+        this.secretKey,
+        {
+          issuer: this.jwtConfig.issuer,
+          audience: DOCUMENT_ASSET_CONTENT_AUDIENCE,
+        },
+      )
+
+      if (
+        payload.tokenType !== DOCUMENT_SHARED_RECIPIENT_ASSET_CONTENT_TOKEN_TYPE
+        || typeof payload.recipientId !== 'string'
         || typeof payload.documentId !== 'string'
         || typeof payload.assetId !== 'string'
       ) {
@@ -414,6 +677,17 @@ function buildDocumentAssetObjectKey(input: {
 }) {
   return `documents/${input.documentId}/${input.assetId}.${input.extension}`
 }
+
+function normalizeRequestedAssetIds(assetIds: string[]): string[] {
+  return Array.from(
+    new Set(
+      assetIds
+        .map(assetId => assetId.trim())
+        .filter(assetId => assetId.length > 0),
+    ),
+  )
+}
+
 function normalizeDocumentFileMimeType(mimeType: string): string {
   const normalizedMimeType = mimeType.trim().toLowerCase()
   return normalizedMimeType || 'application/octet-stream'

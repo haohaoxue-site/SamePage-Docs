@@ -1,13 +1,13 @@
-import { useLocalStorage } from '@vueuse/core'
+import { computed } from 'vue'
 import { workspaceNavigationItems } from '@/router/routes'
-
-const SIDEBAR_COLLAPSED_STORAGE_KEY = 'samepage_workspace_sidebar_collapsed'
+import { useUiStore } from '@/stores/ui'
 
 export function useWorkspaceShell() {
-  const isSidebarCollapsed = useLocalStorage(SIDEBAR_COLLAPSED_STORAGE_KEY, false)
+  const uiStore = useUiStore()
+  const isSidebarCollapsed = computed(() => uiStore.workspaceSidebarCollapsed)
 
   function toggleSidebar() {
-    isSidebarCollapsed.value = !isSidebarCollapsed.value
+    uiStore.setWorkspaceSidebarCollapsed(!uiStore.workspaceSidebarCollapsed)
   }
 
   return {

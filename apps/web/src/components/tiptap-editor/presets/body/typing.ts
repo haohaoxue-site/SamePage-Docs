@@ -24,6 +24,11 @@ export interface DocumentBodyEditorProps {
    * @description 历史预览时关闭编辑能力
    */
   editable?: boolean
+  /**
+   * 是否展示大纲浮层
+   * @description 分享阅读页会关闭编辑器专属浮层
+   */
+  showOutline?: boolean
 }
 
 export interface DocumentBodyEditorEmits {

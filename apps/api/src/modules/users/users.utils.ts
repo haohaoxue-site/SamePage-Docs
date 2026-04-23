@@ -1,20 +1,30 @@
 import type {
   AppearancePreference,
-  AuthProviderName,
   LanguagePreference,
 } from '@haohaoxue/samepage-domain'
 import { Buffer } from 'node:buffer'
 import { createHash, randomInt } from 'node:crypto'
-import { SERVER_PATH } from '@haohaoxue/samepage-contracts'
+import {
+  SERVER_PATH,
+  USER_CODE_ALPHABET,
+  USER_CODE_LENGTH,
+  USER_CODE_PREFIX,
+} from '@haohaoxue/samepage-contracts'
+
 import { BadRequestException } from '@nestjs/common'
 import {
-  AuthProvider,
   UserAppearancePreference as DbUserAppearancePreference,
   UserLanguagePreference as DbUserLanguagePreference,
 } from '@prisma/client'
 import { normalizeEmail } from '../../utils/email'
 
+export {
+  isExactUserCodeQuery,
+  normalizeUserCodeQuery,
+} from '@haohaoxue/samepage-shared'
+
 const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024
+const STORAGE_KEY_RANDOM_UPPER_BOUND = 2 ** 32
 const AVATAR_MIME_EXTENSION_MAP = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -27,8 +37,37 @@ export function buildAvatarStorageKey(userId: string, mimeType: AvatarMimeType):
   const timestamp = Date.now()
 
   return `user-avatar/${userId}/${timestamp}-${createHash('sha1')
-    .update(`${userId}:${timestamp}:${randomInt(0, Number.MAX_SAFE_INTEGER)}`)
+    .update(`${userId}:${timestamp}:${randomInt(0, STORAGE_KEY_RANDOM_UPPER_BOUND)}`)
     .digest('hex')}.${AVATAR_MIME_EXTENSION_MAP[mimeType]}`
+}
+
+export function createRandomUserCode(
+  randomIntFn: (min: number, max: number) => number = randomInt,
+): string {
+  let value = USER_CODE_PREFIX
+
+  for (let position = 0; position < USER_CODE_LENGTH; position += 1) {
+    const randomIndex = randomIntFn(0, USER_CODE_ALPHABET.length)
+    value += USER_CODE_ALPHABET[randomIndex]
+  }
+
+  return value
+}
+
+export async function resolveUniqueUserCode(options: {
+  createUserCode?: () => string
+  isUserCodeTaken: (userCode: string) => Promise<boolean>
+}): Promise<string> {
+  const createUserCode = options.createUserCode ?? createRandomUserCode
+
+  while (true) {
+    const userCode = createUserCode()
+    const exists = await options.isUserCodeTaken(userCode)
+
+    if (!exists) {
+      return userCode
+    }
+  }
 }
 
 export function assertAvatarMimeType(mimeType: string): AvatarMimeType {
@@ -109,14 +148,6 @@ export function mapAppearancePreferenceToDb(value: AppearancePreference): DbUser
   }
 
   return 'AUTO'
-}
-
-export function resolveDbProvider(provider: AuthProviderName): AuthProvider {
-  if (provider === 'github') {
-    return AuthProvider.GITHUB
-  }
-
-  return AuthProvider.LINUX_DO
 }
 
 function isAvatarSignatureMatched(buffer: Buffer, mimeType: AvatarMimeType): boolean {

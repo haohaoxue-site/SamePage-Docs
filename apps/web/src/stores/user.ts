@@ -12,7 +12,7 @@ import { APPEARANCE_PREFERENCE, LANGUAGE_PREFERENCE, ROLES } from '@haohaoxue/sa
 import { resolveAppearancePreference } from '@haohaoxue/samepage-shared'
 import { usePreferredDark } from '@vueuse/core'
 import { defineStore } from 'pinia'
-import { computed, reactive, shallowRef, watch } from 'vue'
+import { computed, reactive, readonly, shallowRef, watch } from 'vue'
 import {
   confirmBindEmail,
   disconnectOauthBinding,
@@ -41,6 +41,7 @@ function cloneCurrentUser(user: SessionUserSource): AuthUser {
     email: user.email,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
+    userCode: user.userCode,
     roles: [...user.roles],
     permissions: [...user.permissions],
     authMethods: [...user.authMethods],
@@ -64,6 +65,7 @@ function cloneUserSettings(settings: UserSettings): UserSettings {
     },
     account: {
       email: settings.account.email,
+      userCode: settings.account.userCode,
       hasPasswordAuth: settings.account.hasPasswordAuth,
       emailVerified: settings.account.emailVerified,
       github: {
@@ -79,16 +81,6 @@ function cloneUserSettings(settings: UserSettings): UserSettings {
   }
 }
 
-function deepFreeze<T extends object>(value: T): DeepReadonly<T> {
-  for (const entry of Object.values(value)) {
-    if (entry && typeof entry === 'object' && !Object.isFrozen(entry)) {
-      deepFreeze(entry)
-    }
-  }
-
-  return Object.freeze(value) as DeepReadonly<T>
-}
-
 export const useUserStore = defineStore('user', () => {
   const _currentUser = shallowRef<AuthUser | null>(null)
   const _settings = shallowRef<UserSettings | null>(null)
@@ -97,14 +89,12 @@ export const useUserStore = defineStore('user', () => {
   const isSavingLanguage = shallowRef(false)
   const isSavingAppearance = shallowRef(false)
   const currentUser = computed<DeepReadonly<AuthUser> | null>(() =>
-    _currentUser.value ? deepFreeze(cloneCurrentUser(_currentUser.value)) : null,
+    _currentUser.value as DeepReadonly<AuthUser> | null,
   )
   const settings = computed<DeepReadonly<UserSettings> | null>(() =>
-    _settings.value ? deepFreeze(cloneUserSettings(_settings.value)) : null,
+    _settings.value as DeepReadonly<UserSettings> | null,
   )
-  const preferences = computed<DeepReadonly<UserSettings['preferences']>>(() =>
-    deepFreeze(clonePreferences(_preferences)),
-  )
+  const preferences = readonly(_preferences) as DeepReadonly<UserSettings['preferences']>
 
   const systemMode = computed(() =>
     preferredDark.value ? APPEARANCE_PREFERENCE.DARK : APPEARANCE_PREFERENCE.LIGHT,

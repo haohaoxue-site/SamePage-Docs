@@ -23,19 +23,34 @@ export function updateDocumentBranch(
   targetDocumentId: string,
   input: Partial<DocumentItem>,
 ): DocumentItem[] {
-  return items.map((item) => {
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index]
+
     if (item.id === targetDocumentId) {
-      return {
-        ...item,
-        ...input,
+      const nextItem = applyDocumentItemPatch(item, input)
+
+      if (nextItem === item) {
+        return items
       }
+
+      const nextItems = items.slice()
+      nextItems[index] = nextItem
+      return nextItems
     }
 
-    return {
-      ...item,
-      children: updateDocumentBranch(item.children, targetDocumentId, input),
+    const nextChildren = updateDocumentBranch(item.children, targetDocumentId, input)
+
+    if (nextChildren !== item.children) {
+      const nextItems = items.slice()
+      nextItems[index] = {
+        ...item,
+        children: nextChildren,
+      }
+      return nextItems
     }
-  })
+  }
+
+  return items
 }
 
 export function findDocumentPath(
@@ -134,4 +149,23 @@ function findDocumentItems(items: DocumentItem[], targetDocumentId: string): Doc
   }
 
   return null
+}
+
+function applyDocumentItemPatch(item: DocumentItem, input: Partial<DocumentItem>): DocumentItem {
+  const patchKeys = Object.keys(input) as Array<keyof DocumentItem>
+
+  if (!patchKeys.length) {
+    return item
+  }
+
+  const hasChanges = patchKeys.some(key => item[key] !== input[key])
+
+  if (!hasChanges) {
+    return item
+  }
+
+  return {
+    ...item,
+    ...input,
+  }
 }

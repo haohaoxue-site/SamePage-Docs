@@ -5,6 +5,7 @@ export function useDocumentContextActions(
   props: DocumentContextActionsProps,
   options: {
     onOpenHistory: () => void
+    onMoveDocumentToTeam: () => void
     onDeleteDocument: () => void
   },
 ) {
@@ -32,9 +33,23 @@ export function useDocumentContextActions(
     options.onDeleteDocument()
   }
 
+  function moveDocumentToTeam() {
+    if (!props.canMoveToTeam) {
+      return
+    }
+
+    closeMenu()
+    options.onMoveDocumentToTeam()
+  }
+
   function handleCommand(command: unknown) {
     if (command === 'history') {
       openHistory()
+      return
+    }
+
+    if (command === 'move-to-team') {
+      moveDocumentToTeam()
       return
     }
 
@@ -48,6 +63,7 @@ export function useDocumentContextActions(
     deleteDocument,
     handleCommand,
     handleVisibleChange,
+    moveDocumentToTeam,
     openHistory,
   }
 }

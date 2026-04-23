@@ -33,5 +33,22 @@ export const AUTH_PROVIDER_ALIAS_MAP = {
 
 export const AUTH_CALLBACK_PATH = '/auth/callback'
 
+export const OAUTH_REDIRECT_QUERY = {
+  LOGIN_CODE: 'code',
+  ERROR_CODE: 'error_code',
+  BIND_STATUS: 'bind_status',
+  PROVIDER: 'provider',
+  BIND_ERROR_CODE: 'bind_error_code',
+} as const
+
+export const OAUTH_REDIRECT_BIND_STATUS = {
+  SUCCESS: 'success',
+  ERROR: 'error',
+} as const
+
+export const OAUTH_REDIRECT_ERROR_CODE = {
+  CALLBACK_FAILED: 'OAUTH_CALLBACK_FAILED',
+} as const
+
 export const AuthProviderSchema = z.enum(AUTH_PROVIDER_VALUES)
 export const AuthMethodSchema = z.enum(AUTH_METHOD_VALUES)

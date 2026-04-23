@@ -31,7 +31,7 @@ export function useOverview() {
       {
         label: '总文档',
         value: overview.value.totalDocuments,
-        detail: `共享 ${overview.value.sharedDocuments}，锁定 ${overview.value.lockedDocuments}`,
+        detail: `分享 ${overview.value.sharedDocuments}，锁定 ${overview.value.lockedDocuments}`,
         iconCategory: SvgIconCategory.UI,
         icon: 'document-view',
       },

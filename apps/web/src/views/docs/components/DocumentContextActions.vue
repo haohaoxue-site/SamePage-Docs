@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import type {
   DocumentContextActionsEmits,
-  DocumentContextActionsProps,
 } from '../typing'
 import { useDocumentContextActions } from '../composables/useDocumentContextActions'
 
-const props = defineProps<DocumentContextActionsProps>()
+const props = defineProps<{
+  canDeleteDocument: boolean
+  canMoveToTeam: boolean
+}>()
 const emits = defineEmits<DocumentContextActionsEmits>()
 const { handleCommand, handleVisibleChange } = useDocumentContextActions(props, {
   onOpenHistory: () => emits('openHistory'),
+  onMoveDocumentToTeam: () => emits('moveDocumentToTeam'),
   onDeleteDocument: () => emits('deleteDocument'),
 })
 </script>
@@ -37,6 +40,19 @@ const { handleCommand, handleVisibleChange } = useDocumentContextActions(props, 
         </ElDropdownItem>
 
         <ElDropdownItem
+          v-if="props.canMoveToTeam"
+          command="move-to-team"
+          class="document-context-menu__item"
+        >
+          <span class="document-context-menu__item-main">
+            <span class="document-context-menu__icon">
+              <SvgIcon category="ui" icon="user-group" size="14px" />
+            </span>
+            <span class="document-context-menu__label">移到团队</span>
+          </span>
+        </ElDropdownItem>
+
+        <ElDropdownItem
           v-if="props.canDeleteDocument"
           command="delete"
           divided
@@ -46,7 +62,7 @@ const { handleCommand, handleVisibleChange } = useDocumentContextActions(props, 
             <span class="document-context-menu__icon">
               <SvgIcon category="ui" icon="trash-can" size="14px" />
             </span>
-            <span class="document-context-menu__label">删除</span>
+            <span class="document-context-menu__label">移到回收站</span>
           </span>
         </ElDropdownItem>
       </ElDropdownMenu>

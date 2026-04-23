@@ -6,32 +6,42 @@ const props = defineProps<DocumentItemProps>()
 const emits = defineEmits<DocumentItemEmits>()
 const {
   canManageDocument,
+  canMoveToTeam,
   getActionsStateClass,
   getExpandIconName,
   getItemStateClass,
-  handleDeleteCommand,
+  handleMenuCommand,
   isExpanded,
   openDocument,
   toggleItem,
 } = useDocumentItem(props, {
   onDeleteDocument: documentId => emits('deleteDocument', documentId),
+  onMoveDocumentToTeam: documentId => emits('moveDocumentToTeam', documentId),
   onOpen: documentId => emits('open', documentId),
+  onShareDocument: documentId => emits('shareDocument', documentId),
   onToggle: documentId => emits('toggle', documentId),
 })
 </script>
 
 <template>
-  <div class="document-tree-item" :style="{ paddingLeft: `${props.depth * 18}px` }">
+  <div
+    class="document-tree-item"
+    :style="{ paddingLeft: `${props.depth * 18}px` }"
+    role="treeitem"
+    :aria-level="props.depth + 1"
+    :aria-expanded="props.item.hasChildren ? isExpanded : undefined"
+    :aria-current="props.activeDocumentId === props.item.id ? 'page' : undefined"
+  >
     <div
       class="document-tree-item-surface"
-      :class="getItemStateClass()"
-      @click="openDocument"
+      :class="[getItemStateClass(), { 'is-expandable': props.item.hasChildren }]"
     >
       <ElButton
         v-if="props.item.hasChildren"
         text
         class="document-tree-item__icon-button"
         :class="getItemStateClass()"
+        :aria-expanded="isExpanded"
         @click.stop="toggleItem"
       >
         <SvgIcon category="ui" :icon="getExpandIconName()" size="13px" />
@@ -39,9 +49,16 @@ const {
 
       <div v-else class="h-5 w-5 shrink-0" />
 
-      <div class="document-tree-item__title" :class="getItemStateClass()">
-        {{ props.item.title }}
-      </div>
+      <button
+        type="button"
+        class="document-tree-item__open-button"
+        :class="getItemStateClass()"
+        @click="openDocument"
+      >
+        <span class="document-tree-item__title" :class="getItemStateClass()">
+          {{ props.item.title }}
+        </span>
+      </button>
 
       <div
         v-if="canManageDocument"
@@ -60,10 +77,11 @@ const {
           <SvgIcon category="ui" icon="plus" size="14px" />
         </ElButton>
 
-        <ElDropdown trigger="click" @command="handleDeleteCommand">
+        <ElDropdown trigger="click" @command="handleMenuCommand">
           <ElButton
             text
             class="document-tree-item__icon-button"
+            data-testid="document-tree-item-menu-trigger"
             :class="getItemStateClass()"
             :disabled="props.isActionPending"
             title="更多操作"
@@ -73,9 +91,27 @@ const {
           </ElButton>
 
           <template #dropdown>
-            <ElDropdownMenu>
-              <ElDropdownItem command="delete" class="!text-danger">
-                删除文档
+            <ElDropdownMenu class="document-tree-item__menu">
+              <ElDropdownItem
+                v-if="canMoveToTeam"
+                command="move-to-team"
+                class="document-tree-item__menu-item document-tree-item__menu-item--move-to-team"
+              >
+                移到团队
+              </ElDropdownItem>
+
+              <ElDropdownItem
+                command="share"
+                class="document-tree-item__menu-item document-tree-item__menu-item--share"
+              >
+                分享
+              </ElDropdownItem>
+
+              <ElDropdownItem
+                command="delete"
+                class="document-tree-item__menu-item document-tree-item__menu-item--delete !text-danger"
+              >
+                移到回收站
               </ElDropdownItem>
             </ElDropdownMenu>
           </template>
@@ -83,12 +119,13 @@ const {
       </div>
     </div>
 
-    <div v-if="props.item.hasChildren && isExpanded" class="mt-1 space-y-0.5">
+    <div v-if="props.item.hasChildren && isExpanded" role="group" class="mt-1 space-y-0.5">
       <DocumentItem
         v-for="child in props.item.children"
         :key="child.id"
         :item="child"
         :collection-id="props.collectionId"
+        :current-workspace-type="props.currentWorkspaceType"
         :depth="props.depth + 1"
         :active-document-id="props.activeDocumentId"
         :expanded-document-ids="props.expandedDocumentIds"
@@ -96,6 +133,8 @@ const {
         @open="emits('open', $event)"
         @toggle="emits('toggle', $event)"
         @create-child="emits('createChild', $event)"
+        @move-document-to-team="emits('moveDocumentToTeam', $event)"
+        @share-document="emits('shareDocument', $event)"
         @delete-document="emits('deleteDocument', $event)"
       />
     </div>
@@ -112,15 +151,13 @@ const {
     padding: 0.25rem 0.375rem;
     border: 1px solid transparent;
     border-radius: 0.5rem;
-    cursor: pointer;
-    outline: none;
     transition:
       border-color 0.2s ease,
       background-color 0.2s ease,
       color 0.2s ease,
       box-shadow 0.2s ease;
 
-    &:focus-visible {
+    &:focus-within {
       border-color: color-mix(in srgb, var(--brand-primary) 20%, transparent);
       background: var(--brand-fill-lighter);
     }
@@ -134,20 +171,15 @@ const {
         0 1px 2px 0 color-mix(in srgb, var(--brand-text-primary) 5%, transparent);
 
       :deep(.el-button) {
+        --el-button-border-color: transparent;
         --el-button-hover-bg-color: transparent;
+        --el-button-hover-text-color: var(--brand-primary);
         --el-button-active-bg-color: transparent;
+        --el-button-active-text-color: var(--brand-primary);
         --el-button-outline-color: transparent;
         --el-button-hover-border-color: transparent;
         --el-button-active-border-color: transparent;
-      }
-
-      :deep(.el-button:hover),
-      :deep(.el-button:focus),
-      :deep(.el-button:active),
-      :deep(.el-button.is-active) {
-        background-color: transparent !important;
-        border-color: transparent !important;
-        box-shadow: none !important;
+        box-shadow: none;
       }
     }
 
@@ -158,27 +190,31 @@ const {
     }
 
     .document-tree-item__icon-button {
-      margin-left: 0 !important;
-      min-width: 1.25rem !important;
-      width: 1.25rem !important;
-      height: 1.25rem !important;
-      padding: 0 !important;
-      border-radius: 0.375rem !important;
+      --el-button-text-color: var(--brand-text-secondary);
+      --el-button-border-color: transparent;
+      --el-button-hover-border-color: transparent;
+      --el-button-active-border-color: transparent;
+      --el-button-hover-text-color: var(--brand-primary);
+      --el-button-active-text-color: var(--brand-primary);
+      --el-button-hover-bg-color: var(--brand-bg-surface-raised);
+      --el-button-active-bg-color: var(--brand-bg-surface-raised);
+      margin-left: 0;
+      min-width: 1.25rem;
+      width: 1.25rem;
+      height: 1.25rem;
+      padding: 0;
+      border-radius: 0.375rem;
       color: var(--brand-text-secondary);
+      box-shadow: none;
 
       &:disabled {
-        opacity: 0.3 !important;
+        opacity: 0.3;
       }
 
       &.active {
+        --el-button-hover-bg-color: transparent;
+        --el-button-active-bg-color: transparent;
         color: var(--brand-primary);
-
-        &:hover,
-        &:focus,
-        &:active {
-          background: transparent !important;
-          color: var(--brand-primary);
-        }
       }
 
       &.idle {
@@ -189,7 +225,24 @@ const {
       }
     }
 
+    .document-tree-item__open-button {
+      display: flex;
+      align-items: center;
+      flex: 1 1 0%;
+      min-width: 0;
+      padding: 0;
+      border: none;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+
+      &:focus-visible {
+        outline: none;
+      }
+    }
+
     .document-tree-item__title {
+      display: block;
       flex: 1 1 0%;
       min-width: 0;
       overflow: hidden;

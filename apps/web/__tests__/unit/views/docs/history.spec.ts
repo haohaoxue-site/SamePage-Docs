@@ -24,11 +24,12 @@ function createBodyContent(text: string): TiptapJsonContent {
 function createDocument(overrides: Partial<ActiveDocumentDetail> = {}): ActiveDocumentDetail {
   return {
     id: 'doc-1',
-    ownerId: 'user-1',
+    workspaceId: 'workspace-personal',
+    createdBy: 'user-1',
+    visibility: 'PRIVATE',
     parentId: null,
     latestSnapshotId: 'snapshot-5',
     order: 0,
-    spaceScope: 'PERSONAL',
     status: 'ACTIVE',
     summary: '测试摘要',
     createdAt: '2026-04-07T19:50:00+08:00',
@@ -38,6 +39,7 @@ function createDocument(overrides: Partial<ActiveDocumentDetail> = {}): ActiveDo
     title: createDocumentTitleContent('没有标题33'),
     body: createBodyContent('最新正文'),
     ...overrides,
+    share: overrides.share ?? null,
   }
 }
 

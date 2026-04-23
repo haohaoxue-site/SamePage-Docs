@@ -36,16 +36,18 @@ const { overview, errorMessage, isLoading, metricCards } = useOverview()
                 {{ overview.aiConfigEnabled ? '已启用' : '未启用' }}
               </ElTag>
             </div>
-            <div class="admin-overview__snapshot rounded-xl p-4">
-              <div class="flex flex-col gap-1">
-                <span class="text-[10px] uppercase tracking-wider text-secondary font-bold">接口地址</span>
-                <span class="text-sm font-mono text-main truncate">{{ overview.systemAiBaseUrl || '未设置' }}</span>
-              </div>
-              <div class="mt-3 flex flex-col gap-1">
-                <span class="text-[10px] uppercase tracking-wider text-secondary font-bold">当前状态</span>
-                <span class="text-sm text-main">{{ overview.aiConfigEnabled ? '已启用' : '未启用' }}</span>
-              </div>
-            </div>
+            <ElDescriptions :column="1" direction="vertical" size="small" class="admin-overview__snapshot">
+              <ElDescriptionsItem label="接口地址">
+                <span class="admin-overview__snapshot-value admin-overview__snapshot-value--mono">
+                  {{ overview.systemAiBaseUrl || '未设置' }}
+                </span>
+              </ElDescriptionsItem>
+              <ElDescriptionsItem label="当前状态">
+                <span class="admin-overview__snapshot-value">
+                  {{ overview.aiConfigEnabled ? '已启用' : '未启用' }}
+                </span>
+              </ElDescriptionsItem>
+            </ElDescriptions>
           </div>
         </ElCard>
       </section>
@@ -56,5 +58,44 @@ const { overview, errorMessage, isLoading, metricCards } = useOverview()
 <style scoped lang="scss">
 .admin-overview__snapshot {
   background: var(--brand-bg-sidebar);
+  border-radius: 0.75rem;
+
+  :deep(.el-descriptions__body) {
+    background: transparent;
+  }
+
+  :deep(.el-descriptions__table) {
+    width: 100%;
+  }
+
+  :deep(.el-descriptions__cell) {
+    padding: 1rem;
+  }
+
+  :deep(.el-descriptions__cell + .el-descriptions__cell) {
+    border-top: 1px solid color-mix(in srgb, var(--brand-border-base) 82%, transparent);
+  }
+
+  :deep(.el-descriptions__label) {
+    margin-bottom: 0.25rem;
+    color: var(--brand-text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+}
+
+.admin-overview__snapshot-value {
+  display: block;
+  color: var(--brand-text-primary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.admin-overview__snapshot-value--mono {
+  overflow: hidden;
+  font-family: var(--font-family-mono, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

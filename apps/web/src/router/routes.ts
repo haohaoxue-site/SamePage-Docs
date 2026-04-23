@@ -1,6 +1,6 @@
 import type { RouteRecordRaw } from 'vue-router'
 import type { AdminRouteName, WorkspaceNavigationItem, WorkspaceNavigationMeta } from './typing'
-import { AUTH_CALLBACK_PATH } from '@haohaoxue/samepage-contracts'
+import { AUTH_CALLBACK_PATH, DOCUMENT_SHARE_ROUTE_PREFIX } from '@haohaoxue/samepage-contracts'
 import { SvgIconCategory } from '@/components/svg-icon/typing'
 import { adminNavigationItems } from './navigation'
 
@@ -13,8 +13,13 @@ const PasswordRegisterVerifyView = () => import('@/views/auth/register-verify/in
 const PasswordRegisterRequestView = () => import('@/views/auth/register/index.vue')
 const ChatView = () => import('@/views/chat/index.vue')
 const DocsView = () => import('@/views/docs/index.vue')
+const DocsDocumentSurfaceView = () => import('@/views/docs/pages/DocsDocumentSurfacePage.vue')
+const DocsPendingSharesPageView = () => import('@/views/docs/pages/DocsPendingSharesPage.vue')
+const DocsPermissionsPageView = () => import('@/views/docs/pages/DocsPermissionsPage.vue')
+const DocsTrashPageView = () => import('@/views/docs/pages/DocsTrashPage.vue')
 const HomeView = () => import('@/views/home/index.vue')
 const KnowledgeView = () => import('@/views/knowledge/index.vue')
+const SharedDocsView = () => import('@/views/shared-docs/index.vue')
 const UserSettingsView = () => import('@/views/user/index.vue')
 
 const adminRouteComponents = {
@@ -85,8 +90,8 @@ const workspaceRouteChildren = [
     },
   },
   {
-    path: 'docs/:id?',
-    name: 'docs',
+    path: 'docs',
+    name: 'docs-nav',
     component: DocsView,
     meta: {
       workspaceNav: defineWorkspaceNavigationMeta({
@@ -96,6 +101,28 @@ const workspaceRouteChildren = [
         activeIcon: 'docs-active',
       }),
     },
+    children: [
+      {
+        path: 'pending-shares',
+        name: 'docs-pending-shares',
+        component: DocsPendingSharesPageView,
+      },
+      {
+        path: 'permissions',
+        name: 'docs-permissions',
+        component: DocsPermissionsPageView,
+      },
+      {
+        path: 'trash',
+        name: 'docs-trash',
+        component: DocsTrashPageView,
+      },
+      {
+        path: ':id?',
+        name: 'docs',
+        component: DocsDocumentSurfaceView,
+      },
+    ],
   },
   {
     path: 'knowledge',
@@ -143,6 +170,16 @@ export const workspaceNavigationItems: WorkspaceNavigationItem[] = workspaceRout
 })
 
 export const protectedRoutes: RouteRecordRaw[] = [
+  {
+    path: `${DOCUMENT_SHARE_ROUTE_PREFIX}/:shareId`,
+    name: 'shared-docs',
+    component: SharedDocsView,
+  },
+  {
+    path: `${DOCUMENT_SHARE_ROUTE_PREFIX}/recipients/:recipientId`,
+    name: 'shared-docs-recipient',
+    component: SharedDocsView,
+  },
   {
     path: '/auth/change-password',
     name: 'change-password',

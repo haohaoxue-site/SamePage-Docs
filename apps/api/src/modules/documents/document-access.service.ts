@@ -1,120 +1,214 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { DocumentMemberRole, DocumentStatus, Prisma } from '@prisma/client'
+import type { DocumentVisibility } from '@haohaoxue/samepage-domain'
+import {
+  DOCUMENT_VISIBILITY,
+  WORKSPACE_MEMBER_ROLE,
+  WORKSPACE_MEMBER_STATUS,
+  WORKSPACE_TYPE,
+} from '@haohaoxue/samepage-contracts'
+import { Injectable, NotFoundException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
 
-type PersistedDocument = Prisma.DocumentGetPayload<{
-  select: typeof documentAccessSelect
+type PersistedWorkspaceMembership = Prisma.WorkspaceMemberGetPayload<{
+  select: typeof accessibleWorkspaceMembershipSelect
 }>
 
-/**
- * 文档访问上下文。
- */
-interface DocumentAccessContext {
-  documentsById: Map<string, PersistedDocument>
-  sharedRootIds: Set<string>
+type PersistedDocumentAccessRecord = Prisma.DocumentGetPayload<{
+  select: typeof documentAccessRecordSelect
+}>
+
+/** 已通过访问校验的文档基础信息。 */
+export interface AccessibleDocument {
+  id: string
+  workspaceId: string
+  parentId: string | null
+  visibility: DocumentVisibility
+  createdBy: string
+  workspaceType: string
 }
 
-const documentAccessSelect = {
+const accessibleWorkspaceMembershipSelect = {
+  workspace: {
+    select: {
+      id: true,
+      type: true,
+    },
+  },
+} satisfies Prisma.WorkspaceMemberSelect
+
+const documentAccessRecordSelect = {
   id: true,
-  ownerId: true,
+  workspaceId: true,
   parentId: true,
-  spaceScope: true,
+  visibility: true,
+  createdBy: true,
+  trashedAt: true,
+  workspace: {
+    select: {
+      type: true,
+      members: {
+        select: {
+          userId: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.DocumentSelect
 
 @Injectable()
 export class DocumentAccessService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async assertCanReadDocument(userId: string, documentId: string): Promise<PersistedDocument> {
-    const context = await this.loadContext(userId)
-    return this.resolveReadableDocument(context, userId, documentId)
-  }
+  async assertAccessibleWorkspace(userId: string, workspaceId: string): Promise<PersistedWorkspaceMembership['workspace']> {
+    const membership = await this.prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId,
+        status: WORKSPACE_MEMBER_STATUS.ACTIVE,
+      },
+      select: accessibleWorkspaceMembershipSelect,
+    })
 
-  async assertCanEditDocument(userId: string, documentId: string): Promise<PersistedDocument> {
-    const document = await this.assertCanReadDocument(userId, documentId)
-
-    if (document.ownerId !== userId) {
-      throw new ForbiddenException('当前用户无权编辑该文档')
+    if (!membership) {
+      throw new NotFoundException('未找到可访问的空间')
     }
 
-    return document
+    return membership.workspace
   }
 
-  private async loadContext(userId: string): Promise<DocumentAccessContext> {
-    const [documents, sharedMemberships] = await Promise.all([
-      this.prisma.document.findMany({
-        where: {
-          status: {
-            in: [DocumentStatus.ACTIVE, DocumentStatus.LOCKED],
-          },
-        },
-        select: documentAccessSelect,
-      }),
-      this.prisma.documentMember.findMany({
-        where: {
-          userId,
-          role: DocumentMemberRole.VIEWER,
-        },
-        select: {
-          documentId: true,
-        },
-      }),
-    ])
+  async listAccessibleWorkspaces(userId: string): Promise<Array<PersistedWorkspaceMembership['workspace']>> {
+    const memberships = await this.prisma.workspaceMember.findMany({
+      where: {
+        userId,
+        status: WORKSPACE_MEMBER_STATUS.ACTIVE,
+      },
+      select: accessibleWorkspaceMembershipSelect,
+    })
 
-    const documentsById = new Map(documents.map(document => [document.id, document]))
-    const membershipIds = sharedMemberships
-      .map(item => item.documentId)
-      .filter(documentId => documentsById.has(documentId))
-    const membershipSet = new Set(membershipIds)
-    const sharedRootIds = new Set(
-      membershipIds.filter((documentId) => {
-        let currentDocument = documentsById.get(documentId)
-
-        while (currentDocument?.parentId) {
-          if (membershipSet.has(currentDocument.parentId)) {
-            return false
-          }
-
-          currentDocument = documentsById.get(currentDocument.parentId)
-        }
-
-        return true
-      }),
-    )
-
-    return {
-      documentsById,
-      sharedRootIds,
-    }
+    return memberships.map(membership => membership.workspace)
   }
 
-  private resolveReadableDocument(
-    context: DocumentAccessContext,
+  async hasWorkspaceAccess(userId: string, workspaceId: string): Promise<boolean> {
+    const membership = await this.prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId,
+        status: WORKSPACE_MEMBER_STATUS.ACTIVE,
+      },
+      select: {
+        userId: true,
+      },
+    })
+
+    return Boolean(membership)
+  }
+
+  async hasWorkspaceOwnerAccess(userId: string, workspaceId: string): Promise<boolean> {
+    const membership = await this.prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId,
+        status: WORKSPACE_MEMBER_STATUS.ACTIVE,
+        role: WORKSPACE_MEMBER_ROLE.OWNER,
+      },
+      select: {
+        userId: true,
+      },
+    })
+
+    return Boolean(membership)
+  }
+
+  async assertCanReadDocument(userId: string, documentId: string): Promise<AccessibleDocument> {
+    return this.assertDocumentAccess(userId, documentId, {
+      requireTrashed: false,
+    })
+  }
+
+  async assertCanEditDocument(userId: string, documentId: string): Promise<AccessibleDocument> {
+    return this.assertCanReadDocument(userId, documentId)
+  }
+
+  async assertCanManageTrashedDocument(userId: string, documentId: string): Promise<AccessibleDocument> {
+    return this.assertDocumentAccess(userId, documentId, {
+      requireTrashed: true,
+    })
+  }
+
+  private async assertDocumentAccess(
     userId: string,
     documentId: string,
-  ): PersistedDocument {
-    const document = context.documentsById.get(documentId)
+    options: {
+      requireTrashed: boolean
+    },
+  ): Promise<AccessibleDocument> {
+    const document = await this.loadDocumentAccessRecord(userId, documentId)
 
-    if (!document) {
+    if (!document || !document.workspace.members.length) {
       throw new NotFoundException(`Document "${documentId}" not found`)
     }
 
-    if (document.ownerId === userId) {
-      return document
+    if (options.requireTrashed ? !document.trashedAt : Boolean(document.trashedAt)) {
+      throw new NotFoundException(`Document "${documentId}" not found`)
     }
 
-    let currentDocument: PersistedDocument | undefined = document
-
-    while (currentDocument) {
-      if (context.sharedRootIds.has(currentDocument.id)) {
-        return document
-      }
-
-      currentDocument = currentDocument.parentId
-        ? context.documentsById.get(currentDocument.parentId)
-        : undefined
+    if (!canUserAccessDocument({
+      userId,
+      workspaceType: document.workspace.type,
+      visibility: document.visibility,
+      createdBy: document.createdBy,
+    })) {
+      throw new NotFoundException(`Document "${documentId}" not found`)
     }
 
-    throw new NotFoundException(`Document "${documentId}" not found`)
+    return toAccessibleDocument(document)
+  }
+
+  private async loadDocumentAccessRecord(userId: string, documentId: string): Promise<PersistedDocumentAccessRecord | null> {
+    return await this.prisma.document.findUnique({
+      where: { id: documentId },
+      select: {
+        ...documentAccessRecordSelect,
+        workspace: {
+          select: {
+            type: true,
+            members: {
+              where: {
+                userId,
+                status: WORKSPACE_MEMBER_STATUS.ACTIVE,
+              },
+              select: {
+                userId: true,
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+    })
+  }
+}
+
+function canUserAccessDocument(input: {
+  userId: string
+  workspaceType: string
+  visibility: string
+  createdBy: string
+}) {
+  return !(
+    input.workspaceType === WORKSPACE_TYPE.TEAM
+    && input.visibility === DOCUMENT_VISIBILITY.PRIVATE
+    && input.createdBy !== input.userId
+  )
+}
+
+function toAccessibleDocument(document: PersistedDocumentAccessRecord) {
+  return {
+    id: document.id,
+    workspaceId: document.workspaceId,
+    parentId: document.parentId,
+    visibility: document.visibility,
+    createdBy: document.createdBy,
+    workspaceType: document.workspace.type,
   }
 }

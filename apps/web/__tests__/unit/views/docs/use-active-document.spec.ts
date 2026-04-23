@@ -1,4 +1,4 @@
-import type { TiptapJsonContent } from '@haohaoxue/samepage-domain'
+import type { DocumentShareProjection, TiptapJsonContent } from '@haohaoxue/samepage-domain'
 import type {
   CreateDocumentSnapshotResponse,
   DocumentHead,
@@ -7,12 +7,13 @@ import type {
 import {
   DOCUMENT_PANE_STATE,
   DOCUMENT_SAVE_STATE,
+  DOCUMENT_SHARE_MODE,
   DOCUMENT_SNAPSHOT_SOURCE,
   TIPTAP_SCHEMA_VERSION,
 } from '@haohaoxue/samepage-contracts'
 import { createDocumentTitleContent } from '@haohaoxue/samepage-shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { computed, effectScope, shallowRef } from 'vue'
+import { computed, effectScope, nextTick, shallowRef } from 'vue'
 import {
   createDocumentSnapshot,
   getDocumentHead,
@@ -52,12 +53,14 @@ function createDocumentHead(overrides: Partial<DocumentHead> = {}): DocumentHead
   return {
     document: {
       id: 'doc-1',
-      ownerId: 'user-1',
+      workspaceId: 'workspace-personal',
+      createdBy: 'user-1',
+      visibility: 'PRIVATE',
       parentId: null,
       latestSnapshotId: 'snapshot-1',
       order: 0,
-      spaceScope: 'PERSONAL',
       status: 'ACTIVE',
+      share: null,
       summary: '测试摘要',
       createdAt: '2026-04-14T00:00:00.000Z',
       updatedAt: '2026-04-14T00:00:00.000Z',
@@ -117,6 +120,47 @@ function createSnapshot(overrides: Partial<DocumentSnapshot> = {}): DocumentSnap
     createdByUser: null,
     ...overrides,
   }
+}
+
+function createPublicShareProjection(): DocumentShareProjection {
+  return {
+    localPolicy: {
+      mode: DOCUMENT_SHARE_MODE.PUBLIC_TO_LOGGED_IN,
+      shareId: 'share-public-1',
+      directUserCount: 0,
+      updatedAt: '2026-04-23T08:00:00.000Z',
+      updatedBy: 'user-1',
+    },
+    effectivePolicy: {
+      mode: DOCUMENT_SHARE_MODE.PUBLIC_TO_LOGGED_IN,
+      shareId: 'share-public-1',
+      rootDocumentId: 'doc-1',
+      rootDocumentTitle: '原始标题',
+      updatedAt: '2026-04-23T08:00:00.000Z',
+      updatedBy: 'user-1',
+    },
+  }
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve
+    reject = innerReject
+  })
+
+  return {
+    promise,
+    resolve,
+    reject,
+  }
+}
+
+async function flushActiveDocumentState() {
+  await Promise.resolve()
+  await Promise.resolve()
+  await nextTick()
 }
 
 describe('useActiveDocument', () => {
@@ -193,6 +237,9 @@ describe('useActiveDocument', () => {
       expect(documentState.currentDocument.value).not.toBeNull()
     })
 
+    expect(getDocumentHeadMock).toHaveBeenCalledWith('doc-1', {
+      recordVisit: true,
+    })
     expect(documentState.currentDocument.value?.title).toEqual(createDocumentTitleContent('原始标题'))
     expectDocumentBody(documentState.currentDocument.value?.body, '初始正文')
     expect(documentState.snapshots.value).toHaveLength(1)
@@ -225,6 +272,35 @@ describe('useActiveDocument', () => {
     expectDocumentBody(documentState.currentDocument.value?.body, '保存后的正文')
     expect(documentState.currentDocument.value?.headRevision).toBe(2)
     expect(documentState.snapshots.value.map(snapshot => snapshot.id)).toEqual(['snapshot-2', 'snapshot-1'])
+
+    scope.stop()
+  })
+
+  it('patchDocumentShare 只更新当前文档分享投影，不影响编辑保存状态', async () => {
+    const getDocumentHeadMock = vi.mocked(getDocumentHead)
+    const getDocumentSnapshotsMock = vi.mocked(getDocumentSnapshots)
+    const share = createPublicShareProjection()
+
+    getDocumentHeadMock.mockResolvedValue(createDocumentHead())
+    getDocumentSnapshotsMock.mockResolvedValue([])
+
+    const scope = effectScope()
+    const activeDocument = scope.run(() => useActiveDocument({
+      activeDocumentId: computed(() => 'doc-1'),
+      ensureExpandedPath: vi.fn(),
+      patchDocumentItem: vi.fn(),
+      rememberLastOpenedDocument: vi.fn(),
+    }))
+
+    await flushActiveDocumentState()
+
+    const saveStateBeforePatch = activeDocument?.saveState.value
+    activeDocument?.patchDocumentShare('other-doc', share)
+    expect(activeDocument?.currentDocument.value?.share).toBeNull()
+
+    activeDocument?.patchDocumentShare('doc-1', share)
+    expect(activeDocument?.currentDocument.value?.share).toEqual(share)
+    expect(activeDocument?.saveState.value).toBe(saveStateBeforePatch)
 
     scope.stop()
   })
@@ -420,6 +496,88 @@ describe('useActiveDocument', () => {
 
     expect(documentState.currentDocument.value).toBeNull()
     expect(documentState.snapshots.value).toEqual([])
+
+    scope.stop()
+  })
+
+  it('切换文档时会忽略旧请求的回写结果', async () => {
+    const getDocumentHeadMock = vi.mocked(getDocumentHead)
+    const getDocumentSnapshotsMock = vi.mocked(getDocumentSnapshots)
+    const doc1HeadDeferred = createDeferred<DocumentHead>()
+    const doc2HeadDeferred = createDeferred<DocumentHead>()
+    const doc1SnapshotsDeferred = createDeferred<DocumentSnapshot[]>()
+    const doc2SnapshotsDeferred = createDeferred<DocumentSnapshot[]>()
+
+    getDocumentHeadMock.mockImplementation((documentId: string) =>
+      documentId === 'doc-1' ? doc1HeadDeferred.promise : doc2HeadDeferred.promise,
+    )
+    getDocumentSnapshotsMock.mockImplementation((documentId: string) =>
+      documentId === 'doc-1' ? doc1SnapshotsDeferred.promise : doc2SnapshotsDeferred.promise,
+    )
+
+    const activeDocumentId = shallowRef('doc-1')
+    const scope = effectScope()
+    const activeDocument = scope.run(() => useActiveDocument({
+      activeDocumentId: computed(() => activeDocumentId.value),
+      ensureExpandedPath: vi.fn(),
+      patchDocumentItem: vi.fn(),
+      rememberLastOpenedDocument: vi.fn(),
+    }))
+
+    await nextTick()
+
+    activeDocumentId.value = 'doc-2'
+    await nextTick()
+
+    doc2HeadDeferred.resolve(createDocumentHead({
+      document: {
+        ...createDocumentHead().document,
+        id: 'doc-2',
+      },
+      latestSnapshot: {
+        ...createDocumentHead().latestSnapshot,
+        documentId: 'doc-2',
+        title: createDocumentTitleContent('第二篇文档'),
+        body: createBodyContent('第二篇正文'),
+      },
+    }))
+    doc2SnapshotsDeferred.resolve([
+      createSnapshot({
+        id: 'snapshot-2',
+        documentId: 'doc-2',
+        title: createDocumentTitleContent('第二篇文档'),
+        body: createBodyContent('第二篇正文'),
+      }),
+    ])
+    await flushActiveDocumentState()
+
+    expect(activeDocument?.currentDocument.value?.id).toBe('doc-2')
+    expect(activeDocument?.currentDocument.value?.title).toEqual(createDocumentTitleContent('第二篇文档'))
+
+    doc1HeadDeferred.resolve(createDocumentHead({
+      document: {
+        ...createDocumentHead().document,
+        id: 'doc-1',
+      },
+      latestSnapshot: {
+        ...createDocumentHead().latestSnapshot,
+        documentId: 'doc-1',
+        title: createDocumentTitleContent('第一篇旧文档'),
+        body: createBodyContent('第一篇旧正文'),
+      },
+    }))
+    doc1SnapshotsDeferred.resolve([
+      createSnapshot({
+        id: 'snapshot-1',
+        documentId: 'doc-1',
+        title: createDocumentTitleContent('第一篇旧文档'),
+        body: createBodyContent('第一篇旧正文'),
+      }),
+    ])
+    await flushActiveDocumentState()
+
+    expect(activeDocument?.currentDocument.value?.id).toBe('doc-2')
+    expect(activeDocument?.currentDocument.value?.title).toEqual(createDocumentTitleContent('第二篇文档'))
 
     scope.stop()
   })

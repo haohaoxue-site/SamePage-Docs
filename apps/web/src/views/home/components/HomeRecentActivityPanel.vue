@@ -36,11 +36,11 @@ defineProps<HomeRecentActivityPanelProps>()
 <style scoped lang="scss">
 .home-recent-activity {
   border: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
-  border-radius: 1.75rem !important;
+  border-radius: 1.75rem;
   box-shadow: 0 1px 2px 0 color-mix(in srgb, var(--brand-text-primary) 5%, transparent);
 
   :deep(.home-recent-activity__body) {
-    padding: 1.5rem !important;
+    padding: 1.5rem;
   }
 
   .home-recent-activity__header {
@@ -92,7 +92,7 @@ defineProps<HomeRecentActivityPanelProps>()
   .home-recent-activity__time {
     margin-top: 0.5rem;
     color: color-mix(in srgb, var(--brand-primary) 80%, transparent);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
   }
 }

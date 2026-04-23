@@ -105,48 +105,33 @@ const {
             <h2 class="m-0 text-base font-bold text-main">
               系统管理员引导状态
             </h2>
-            <dl class="mt-4 flex flex-col gap-3.5">
-              <div class="flex flex-col gap-1">
-                <dt class="text-xs text-secondary">
-                  管理员邮箱
-                </dt>
-                <dd class="m-0 text-sm font-semibold text-main">
+            <ElDescriptions :column="1" direction="vertical" size="small" class="admin-users__governance-summary">
+              <ElDescriptionsItem label="管理员邮箱">
+                <span class="admin-users__governance-summary-value">
                   {{ governance.systemAdminEmail }}
-                </dd>
-              </div>
-              <div class="flex flex-col gap-1">
-                <dt class="text-xs text-secondary">
-                  显示名称
-                </dt>
-                <dd class="m-0 text-sm font-semibold text-main">
+                </span>
+              </ElDescriptionsItem>
+              <ElDescriptionsItem label="显示名称">
+                <span class="admin-users__governance-summary-value">
                   {{ governance.systemAdminDisplayName || 'System Admin' }}
-                </dd>
-              </div>
-              <div class="flex flex-col gap-1">
-                <dt class="text-xs text-secondary">
-                  当前状态
-                </dt>
-                <dd class="m-0 text-sm font-semibold text-main">
+                </span>
+              </ElDescriptionsItem>
+              <ElDescriptionsItem label="当前状态">
+                <span class="admin-users__governance-summary-value">
                   {{ systemAdminStatusText }}
-                </dd>
-              </div>
-              <div class="flex flex-col gap-1">
-                <dt class="text-xs text-secondary">
-                  最近登录
-                </dt>
-                <dd class="m-0 text-sm font-semibold text-main">
+                </span>
+              </ElDescriptionsItem>
+              <ElDescriptionsItem label="最近登录">
+                <span class="admin-users__governance-summary-value">
                   {{ formatDate(governance.systemAdminLastLoginAt) }}
-                </dd>
-              </div>
-              <div class="flex flex-col gap-1">
-                <dt class="text-xs text-secondary">
-                  最近改密
-                </dt>
-                <dd class="m-0 text-sm font-semibold text-main">
+                </span>
+              </ElDescriptionsItem>
+              <ElDescriptionsItem label="最近改密">
+                <span class="admin-users__governance-summary-value">
                   {{ formatDate(governance.systemAdminPasswordUpdatedAt) }}
-                </dd>
-              </div>
-            </dl>
+                </span>
+              </ElDescriptionsItem>
+            </ElDescriptions>
           </div>
         </div>
       </ElCard>
@@ -174,6 +159,40 @@ const {
 
   &__governance-block--summary {
     background: color-mix(in srgb, var(--brand-fill-lighter) 85%, transparent);
+  }
+
+  &__governance-summary {
+    margin-top: 1rem;
+
+    :deep(.el-descriptions__body) {
+      background: transparent;
+    }
+
+    :deep(.el-descriptions__table) {
+      width: 100%;
+    }
+
+    :deep(.el-descriptions__cell) {
+      padding-bottom: 0.875rem;
+    }
+
+    :deep(.el-descriptions__cell:last-child) {
+      padding-bottom: 0;
+    }
+
+    :deep(.el-descriptions__label) {
+      margin-bottom: 0.25rem;
+      color: var(--brand-text-secondary);
+      font-size: 0.75rem;
+    }
+  }
+
+  &__governance-summary-value {
+    display: block;
+    color: var(--brand-text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.6;
   }
 
   &__switch-card {

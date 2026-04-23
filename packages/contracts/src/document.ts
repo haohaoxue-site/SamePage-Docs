@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DocumentShareModeSchema } from './document-share'
 import { TiptapJsonContentPayloadSchema, TiptapSchemaVersionSchema } from './tiptap'
 import { AuditUserSummarySchema } from './user'
 
@@ -16,7 +17,7 @@ export const DOCUMENT_COLLECTION_VALUES = [
 
 export const DOCUMENT_COLLECTION_LABELS = {
   [DOCUMENT_COLLECTION.PERSONAL]: '私有',
-  [DOCUMENT_COLLECTION.SHARED]: '共享',
+  [DOCUMENT_COLLECTION.SHARED]: '分享',
   [DOCUMENT_COLLECTION.TEAM]: '团队',
 } as const satisfies Record<(typeof DOCUMENT_COLLECTION_VALUES)[number], string>
 
@@ -27,6 +28,16 @@ export const DOCUMENT_SAVE_STATE = {
   SAVED: 'saved',
   ERROR: 'error',
 } as const
+
+export const DOCUMENT_VISIBILITY = {
+  PRIVATE: 'PRIVATE',
+  WORKSPACE: 'WORKSPACE',
+} as const
+
+export const DOCUMENT_VISIBILITY_VALUES = [
+  DOCUMENT_VISIBILITY.PRIVATE,
+  DOCUMENT_VISIBILITY.WORKSPACE,
+] as const
 
 export const DOCUMENT_PANE_STATE = {
   READY: 'ready',
@@ -39,19 +50,32 @@ export const DOCUMENT_PANE_STATE = {
   ERROR: 'error',
 } as const
 
-export const DocumentSpaceScopeSchema = z.enum(['PERSONAL', 'TEAM'])
-
 export const DocumentStatusSchema = z.enum(['ACTIVE', 'LOCKED'])
+export const DocumentVisibilitySchema = z.enum(DOCUMENT_VISIBILITY_VALUES)
 
 export const DocumentCollectionIdSchema = z.enum(DOCUMENT_COLLECTION_VALUES)
 
-export const OWNED_DOCUMENT_COLLECTION_BY_SPACE_SCOPE = {
-  PERSONAL: DOCUMENT_COLLECTION.PERSONAL,
-  TEAM: DOCUMENT_COLLECTION.TEAM,
-} as const satisfies Record<
-  z.infer<typeof DocumentSpaceScopeSchema>,
-  Exclude<z.infer<typeof DocumentCollectionIdSchema>, typeof DOCUMENT_COLLECTION.SHARED>
->
+export const DocumentShareLocalPolicySchema = z.object({
+  mode: DocumentShareModeSchema,
+  shareId: z.string(),
+  directUserCount: z.number().int().nonnegative(),
+  updatedAt: z.string(),
+  updatedBy: z.string().nullable(),
+}).strict()
+
+export const DocumentShareEffectivePolicySchema = z.object({
+  mode: DocumentShareModeSchema,
+  shareId: z.string(),
+  rootDocumentId: z.string(),
+  rootDocumentTitle: z.string(),
+  updatedAt: z.string(),
+  updatedBy: z.string().nullable(),
+}).strict()
+
+export const DocumentShareProjectionSchema = z.object({
+  localPolicy: DocumentShareLocalPolicySchema.nullable(),
+  effectivePolicy: DocumentShareEffectivePolicySchema.nullable(),
+}).strict()
 
 export const DocumentBaseSchema = z.object({
   id: z.string(),
@@ -66,12 +90,23 @@ export const DocumentRecentSchema = z.object({
   title: z.string(),
   collection: DocumentCollectionIdSchema,
   ancestorTitles: z.string().array(),
+  link: z.string(),
+  share: DocumentShareProjectionSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
 
+export const DocumentTrashItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  collection: DocumentCollectionIdSchema,
+  ancestorTitles: z.string().array(),
+  trashedAt: z.string(),
+}).strict()
+
 export const DocumentItemSchema = DocumentBaseSchema.extend({
   parentId: z.string().nullable(),
+  share: DocumentShareProjectionSchema.nullable(),
   hasChildren: z.boolean(),
   hasContent: z.boolean(),
   get children() {
@@ -107,12 +142,14 @@ export const DocumentAssetStatusSchema = z.enum(['pending', 'ready', 'deleted'])
 export const DocumentRecordSchema = DocumentBaseSchema.omit({
   title: true,
 }).extend({
-  ownerId: z.string(),
+  workspaceId: z.string(),
+  createdBy: z.string(),
+  visibility: DocumentVisibilitySchema,
   parentId: z.string().nullable(),
   latestSnapshotId: z.string().nullable(),
   order: z.number().int(),
-  spaceScope: DocumentSpaceScopeSchema,
   status: DocumentStatusSchema,
+  share: DocumentShareProjectionSchema.nullable(),
 }).strict()
 
 export const DocumentSnapshotSchema = z.object({
@@ -151,6 +188,8 @@ export const DocumentAssetSchema = z.object({
 
 export const CreateDocumentSchema = z.object({
   title: z.string().trim().min(1),
+  workspaceId: z.string().trim().min(1),
+  visibility: DocumentVisibilitySchema.optional(),
   parentId: z.string().trim().nullable().optional(),
 }).strict()
 
@@ -183,9 +222,9 @@ export const RestoreDocumentSnapshotSchema = z.object({
 
 export const PatchDocumentMetaSchema = z.object({
   parentId: z.string().trim().nullable().optional(),
-  spaceScope: DocumentSpaceScopeSchema.optional(),
+  visibility: DocumentVisibilitySchema.optional(),
 }).strict().refine(
-  input => input.parentId !== undefined || input.spaceScope !== undefined,
+  input => input.parentId !== undefined || input.visibility !== undefined,
   {
     message: '至少更新一个元数据字段',
   },

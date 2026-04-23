@@ -7,6 +7,7 @@ export type {
   DocumentHead,
   DocumentRecent,
   DocumentSnapshot,
+  DocumentTrashItem,
   DocumentTreeGroup,
   PatchDocumentMetaRequest,
   ResolveDocumentAssetsRequest,

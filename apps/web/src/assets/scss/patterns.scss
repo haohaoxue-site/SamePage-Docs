@@ -1,10 +1,10 @@
 .ui-panel {
   border: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
   box-shadow: 0 1px 2px 0 color-mix(in srgb, var(--brand-text-primary) 5%, transparent);
-  border-radius: 1.75rem !important;
+  border-radius: 1.75rem;
 
   .ui-panel__body {
-    padding: 1.5rem !important;
+    padding: 1.5rem;
   }
 
   .ui-panel__title {

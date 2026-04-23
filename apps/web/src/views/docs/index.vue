@@ -1,14 +1,19 @@
 <script setup lang="ts">
+import { computed, shallowRef } from 'vue'
+import { useRouter } from 'vue-router'
 import WorkspacePage from '@/layouts/components/WorkspacePage.vue'
-import DocumentContextActions from './components/DocumentContextActions.vue'
-import DocumentEditorPane from './components/DocumentEditorPane.vue'
-import DocumentHistoryPanel from './components/DocumentHistoryPanel.vue'
-import DocumentSectionPanel from './components/DocumentSectionPanel.vue'
+import DocumentShareDialog from './components/DocumentShareDialog.vue'
 import { useDocs } from './composables/useDocs'
+import DocsActiveSurfaceLayout from './layouts/DocsActiveSurfaceLayout.vue'
+import DocsContextBarLayout from './layouts/DocsContextBarLayout.vue'
+import DocsHistoryLayout from './layouts/DocsHistoryLayout.vue'
 
 const {
   treeGroups,
   currentDocument,
+  currentWorkspaceType,
+  pendingShareCount,
+  hasPendingShares,
   previewDocument,
   snapshots,
   activeDocumentId,
@@ -16,6 +21,7 @@ const {
   documentEditorMode,
   documentEditorMeta,
   canDeleteCurrentDocument,
+  canMoveCurrentDocumentToTeam,
   expandedDocumentIdSet,
   isDocumentLoading,
   isDocumentItemLoading,
@@ -28,13 +34,16 @@ const {
   documentPaneState,
   hasFallbackDocument,
   visibleBreadcrumbLabels,
-  contextSaveStateLabel,
+  currentSurface,
+  isDocumentSurface,
+  saveStateLabel,
   collapsedGroupIdSet,
   openHistoryMode,
   closeHistoryMode,
   openDocument,
   openDefaultDocument,
   reloadCurrentDocument,
+  applyDocumentShareChanged,
   restoreSelectedSnapshot,
   selectHistorySnapshot,
   toggleDocument,
@@ -43,285 +52,137 @@ const {
   createChildDocument,
   deleteDocument,
   deleteCurrentDocument,
+  moveCurrentDocumentToTeam,
+  moveDocumentToTeam,
   updateDocumentTitle,
   updateDocumentContent,
   handleRequestComment,
 } = useDocs()
+
+const router = useRouter()
+const shareDialogDocumentId = shallowRef('')
+const isShareDialogOpen = computed(() => Boolean(shareDialogDocumentId.value))
+const contextSaveStateLabel = computed(() => {
+  if (isDocumentItemLoading.value && activeDocumentId.value) {
+    return '正在加载文档...'
+  }
+
+  return saveStateLabel.value
+})
+
+function openDocumentShareDialog(documentId: string) {
+  shareDialogDocumentId.value = documentId
+}
+
+function handleShareDialogVisibleChange(visible: boolean) {
+  if (visible) {
+    return
+  }
+
+  shareDialogDocumentId.value = ''
+}
+
+function openPermissionsOverview() {
+  void router.push({
+    name: 'docs-permissions',
+  })
+}
+
+function openTrashPage() {
+  void router.push({
+    name: 'docs-trash',
+  })
+}
 </script>
 
 <template>
   <WorkspacePage :show-context-bar="!isHistoryMode">
     <template v-if="!isHistoryMode" #context>
-      <div class="docs-view-context">
-        <div class="docs-view-context__content">
-          <div class="docs-view-context__breadcrumb-shell">
-            <ElBreadcrumb v-if="visibleBreadcrumbLabels.length" separator="/" class="docs-view-context__breadcrumb">
-              <ElBreadcrumbItem
-                v-for="label in visibleBreadcrumbLabels"
-                :key="label"
-              >
-                <span class="truncate text-sm text-secondary">{{ label }}</span>
-              </ElBreadcrumbItem>
-            </ElBreadcrumb>
-          </div>
-
-          <div class="docs-view-context__save-state">
-            {{ contextSaveStateLabel }}
-          </div>
-        </div>
-
-        <DocumentContextActions
-          v-if="currentDocument"
-          :can-delete-document="canDeleteCurrentDocument"
-          @open-history="openHistoryMode"
-          @delete-document="deleteCurrentDocument"
-        />
-      </div>
+      <DocsContextBarLayout
+        :is-document-surface="isDocumentSurface"
+        :current-surface="currentSurface"
+        :visible-breadcrumb-labels="visibleBreadcrumbLabels"
+        :save-state-label="contextSaveStateLabel"
+        :document-id="currentDocument?.id ?? ''"
+        :document-share="currentDocument?.share ?? null"
+        :can-delete-document="canDeleteCurrentDocument"
+        :can-move-to-team="canMoveCurrentDocumentToTeam"
+        @open-share="openDocumentShareDialog"
+        @open-history="openHistoryMode"
+        @move-document-to-team="moveCurrentDocumentToTeam"
+        @delete-document="deleteCurrentDocument"
+      />
     </template>
 
-    <section v-if="isHistoryMode" class="docs-history-view">
-      <header class="docs-history-view__header">
-        <ElButton
-          text
-          class="docs-history-view__back"
-          @click="closeHistoryMode"
-        >
-          <span class="docs-history-view__back-content">
-            <SvgIcon category="ui" icon="arrow-left" size="14px" />
-            <span>返回文档</span>
-          </span>
-        </ElButton>
+    <DocsHistoryLayout
+      v-if="isHistoryMode"
+      :preview-document="previewDocument"
+      :current-document="currentDocument"
+      :snapshots="snapshots"
+      :document-editor-meta="documentEditorMeta"
+      :document-editor-mode="documentEditorMode"
+      :active-block-id="activeBlockId"
+      :is-document-item-loading="isDocumentItemLoading"
+      :is-snapshots-loading="isSnapshotsLoading"
+      :is-restoring-snapshot="isRestoringSnapshot"
+      :selected-snapshot-id="selectedHistorySnapshotId"
+      :can-restore-selected-snapshot="canRestoreSelectedSnapshot"
+      :document-pane-state="documentPaneState"
+      :has-fallback-document="hasFallbackDocument"
+      @close-history-mode="closeHistoryMode"
+      @restore-selected-snapshot="restoreSelectedSnapshot"
+      @select-history-snapshot="selectHistorySnapshot"
+      @update-title="updateDocumentTitle"
+      @update-content="updateDocumentContent"
+      @request-comment="handleRequestComment"
+      @create-document="createRootDocument"
+      @open-fallback-document="openDefaultDocument"
+      @retry-load="reloadCurrentDocument"
+    />
 
-        <ElButton
-          type="primary"
-          class="docs-history-view__restore"
-          :disabled="!canRestoreSelectedSnapshot"
-          :loading="isRestoringSnapshot"
-          @click="restoreSelectedSnapshot"
-        >
-          还原此历史记录
-        </ElButton>
+    <DocsActiveSurfaceLayout
+      v-else
+      :tree-groups="treeGroups"
+      :current-workspace-type="currentWorkspaceType"
+      :active-document-id="activeDocumentId"
+      :expanded-document-ids="expandedDocumentIdSet"
+      :collapsed-group-ids="collapsedGroupIdSet"
+      :is-document-loading="isDocumentLoading"
+      :is-mutating-tree="isMutatingTree"
+      :current-surface="currentSurface"
+      :pending-share-count="pendingShareCount"
+      :has-pending-shares="hasPendingShares"
+      :is-document-surface="isDocumentSurface"
+      :preview-document="previewDocument"
+      :document-editor-meta="documentEditorMeta"
+      :document-editor-mode="documentEditorMode"
+      :active-block-id="activeBlockId"
+      :is-document-item-loading="isDocumentItemLoading"
+      :document-pane-state="documentPaneState"
+      :has-fallback-document="hasFallbackDocument"
+      @open-document="openDocument"
+      @toggle-document="toggleDocument"
+      @toggle-group-collapse="toggleGroupCollapse"
+      @create-root-document="createRootDocument"
+      @create-child-document="createChildDocument"
+      @move-document-to-team="moveDocumentToTeam"
+      @delete-document="deleteDocument"
+      @open-permissions-overview="openPermissionsOverview"
+      @open-trash-page="openTrashPage"
+      @open-share="openDocumentShareDialog"
+      @update-title="updateDocumentTitle"
+      @update-content="updateDocumentContent"
+      @request-comment="handleRequestComment"
+      @create-document="createRootDocument"
+      @open-fallback-document="openDefaultDocument"
+      @retry-load="reloadCurrentDocument"
+    />
 
-        <div class="docs-history-view__header-spacer" />
-      </header>
-
-      <div class="docs-history-view__content">
-        <DocumentEditorPane
-          :document="previewDocument"
-          :metadata="documentEditorMeta"
-          :mode="documentEditorMode"
-          :active-block-id="activeBlockId"
-          :is-loading="isDocumentItemLoading"
-          :pane-state="documentPaneState"
-          :has-fallback-document="hasFallbackDocument"
-          @update-title="updateDocumentTitle"
-          @update-content="updateDocumentContent"
-          @request-comment="handleRequestComment"
-          @create-document="createRootDocument"
-          @open-fallback-document="openDefaultDocument"
-          @retry-load="reloadCurrentDocument"
-        />
-
-        <DocumentHistoryPanel
-          :document="currentDocument"
-          :snapshots="snapshots"
-          :selected-snapshot-id="selectedHistorySnapshotId"
-          :is-loading="isSnapshotsLoading"
-          @select="selectHistorySnapshot"
-        />
-      </div>
-    </section>
-
-    <div v-else class="docs-view">
-      <aside class="docs-view__sidebar">
-        <div class="docs-view__sidebar-scroll">
-          <div v-if="isDocumentLoading" class="docs-view__tree-loading">
-            正在加载文档树...
-          </div>
-
-          <div v-else class="docs-view__tree-sections">
-            <DocumentSectionPanel
-              v-for="group in treeGroups"
-              :key="group.id"
-              :group="group"
-              :active-document-id="activeDocumentId"
-              :expanded-document-ids="expandedDocumentIdSet"
-              :is-collapsed="collapsedGroupIdSet.has(group.id)"
-              :is-action-pending="isMutatingTree"
-              @open="openDocument"
-              @toggle="toggleDocument"
-              @toggle-collapse="toggleGroupCollapse"
-              @create-root="createRootDocument"
-              @create-child="createChildDocument"
-              @delete-document="deleteDocument"
-            />
-          </div>
-        </div>
-      </aside>
-
-      <DocumentEditorPane
-        :document="previewDocument"
-        :metadata="documentEditorMeta"
-        :mode="documentEditorMode"
-        :active-block-id="activeBlockId"
-        :is-loading="isDocumentItemLoading"
-        :pane-state="documentPaneState"
-        :has-fallback-document="hasFallbackDocument"
-        @update-title="updateDocumentTitle"
-        @update-content="updateDocumentContent"
-        @request-comment="handleRequestComment"
-        @create-document="createRootDocument"
-        @open-fallback-document="openDefaultDocument"
-        @retry-load="reloadCurrentDocument"
-      />
-    </div>
+    <DocumentShareDialog
+      :model-value="isShareDialogOpen"
+      :document-id="shareDialogDocumentId"
+      @share-changed="applyDocumentShareChanged"
+      @update:model-value="handleShareDialogVisibleChange"
+    />
   </WorkspacePage>
 </template>
-
-<style scoped lang="scss">
-.docs-view-context {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  min-width: 0;
-
-  .docs-view-context__content {
-    display: grid;
-    gap: 0.25rem;
-    grid-template-rows: 1.25rem 1.25rem;
-    align-content: center;
-    height: 2.75rem;
-    min-width: 0;
-    overflow: hidden;
-    flex: 1 1 0%;
-  }
-
-  .docs-view-context__breadcrumb-shell {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-  }
-
-  .docs-view-context__breadcrumb {
-    min-width: 0;
-  }
-
-  .docs-view-context__save-state {
-    display: flex;
-    align-items: center;
-    max-width: 100%;
-    overflow: hidden;
-    color: color-mix(in srgb, var(--brand-text-secondary) 75%, transparent);
-    font-size: 11px;
-    line-height: 1.25rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-.docs-view {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-
-  .docs-view__sidebar {
-    flex-shrink: 0;
-    width: 100%;
-    max-width: 16rem;
-    border-right: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
-    background: var(--brand-bg-sidebar);
-  }
-
-  .docs-view__sidebar-scroll {
-    height: 100%;
-    overflow-y: auto;
-    padding: 1rem 0.75rem;
-  }
-
-  .docs-view__tree-loading {
-    padding: 1.5rem 0.75rem;
-    color: var(--brand-text-secondary);
-    font-size: 0.875rem;
-  }
-
-  .docs-view__tree-sections {
-    padding-bottom: 5rem;
-
-    > * + * {
-      margin-top: 1.5rem;
-    }
-  }
-}
-
-.docs-history-view {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  background: var(--brand-bg-surface);
-
-  .docs-history-view__header {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
-    gap: 1rem;
-    padding: 0.875rem 1.5rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--brand-border-base) 78%, transparent);
-    background: color-mix(in srgb, var(--brand-bg-surface) 92%, white 8%);
-  }
-
-  .docs-history-view__back {
-    justify-self: start;
-    color: var(--brand-text-secondary);
-
-    &:hover {
-      color: var(--brand-text-primary);
-    }
-  }
-
-  .docs-history-view__back-content {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 13px;
-    font-weight: 500;
-  }
-
-  .docs-history-view__restore {
-    min-width: 8.5rem;
-  }
-
-  .docs-history-view__header-spacer {
-    min-width: 0;
-  }
-
-  .docs-history-view__content {
-    display: flex;
-    flex: 1 1 0%;
-    min-height: 0;
-  }
-}
-
-@media (max-width: 1180px) {
-  .docs-view,
-  .docs-history-view .docs-history-view__content {
-    flex-direction: column;
-  }
-
-  .docs-history-view {
-    .docs-history-view__header {
-      grid-template-columns: 1fr;
-      justify-items: center;
-    }
-
-    .docs-history-view__back {
-      justify-self: stretch;
-    }
-
-    .docs-history-view__header-spacer {
-      display: none;
-    }
-  }
-}
-</style>

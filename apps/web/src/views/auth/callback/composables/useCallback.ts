@@ -1,6 +1,8 @@
+import { OAUTH_REDIRECT_QUERY } from '@haohaoxue/samepage-contracts'
 import { computed, onMounted, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { resolveOAuthRedirectErrorMessage } from '@/utils/oauth-redirect'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 import { completeAuthNavigation } from '../../utils/navigation'
 
@@ -13,12 +15,14 @@ export function useCallback() {
   const pageDescription = computed(() => errorMessage.value ? '请返回登录页后重试。' : '正在处理第三方登录，请稍候。')
 
   async function handleCallback() {
-    const redirectError = typeof route.query.error === 'string' ? route.query.error.trim() : ''
-    const code = typeof route.query.code === 'string' ? route.query.code.trim() : ''
+    const redirectErrorCode = ((route.query[OAUTH_REDIRECT_QUERY.ERROR_CODE] as string | null | undefined) ?? '').trim()
+    const code = ((route.query[OAUTH_REDIRECT_QUERY.LOGIN_CODE] as string | null | undefined) ?? '').trim()
 
-    if (redirectError) {
+    if (redirectErrorCode) {
       statusLabel.value = '登录失败'
-      errorMessage.value = redirectError
+      errorMessage.value = resolveOAuthRedirectErrorMessage(redirectErrorCode, {
+        purpose: 'login',
+      })
       return
     }
 

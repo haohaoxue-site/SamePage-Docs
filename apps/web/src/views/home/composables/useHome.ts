@@ -5,13 +5,12 @@ import type {
   HomeWidgetDefinition,
   HomeWidgetId,
 } from '../typing'
-import { useLocalStorage } from '@vueuse/core'
+import { DOCUMENT_COLLECTION } from '@haohaoxue/samepage-contracts'
 import { computed, onMounted, ref } from 'vue'
 import { getRecentDocuments } from '@/apis/document'
+import { useUiStore } from '@/stores/ui'
 import { useUserStore } from '@/stores/user'
 import { formatMonthDayWeekday } from '@/utils/dayjs'
-
-const HOME_WIDGET_STORAGE_KEY = 'samepage_home_widgets'
 
 const widgetDefinitions: HomeWidgetDefinition[] = [
   {
@@ -33,6 +32,10 @@ const widgetDefinitions: HomeWidgetDefinition[] = [
 
 const defaultWidgetIds: HomeWidgetId[] = widgetDefinitions.map(widget => widget.id)
 const validWidgetIdSet = new Set<HomeWidgetId>(defaultWidgetIds)
+
+function isHomeWidgetId(widgetId: string): widgetId is HomeWidgetId {
+  return validWidgetIdSet.has(widgetId as HomeWidgetId)
+}
 
 const schedules: HomeScheduleItem[] = [
   {
@@ -56,10 +59,22 @@ const schedules: HomeScheduleItem[] = [
 ]
 
 export function useHome() {
+  const uiStore = useUiStore()
   const userStore = useUserStore()
-  const recentDocuments = ref<HomeRecentDocument[]>([])
-  const visibleWidgetIds = useLocalStorage<HomeWidgetId[]>(HOME_WIDGET_STORAGE_KEY, [...defaultWidgetIds])
+  const recentDocumentSource = ref<HomeRecentDocument[]>([])
   const currentUser = computed(() => userStore.currentUser!)
+  const recentDocuments = computed(() =>
+    recentDocumentSource.value.filter(document => document.collection !== DOCUMENT_COLLECTION.TEAM),
+  )
+  const visibleWidgetIds = computed(() => {
+    const storedWidgetIds = uiStore.homeVisibleWidgetIds
+
+    if (storedWidgetIds == null) {
+      return [...defaultWidgetIds]
+    }
+
+    return storedWidgetIds.filter(isHomeWidgetId)
+  })
 
   const overview = computed<HomeOverviewModel>(() => ({
     eyebrow: 'SamePage Workspace',
@@ -74,7 +89,7 @@ export function useHome() {
   const visibleWidgets = computed(() => widgetDefinitions.filter(widget => visibleWidgetSet.value.has(widget.id)))
 
   async function loadRecentDocuments() {
-    recentDocuments.value = await getRecentDocuments()
+    recentDocumentSource.value = await getRecentDocuments()
   }
 
   function toggleWidget(widgetId: HomeWidgetId) {
@@ -87,9 +102,11 @@ export function useHome() {
       nextWidgetIds.add(widgetId)
     }
 
-    visibleWidgetIds.value = widgetDefinitions
+    const nextVisibleWidgetIds = widgetDefinitions
       .map(widget => widget.id)
       .filter(widgetIdItem => nextWidgetIds.has(widgetIdItem))
+
+    uiStore.setHomeVisibleWidgetIds(nextVisibleWidgetIds)
   }
 
   onMounted(loadRecentDocuments)

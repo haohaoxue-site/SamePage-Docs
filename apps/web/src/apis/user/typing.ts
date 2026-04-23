@@ -7,9 +7,12 @@ export type {
   LanguagePreference,
   RequestBindEmailCodeRequest,
   RequestBindEmailCodeResponse,
+  StartOauthBindingResponse,
   UpdateCurrentUserAvatarResponse,
   UpdateCurrentUserProfileRequest,
   UpdateUserPreferencesRequest,
+  UserCollabIdentity,
   UserOauthBinding,
   UserSettings,
+  UserSettingsPreferences,
 } from '@haohaoxue/samepage-domain'

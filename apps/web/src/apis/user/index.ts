@@ -6,10 +6,13 @@ import type {
   DeleteCurrentUserResponse,
   RequestBindEmailCodeRequest,
   RequestBindEmailCodeResponse,
+  StartOauthBindingResponse,
   UpdateCurrentUserAvatarResponse,
   UpdateCurrentUserProfileRequest,
   UpdateUserPreferencesRequest,
+  UserCollabIdentity,
   UserSettings,
+  UserSettingsPreferences,
 } from './typing'
 import { axios } from '@/utils/axios'
 
@@ -26,6 +29,16 @@ export function getCurrentUserSettings(): Promise<UserSettings> {
   return axios.request({
     method: 'get',
     url: '/users/me/settings',
+  })
+}
+
+export function findUserByCode(code: string): Promise<UserCollabIdentity> {
+  return axios.request({
+    method: 'get',
+    url: '/users/lookup/by-code',
+    params: {
+      code,
+    },
   })
 }
 
@@ -66,7 +79,7 @@ export function confirmBindEmail(data: ConfirmBindEmailRequest): Promise<Current
   })
 }
 
-export function startOauthBinding(provider: AuthProviderName): Promise<{ authorizeUrl: string }> {
+export function startOauthBinding(provider: AuthProviderName): Promise<StartOauthBindingResponse> {
   return axios.request({
     method: 'post',
     url: `/users/me/oauth/${provider}/start-bind`,
@@ -89,7 +102,7 @@ export function deleteCurrentUser(data: DeleteCurrentUserRequest): Promise<Delet
   })
 }
 
-export function updateUserPreferences(data: UpdateUserPreferencesRequest): Promise<UserSettings['preferences']> {
+export function updateUserPreferences(data: UpdateUserPreferencesRequest): Promise<UserSettingsPreferences> {
   return axios.request({
     method: 'patch',
     url: '/users/me/preferences',

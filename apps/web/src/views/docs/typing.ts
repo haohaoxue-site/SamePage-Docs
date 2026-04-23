@@ -4,10 +4,13 @@ import type {
   DocumentPaneState,
   DocumentRecord,
   DocumentRevision,
+  DocumentShareProjection,
+  DocumentShareRecipientSummary,
   DocumentSnapshot,
   DocumentTreeGroup,
   TiptapJsonContent,
   TiptapSchemaVersion,
+  WorkspaceType,
 } from '@haohaoxue/samepage-domain'
 import type { TiptapEditorCommentRequest } from '@/components/tiptap-editor'
 
@@ -25,7 +28,27 @@ export interface ActiveDocumentDetail extends Omit<DocumentRecord, 'latestSnapsh
 /**
  * 文档编辑模式。
  */
-export type DocumentEditorMode = 'default' | 'history'
+export type DocumentEditorMode = 'default' | 'history' | 'readonly'
+
+/**
+ * 文档页主区视图。
+ */
+export type DocsSurfaceView = 'document' | 'permissions' | 'trash' | 'pending-shares'
+
+/**
+ * 分享收件箱模式。
+ */
+export type DocumentShareInboxMode = 'pending' | 'active'
+
+/**
+ * 文档分享变更事件。
+ */
+export interface DocumentShareChangedPayload {
+  /** 文档 ID */
+  documentId: string
+  /** 最新分享投影 */
+  share: DocumentShareProjection | null
+}
 
 /**
  * 文档作者信息。
@@ -103,6 +126,7 @@ export interface DocumentEditorEmits {
  */
 export interface DocumentContextActionsProps {
   canDeleteDocument: boolean
+  canMoveToTeam: boolean
 }
 
 /**
@@ -110,6 +134,7 @@ export interface DocumentContextActionsProps {
  */
 export interface DocumentContextActionsEmits {
   openHistory: []
+  moveDocumentToTeam: []
   deleteDocument: []
 }
 
@@ -188,13 +213,14 @@ export interface DocumentHistorySection {
  */
 export interface DocumentToolbarProps {
   isBusy: boolean
+  collectionId: DocumentCollectionId
 }
 
 /**
  * 文档树工具栏事件。
  */
 export interface DocumentToolbarEmits {
-  createRoot: []
+  createRoot: [collectionId: DocumentCollectionId]
 }
 
 /**
@@ -202,10 +228,12 @@ export interface DocumentToolbarEmits {
  */
 export interface DocumentSectionPanelProps {
   group: DocumentTreeGroup
+  currentWorkspaceType: WorkspaceType
   activeDocumentId: string | null
   expandedDocumentIds: Set<string>
   isCollapsed: boolean
   isActionPending: boolean
+  canCreateRoot?: boolean
 }
 
 /**
@@ -215,8 +243,10 @@ export interface DocumentSectionPanelEmits {
   open: [documentId: string]
   toggle: [documentId: string]
   toggleCollapse: [collectionId: DocumentCollectionId]
-  createRoot: []
+  createRoot: [collectionId: DocumentCollectionId]
   createChild: [documentId: string]
+  moveDocumentToTeam: [documentId: string]
+  shareDocument: [documentId: string]
   deleteDocument: [documentId: string]
 }
 
@@ -226,6 +256,7 @@ export interface DocumentSectionPanelEmits {
 export interface DocumentItemProps {
   item: DocumentItem
   collectionId: DocumentCollectionId
+  currentWorkspaceType: WorkspaceType
   depth: number
   activeDocumentId: string | null
   expandedDocumentIds: Set<string>
@@ -239,5 +270,29 @@ export interface DocumentItemEmits {
   open: [documentId: string]
   toggle: [documentId: string]
   createChild: [documentId: string]
+  moveDocumentToTeam: [documentId: string]
+  shareDocument: [documentId: string]
   deleteDocument: [documentId: string]
+}
+
+/**
+ * 分享收件箱列表属性。
+ */
+export interface DocumentShareInboxListProps {
+  mode: DocumentShareInboxMode
+  items: DocumentShareRecipientSummary[]
+  isLoading: boolean
+  errorMessage: string
+  actionRecipientId: string
+}
+
+/**
+ * 分享收件箱列表事件。
+ */
+export interface DocumentShareInboxListEmits {
+  reload: []
+  open: [recipientId: string]
+  accept: [recipientId: string]
+  decline: [recipientId: string]
+  exit: [recipientId: string]
 }

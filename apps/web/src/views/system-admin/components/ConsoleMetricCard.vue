@@ -35,7 +35,7 @@ defineProps<ConsoleMetricCardProps>()
   }
 
   :deep(.console-metric-card__body) {
-    padding: 1.25rem !important;
+    padding: 1.25rem;
   }
 
   .console-metric-card__header {

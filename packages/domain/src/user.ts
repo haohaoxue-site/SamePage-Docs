@@ -2,11 +2,13 @@ import type {
   APPEARANCE_PREFERENCE_VALUES,
   AuditUserSummarySchema,
   LANGUAGE_PREFERENCE_VALUES,
+  UserCollabIdentitySchema,
+  UserStatusSchema,
 } from '@haohaoxue/samepage-contracts'
 import type { z } from 'zod'
 import type { AuthMethodName } from './auth'
 
-export type UserStatus = 'ACTIVE' | 'DISABLED'
+export type UserStatus = z.infer<typeof UserStatusSchema>
 export type LanguagePreference = (typeof LANGUAGE_PREFERENCE_VALUES)[number]
 export type AppearancePreference = (typeof APPEARANCE_PREFERENCE_VALUES)[number]
 export type ResolvedAppearancePreference = Exclude<AppearancePreference, 'auto'>
@@ -17,6 +19,7 @@ export interface CurrentUser {
   email: string | null
   displayName: string
   avatarUrl: string | null
+  userCode: string
   status: UserStatus
   roles: string[]
   permissions: string[]
@@ -33,25 +36,32 @@ export interface UserOauthBinding {
   username: string | null
 }
 
+export interface UserSettingsProfile {
+  displayName: string
+  avatarUrl: string | null
+}
+
+export interface UserSettingsAccount {
+  email: string | null
+  userCode: string
+  hasPasswordAuth: boolean
+  emailVerified: boolean
+  github: UserOauthBinding
+  linuxDo: UserOauthBinding
+}
+
+export interface UserSettingsPreferences {
+  language: LanguagePreference
+  appearance: AppearancePreference
+}
+
 /**
  * 当前用户设置。
  */
 export interface UserSettings {
-  profile: {
-    displayName: string
-    avatarUrl: string | null
-  }
-  account: {
-    email: string | null
-    hasPasswordAuth: boolean
-    emailVerified: boolean
-    github: UserOauthBinding
-    linuxDo: UserOauthBinding
-  }
-  preferences: {
-    language: LanguagePreference
-    appearance: AppearancePreference
-  }
+  profile: UserSettingsProfile
+  account: UserSettingsAccount
+  preferences: UserSettingsPreferences
 }
 
 export interface UpdateCurrentUserProfileRequest {
@@ -90,6 +100,15 @@ export interface UpdateUserPreferencesRequest {
   appearance?: AppearancePreference
 }
 
+export interface StartOauthBindingResponse {
+  authorizeUrl: string
+}
+
 export interface UserPermissionList {
   permissions: string[]
 }
+
+/**
+ * 协作用户身份摘要。
+ */
+export type UserCollabIdentity = z.infer<typeof UserCollabIdentitySchema>

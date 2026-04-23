@@ -1,58 +1,22 @@
-import type { CryptoConfig } from '../../config/auth.config'
 import type {
-  ChatMessage,
   ChatModelItem,
   ChatRuntimeConfig,
-  ChatSessionDetail,
-  ChatSessionSummary,
-} from './chat.interface'
+} from '@haohaoxue/samepage-domain'
+import type { CryptoConfig } from '../../config/auth.config'
 import {
   BadGatewayException,
   BadRequestException,
   Injectable,
   Logger,
-  NotFoundException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import {
-  ChatSessionMessageRole,
-  Prisma,
-} from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
 import { decryptAes256Gcm, isEncryptedValue } from '../../utils/crypto'
+import { ChatSessionsService } from './chat-sessions.service'
+import { toChatMessageRole } from './chat.utils'
 
-const DEFAULT_CHAT_SESSION_TITLE = '新对话'
 const TRAILING_SLASHES_RE = /\/+$/
 const LEADING_SLASHES_RE = /^\/+/
-
-const chatSessionSummarySelect = {
-  id: true,
-  title: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.ChatSessionSelect
-
-const chatSessionDetailSelect = {
-  ...chatSessionSummarySelect,
-  messages: {
-    select: {
-      role: true,
-      content: true,
-      order: true,
-    },
-    orderBy: {
-      order: 'asc',
-    },
-  },
-} satisfies Prisma.ChatSessionSelect
-
-type PersistedChatSessionSummary = Prisma.ChatSessionGetPayload<{
-  select: typeof chatSessionSummarySelect
-}>
-
-type PersistedChatSessionDetail = Prisma.ChatSessionGetPayload<{
-  select: typeof chatSessionDetailSelect
-}>
 
 interface RequestChatCompletionParams {
   userId: string
@@ -80,51 +44,10 @@ export class ChatService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly chatSessionsService: ChatSessionsService,
     configService: ConfigService,
   ) {
     this.encryptionKey = configService.getOrThrow<CryptoConfig>('crypto').encryptionKey
-  }
-
-  async getSessions(userId: string): Promise<ChatSessionSummary[]> {
-    const sessions = await this.prisma.chatSession.findMany({
-      where: { userId },
-      select: chatSessionSummarySelect,
-      orderBy: [
-        { updatedAt: 'desc' },
-        { createdAt: 'desc' },
-      ],
-    })
-
-    return sessions.map(toChatSessionSummary)
-  }
-
-  async createSession(userId: string): Promise<ChatSessionDetail> {
-    const session = await this.prisma.chatSession.create({
-      data: {
-        userId,
-        title: DEFAULT_CHAT_SESSION_TITLE,
-      },
-      select: chatSessionDetailSelect,
-    })
-
-    return toChatSessionDetail(session)
-  }
-
-  async getSession(userId: string, sessionId: string): Promise<ChatSessionDetail> {
-    return toChatSessionDetail(await this.findOwnedSessionDetailOrThrow(userId, sessionId))
-  }
-
-  async deleteSession(userId: string, sessionId: string): Promise<void> {
-    const result = await this.prisma.chatSession.deleteMany({
-      where: {
-        id: sessionId,
-        userId,
-      },
-    })
-
-    if (result.count === 0) {
-      throw new NotFoundException('聊天会话不存在')
-    }
   }
 
   async getRuntimeConfig(): Promise<ChatRuntimeConfig> {
@@ -179,36 +102,17 @@ export class ChatService {
       throw new BadRequestException('请先选择模型')
     }
 
-    const session = await this.findOwnedSessionDetailOrThrow(params.userId, params.sessionId)
+    const session = await this.chatSessionsService.prepareCompletionSession({
+      userId: params.userId,
+      sessionId: params.sessionId,
+      content: normalizedContent,
+    })
     const provider = await this.getSystemProviderOrThrow({
       requireEnabled: true,
     })
-    const nextUserOrder = (session.messages.at(-1)?.order ?? -1) + 1
-    const nextAssistantOrder = nextUserOrder + 1
-    const nextTitle = session.messages.length === 0
-      ? buildChatSessionTitle(normalizedContent)
-      : session.title
-
-    await this.prisma.$transaction([
-      this.prisma.chatSession.update({
-        where: { id: session.id },
-        data: {
-          title: nextTitle,
-          updatedAt: new Date(),
-        },
-      }),
-      this.prisma.chatSessionMessage.create({
-        data: {
-          sessionId: session.id,
-          role: ChatSessionMessageRole.USER,
-          content: normalizedContent,
-          order: nextUserOrder,
-        },
-      }),
-    ])
 
     this.logger.log(
-      `chat completion requested: user=${params.userId} session=${session.id} model=${normalizedModel} baseUrl=${provider.baseUrl} messages=${session.messages.length + 1}`,
+      `chat completion requested: user=${params.userId} session=${session.sessionId} model=${normalizedModel} baseUrl=${provider.baseUrl} messages=${session.messages.length + 1}`,
     )
 
     const providerResponse = await this.fetchProvider(
@@ -251,37 +155,9 @@ export class ChatService {
 
     return {
       providerResponse,
-      sessionId: session.id,
-      nextAssistantOrder,
+      sessionId: session.sessionId,
+      nextAssistantOrder: session.nextAssistantOrder,
     }
-  }
-
-  async persistAssistantMessage(
-    sessionId: string,
-    assistantContent: string,
-    order: number,
-  ): Promise<void> {
-    const normalizedContent = assistantContent.trim()
-    if (!normalizedContent) {
-      return
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.chatSession.update({
-        where: { id: sessionId },
-        data: {
-          updatedAt: new Date(),
-        },
-      }),
-      this.prisma.chatSessionMessage.create({
-        data: {
-          sessionId,
-          role: ChatSessionMessageRole.ASSISTANT,
-          content: normalizedContent,
-          order,
-        },
-      }),
-    ])
   }
 
   async consumeChatCompletionStream(
@@ -341,25 +217,6 @@ export class ChatService {
     finally {
       reader.releaseLock()
     }
-  }
-
-  private async findOwnedSessionDetailOrThrow(
-    userId: string,
-    sessionId: string,
-  ): Promise<PersistedChatSessionDetail> {
-    const session = await this.prisma.chatSession.findFirst({
-      where: {
-        id: sessionId,
-        userId,
-      },
-      select: chatSessionDetailSelect,
-    })
-
-    if (!session) {
-      throw new NotFoundException('聊天会话不存在')
-    }
-
-    return session
   }
 
   private async getSystemProviderOrThrow(options: { requireEnabled: boolean }): Promise<SystemChatProvider> {
@@ -633,31 +490,4 @@ export class ChatService {
 
     return null
   }
-}
-
-function toChatSessionSummary(session: PersistedChatSessionSummary): ChatSessionSummary {
-  return {
-    id: session.id,
-    title: session.title,
-    createdAt: session.createdAt,
-    updatedAt: session.updatedAt,
-  }
-}
-
-function toChatSessionDetail(session: PersistedChatSessionDetail): ChatSessionDetail {
-  return {
-    ...toChatSessionSummary(session),
-    messages: session.messages.map(message => ({
-      role: toChatMessageRole(message.role),
-      content: message.content,
-    })),
-  }
-}
-
-function toChatMessageRole(role: ChatSessionMessageRole): ChatMessage['role'] {
-  return role === ChatSessionMessageRole.USER ? 'user' : 'assistant'
-}
-
-function buildChatSessionTitle(content: string) {
-  return content.slice(0, 30) + (content.length > 30 ? '...' : '')
 }

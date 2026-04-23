@@ -15,7 +15,6 @@ export function useUserProfileSection(options: {
   const form = reactive({
     displayName: options.displayName,
   })
-  const avatarInitial = computed(() => form.displayName.trim().slice(0, 1).toUpperCase() || 'U')
   const displayNameRules = {
     displayName: createDisplayNameRules(),
   } as const
@@ -55,7 +54,6 @@ export function useUserProfileSection(options: {
   }
 
   return {
-    avatarInitial,
     displayNameRules,
     form,
     handleFileChange,

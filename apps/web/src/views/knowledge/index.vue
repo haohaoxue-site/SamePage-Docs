@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import WorkspacePage from '@/layouts/components/WorkspacePage.vue'
-import { useKnowledge } from './composables/useKnowledge'
 
-const { pageTitle, placeholderTitle } = useKnowledge()
+const pageTitle = '知识库'
 </script>
 
 <template>
@@ -15,13 +14,14 @@ const { pageTitle, placeholderTitle } = useKnowledge()
       </div>
     </template>
 
-    <section class="knowledge-view-placeholder">
-      <div class="knowledge-view-placeholder__icon">
-        <SvgIcon category="nav" icon="knowledge-active" size="4rem" />
-      </div>
-      <div class="knowledge-view-placeholder__title">
-        {{ placeholderTitle }}
-      </div>
+    <section class="knowledge-view__empty">
+      <ElEmpty description="知识库正在建设中">
+        <template #image>
+          <div class="knowledge-view__empty-icon">
+            <SvgIcon category="nav" icon="knowledge-active" size="4rem" />
+          </div>
+        </template>
+      </ElEmpty>
     </section>
   </WorkspacePage>
 </template>
@@ -37,18 +37,15 @@ const { pageTitle, placeholderTitle } = useKnowledge()
   }
 }
 
-.knowledge-view-placeholder {
+.knowledge-view__empty {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
   box-sizing: border-box;
   min-height: 100%;
   padding: 3rem 1.5rem;
-  text-align: center;
 
-  .knowledge-view-placeholder__icon {
+  .knowledge-view__empty-icon {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -62,7 +59,8 @@ const { pageTitle, placeholderTitle } = useKnowledge()
     box-shadow: 0 20px 44px rgba(52, 114, 88, 0.12);
   }
 
-  .knowledge-view-placeholder__title {
+  :deep(.el-empty__description) {
+    margin-top: 1rem;
     color: var(--brand-text-primary);
     font-size: 1.5rem;
     font-weight: 600;

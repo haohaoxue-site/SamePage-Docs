@@ -37,7 +37,7 @@ defineProps<HomeWelcomePanelProps>()
 .home-welcome-panel {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--brand-border-base) 60%, transparent);
-  border-radius: 2rem !important;
+  border-radius: 2rem;
   background-image: linear-gradient(
     135deg,
     var(--brand-bg-surface-raised) 0%,
@@ -46,7 +46,7 @@ defineProps<HomeWelcomePanelProps>()
   box-shadow: var(--brand-shadow-floating);
 
   :deep(.home-welcome-panel__body) {
-    padding: 2rem !important;
+    padding: 2rem;
   }
 
   .home-welcome-panel__layout {
@@ -91,7 +91,7 @@ defineProps<HomeWelcomePanelProps>()
 
   .home-welcome-panel__date-label {
     color: var(--brand-text-secondary);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: uppercase;

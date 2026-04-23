@@ -68,7 +68,7 @@ const { formatDateTime, formatMetadata } = useAdminAuditLogList()
   }
 
   :deep(.admin-audit-log-list__card-body) {
-    padding: 1.25rem !important;
+    padding: 1.25rem;
   }
 
   .admin-audit-log-list__card-layout {

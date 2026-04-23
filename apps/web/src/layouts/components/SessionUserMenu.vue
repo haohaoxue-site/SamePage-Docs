@@ -1,22 +1,10 @@
 <script setup lang="ts">
-import type { AppearancePreference, AuthUser } from '@haohaoxue/samepage-domain'
-import {
-  APPEARANCE_PREFERENCE_LABELS,
-  APPEARANCE_PREFERENCE_VALUES,
-} from '@haohaoxue/samepage-contracts'
-import { ElMessage } from 'element-plus'
-import { computed, shallowRef, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { SvgIconCategory } from '@/components/svg-icon/typing'
-import { useAuthSession } from '@/layouts/composables/useAuthSession'
-import { getWorkspaceEntryPath } from '@/layouts/utils/workspace-entry'
-import { DEFAULT_ADMIN_NAVIGATION_ITEM } from '@/router/navigation'
-import { useUserStore } from '@/stores/user'
-import { getRequestErrorDisplayMessage } from '@/utils/request-error'
-
-type SessionMenuUser = Pick<AuthUser, 'displayName' | 'email' | 'avatarUrl'> & {
-  initial: string
-}
+import EntityAvatar from '@/components/entity-avatar/EntityAvatar.vue'
+import SessionAppearancePanel from './session-user-menu/SessionAppearancePanel.vue'
+import SessionWorkspacePanel from './session-user-menu/SessionWorkspacePanel.vue'
+import { useSessionUserMenu } from './session-user-menu/useSessionUserMenu'
+import TeamSettingsDialog from './team-settings-dialog/TeamSettingsDialog.vue'
+import WorkspaceCreateDialog from './workspace-create-dialog/WorkspaceCreateDialog.vue'
 
 const props = withDefaults(defineProps<{
   showContextSwitch?: boolean
@@ -24,147 +12,38 @@ const props = withDefaults(defineProps<{
   showContextSwitch: true,
 })
 
-const route = useRoute()
-const router = useRouter()
-const userStore = useUserStore()
-const menuVisible = shallowRef(false)
-const appearanceMenuVisible = shallowRef(false)
-const avatarImageLoadFailed = shallowRef(false)
-const { currentUser: sessionUser, isLoggingOut, logout } = useAuthSession()
-const sessionUserSnapshot = shallowRef(sessionUser.value)
-
-const appearanceOptions = APPEARANCE_PREFERENCE_VALUES.map(value => ({
-  label: APPEARANCE_PREFERENCE_LABELS[value],
-  value,
-}))
-
-const resolvedSessionUser = computed(() => sessionUser.value ?? sessionUserSnapshot.value!)
-const currentUser = computed<SessionMenuUser>(() => {
-  const user = resolvedSessionUser.value
-
-  const initial = user.displayName.trim().slice(0, 1).toUpperCase()
-
-  return {
-    displayName: user.displayName,
-    email: user.email ?? '',
-    avatarUrl: user.avatarUrl,
-    initial: initial || 'U',
-  }
+const {
+  menuVisible,
+  appearanceMenuVisible,
+  workspaceMenuVisible,
+  teamSettingsDialogVisible,
+  workspaceCreateDialogVisible,
+  isCreatingWorkspace,
+  isLoggingOut,
+  appearanceOptions,
+  currentUser,
+  contextSwitchAction,
+  currentAppearance,
+  currentAppearanceLabel,
+  isSavingAppearance,
+  currentWorkspaceLabel,
+  currentWorkspaceId,
+  currentTeamWorkspace,
+  switchableWorkspaces,
+  toggleAppearanceMenu,
+  toggleWorkspaceMenu,
+  openWorkspaceCreateDialog,
+  openTeamSettingsDialog,
+  handleAppearanceSelect,
+  handleWorkspaceCreate,
+  switchContext,
+  openUserSettings,
+  handleLogout,
+  handleWorkspaceSelect,
+  getLogoutIconName,
+} = useSessionUserMenu({
+  showContextSwitch: props.showContextSwitch,
 })
-
-const isAdminRoute = computed(() => route.path.startsWith('/admin'))
-
-const contextSwitchAction = computed(() => {
-  if (!props.showContextSwitch) {
-    return null
-  }
-
-  if (isAdminRoute.value) {
-    return {
-      label: '进入工作区',
-      iconCategory: SvgIconCategory.UI,
-      icon: 'arrow-left',
-    }
-  }
-
-  if (userStore.isSystemAdmin) {
-    return {
-      label: '进入管理区',
-      iconCategory: SvgIconCategory.UI,
-      icon: 'user-admin',
-    }
-  }
-
-  return null
-})
-
-const currentAppearanceLabel = computed(() => APPEARANCE_PREFERENCE_LABELS[userStore.preferences.appearance])
-const isSavingAppearance = computed(() => userStore.isSavingAppearance)
-
-const currentAvatarUrl = computed(() => {
-  const avatarUrl = currentUser.value.avatarUrl?.trim()
-
-  if (!avatarUrl || avatarImageLoadFailed.value) {
-    return null
-  }
-
-  return avatarUrl
-})
-
-const currentAvatarAlt = computed(() => `${currentUser.value.displayName} 的头像`)
-
-watch(sessionUser, (user) => {
-  if (user) {
-    sessionUserSnapshot.value = user
-  }
-}, {
-  immediate: true,
-})
-
-watch(menuVisible, (visible) => {
-  if (!visible) {
-    appearanceMenuVisible.value = false
-  }
-})
-
-watch(() => currentUser.value.avatarUrl, () => {
-  avatarImageLoadFailed.value = false
-})
-
-function toggleAppearanceMenu() {
-  if (isSavingAppearance.value) {
-    return
-  }
-
-  appearanceMenuVisible.value = !appearanceMenuVisible.value
-}
-
-async function handleAppearanceSelect(mode: AppearancePreference) {
-  if (isSavingAppearance.value || userStore.preferences.appearance === mode) {
-    return
-  }
-
-  try {
-    await userStore.updateAppearancePreference(mode)
-  }
-  catch (error) {
-    ElMessage.error(getRequestErrorDisplayMessage(error, '保存外观偏好失败'))
-  }
-}
-
-async function switchContext() {
-  appearanceMenuVisible.value = false
-  menuVisible.value = false
-
-  if (isAdminRoute.value) {
-    await router.push(getWorkspaceEntryPath())
-    return
-  }
-
-  await router.push(DEFAULT_ADMIN_NAVIGATION_ITEM.path)
-}
-
-async function openUserSettings() {
-  appearanceMenuVisible.value = false
-  menuVisible.value = false
-  await router.push('/user')
-}
-
-function handleAvatarImageError() {
-  avatarImageLoadFailed.value = true
-}
-
-async function handleLogout() {
-  appearanceMenuVisible.value = false
-  menuVisible.value = false
-  await logout()
-}
-
-function getLogoutIconName() {
-  return isLoggingOut.value
-    ? 'spinner-orbit'
-    : 'logout'
-}
 </script>
 
 <template>
@@ -182,57 +61,35 @@ function getLogoutIconName() {
         circle
         class="session-user-avatar-trigger"
       >
-        <ElAvatar
+        <EntityAvatar
+          :name="currentUser.displayName"
+          :src="currentUser.avatarUrl"
+          :alt="`${currentUser.displayName} 的头像`"
           :size="40"
+          shape="circle"
+          kind="user"
           class="session-user-avatar-trigger__avatar"
-        >
-          <img
-            v-if="currentAvatarUrl"
-            :key="currentAvatarUrl"
-            :src="currentAvatarUrl"
-            :alt="currentAvatarAlt"
-            referrerpolicy="no-referrer"
-            class="session-user-avatar-image"
-            @error="handleAvatarImageError"
-          >
-          <span
-            v-else
-            class="session-user-avatar-fallback"
-          >
-            {{ currentUser.initial }}
-          </span>
-        </ElAvatar>
+        />
       </ElButton>
     </template>
 
     <div class="session-user-menu">
       <div class="session-user-profile">
-        <ElAvatar
+        <EntityAvatar
+          :name="currentUser.displayName"
+          :src="currentUser.avatarUrl"
+          :alt="`${currentUser.displayName} 的头像`"
           :size="40"
+          shape="circle"
+          kind="user"
           class="session-user-profile__avatar"
-        >
-          <img
-            v-if="currentAvatarUrl"
-            :key="currentAvatarUrl"
-            :src="currentAvatarUrl"
-            :alt="currentAvatarAlt"
-            referrerpolicy="no-referrer"
-            class="session-user-avatar-image"
-            @error="handleAvatarImageError"
-          >
-          <span
-            v-else
-            class="session-user-profile__avatar-fallback"
-          >
-            {{ currentUser.initial }}
-          </span>
-        </ElAvatar>
+        />
 
         <div class="session-user-profile__meta">
           <div class="truncate text-[13px] font-semibold text-main">
             {{ currentUser.displayName }}
           </div>
-          <div class="truncate pt-0.5 text-[11px] text-secondary">
+          <div class="truncate pt-0.5 text-xs text-secondary">
             {{ currentUser.email }}
           </div>
         </div>
@@ -241,7 +98,7 @@ function getLogoutIconName() {
       <ElButton
         v-if="contextSwitchAction"
         text
-        class="session-context-switch"
+        class="session-context-switch session-menu-button-fill"
         @click="switchContext"
       >
         <span class="session-context-switch__content">
@@ -253,7 +110,7 @@ function getLogoutIconName() {
             {{ contextSwitchAction.label }}
           </span>
 
-          <SvgIcon category="ui" icon="chevron-right" size="11px" class="text-primary-a70" />
+          <SvgIcon category="ui" icon="chevron-right" size="12px" class="text-primary-a70" />
         </span>
       </ElButton>
 
@@ -262,7 +119,67 @@ function getLogoutIconName() {
       <div class="session-menu-subpanel-anchor">
         <ElButton
           text
-          class="session-user-menu-item session-user-menu-entry"
+          class="session-user-menu-item session-user-menu-entry session-menu-button-fill"
+          :class="{ 'is-active': workspaceMenuVisible }"
+          @click.stop="toggleWorkspaceMenu"
+        >
+          <span class="session-user-menu-entry__content">
+            <SvgIcon
+              category="ui"
+              icon="workspace-node"
+              size="14px"
+              class="session-user-menu-entry__icon"
+            />
+
+            <span class="session-user-menu-entry__summary">
+              <span class="session-user-menu-entry__title">
+                切换空间
+              </span>
+
+              <span class="session-user-menu-entry__current">
+                {{ currentWorkspaceLabel }}
+              </span>
+            </span>
+
+            <SvgIcon
+              category="ui"
+              icon="chevron-right"
+              size="14px"
+              class="session-user-menu-entry__chevron"
+              :class="workspaceMenuVisible ? 'translate-x-0.5 text-primary' : ''"
+            />
+          </span>
+        </ElButton>
+
+        <SessionWorkspacePanel
+          v-if="workspaceMenuVisible"
+          :current-user="currentUser"
+          :current-workspace-id="currentWorkspaceId"
+          :is-creating-workspace="isCreatingWorkspace"
+          :workspaces="switchableWorkspaces"
+          @create="openWorkspaceCreateDialog"
+          @select="handleWorkspaceSelect"
+        />
+      </div>
+
+      <ElButton
+        v-if="currentTeamWorkspace"
+        text
+        class="session-user-menu-item session-menu-button-fill"
+        @click="openTeamSettingsDialog"
+      >
+        <span class="session-user-menu-item__content">
+          <SvgIcon category="ui" icon="user-group" size="14px" class="session-user-menu-item__icon" />
+          <span class="leading-none">团队设置</span>
+        </span>
+      </ElButton>
+
+      <div class="session-user-divider" />
+
+      <div class="session-menu-subpanel-anchor">
+        <ElButton
+          text
+          class="session-user-menu-item session-user-menu-entry session-menu-button-fill"
           :class="{ 'is-active': appearanceMenuVisible }"
           :disabled="isSavingAppearance"
           @click.stop="toggleAppearanceMenu"
@@ -290,42 +207,20 @@ function getLogoutIconName() {
           </span>
         </ElButton>
 
-        <div v-if="appearanceMenuVisible" class="session-appearance-panel">
-          <div class="flex flex-col gap-1">
-            <ElButton
-              v-for="option in appearanceOptions"
-              :key="option.value"
-              text
-              class="session-appearance-option"
-              :class="{ 'is-active': userStore.preferences.appearance === option.value }"
-              :disabled="isSavingAppearance"
-              @click.stop="handleAppearanceSelect(option.value)"
-            >
-              <span class="session-appearance-option__content">
-                <span class="session-appearance-option__label">
-                  <span class="truncate text-[13px] leading-none font-medium text-main">
-                    {{ option.label }}
-                  </span>
-                </span>
-
-                <SvgIcon
-                  v-if="userStore.preferences.appearance === option.value"
-                  category="ui"
-                  icon="check"
-                  size="14px"
-                  class="shrink-0 text-primary"
-                />
-              </span>
-            </ElButton>
-          </div>
-        </div>
+        <SessionAppearancePanel
+          v-if="appearanceMenuVisible"
+          :current-appearance="currentAppearance"
+          :is-saving="isSavingAppearance"
+          :options="appearanceOptions"
+          @select="handleAppearanceSelect"
+        />
       </div>
 
       <div class="session-user-divider" />
 
       <ElButton
         text
-        class="session-user-menu-item"
+        class="session-user-menu-item session-menu-button-fill"
         @click="openUserSettings"
       >
         <span class="session-user-menu-item__content">
@@ -338,7 +233,7 @@ function getLogoutIconName() {
 
       <ElButton
         text
-        class="session-user-menu-item session-user-logout"
+        class="session-user-menu-item session-user-logout session-menu-button-fill"
         :disabled="isLoggingOut"
         @click="handleLogout"
       >
@@ -355,9 +250,20 @@ function getLogoutIconName() {
       </ElButton>
     </div>
   </ElPopover>
+
+  <WorkspaceCreateDialog
+    v-model="workspaceCreateDialogVisible"
+    :is-submitting="isCreatingWorkspace"
+    @submit="handleWorkspaceCreate"
+  />
+
+  <TeamSettingsDialog
+    v-model="teamSettingsDialogVisible"
+    :workspace="currentTeamWorkspace"
+  />
 </template>
 
-<style lang="scss">
+<style scoped lang="scss">
 @mixin session-menu-button-base($text-color) {
   margin-left: 0;
   width: 100%;
@@ -369,14 +275,6 @@ function getLogoutIconName() {
   font-size: 0.78125rem;
   line-height: 1;
   --el-button-text-color: #{$text-color};
-
-  > span {
-    display: flex;
-    align-items: stretch;
-    height: 100%;
-    width: 100%;
-    justify-content: flex-start;
-  }
 }
 
 .session-user-menu {
@@ -385,7 +283,7 @@ function getLogoutIconName() {
   gap: 0.375rem;
 }
 
-.session-user-menu-popper.el-popover {
+:global(.session-user-menu-popper.el-popover) {
   position: relative;
   overflow: visible;
   padding: 10px;
@@ -409,25 +307,6 @@ function getLogoutIconName() {
   height: 2.5rem;
   border-radius: 9999px;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-border-base) 70%, transparent);
-}
-
-.session-user-profile__avatar-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  color: color-mix(in srgb, var(--brand-text-primary) 82%, var(--brand-primary) 18%);
-  font-size: 13px;
-  font-weight: 700;
-  background:
-    radial-gradient(circle at 30% 28%, color-mix(in srgb, white 72%, transparent), transparent 46%),
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--brand-fill-light) 88%, var(--brand-bg-surface)),
-      color-mix(in srgb, var(--brand-fill-base) 76%, var(--brand-bg-surface-raised))
-    );
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
 }
 
 .session-user-profile__meta {
@@ -466,7 +345,7 @@ function getLogoutIconName() {
   );
 }
 
-.session-context-switch > span {
+.session-menu-button-fill > :deep(span) {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -517,20 +396,17 @@ function getLogoutIconName() {
 }
 
 .session-user-menu-entry,
-.session-appearance-option,
 .session-user-menu-item {
   @include session-menu-button-base(var(--brand-text-primary));
 }
 
 .session-user-menu-entry:hover,
-.session-appearance-option:hover,
 .session-user-menu-item:hover {
   --el-fill-color-light: var(--brand-fill-light);
   --el-button-text-color: var(--brand-text-primary);
 }
 
-.session-user-menu-entry.is-active,
-.session-appearance-option.is-active {
+.session-user-menu-entry.is-active {
   --el-fill-color-light: var(--brand-fill-light);
   --el-button-text-color: var(--brand-text-primary);
   background: var(--brand-fill-light);
@@ -543,6 +419,10 @@ function getLogoutIconName() {
 
 .session-user-menu-entry__icon {
   color: var(--brand-text-secondary);
+}
+
+.session-user-menu-entry__avatar {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-border-base) 64%, transparent);
 }
 
 .session-user-menu-entry__summary {
@@ -580,35 +460,6 @@ function getLogoutIconName() {
     color 0.2s ease;
 }
 
-.session-appearance-panel {
-  position: absolute;
-  top: 50%;
-  right: calc(100% + 14px);
-  z-index: 5;
-  width: 220px;
-  transform: translateY(-50%);
-  padding: 10px;
-  border: 1px solid color-mix(in srgb, var(--brand-border-base) 92%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--brand-bg-surface-raised) 96%, transparent);
-  box-shadow: var(--brand-shadow-floating);
-  backdrop-filter: blur(16px);
-}
-
-.session-appearance-option__content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  width: 100%;
-  height: 100%;
-  text-align: left;
-}
-
-.session-appearance-option__label {
-  min-width: 0;
-}
-
 .session-user-menu-item__icon {
   color: var(--brand-text-secondary);
   font-size: 14px;
@@ -629,10 +480,11 @@ function getLogoutIconName() {
 
 .session-user-avatar {
   &-trigger {
-    overflow: hidden !important;
-    width: 2.5rem !important;
-    height: 2.5rem !important;
-    padding: 0 !important;
+    overflow: hidden;
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
     border-color: var(--brand-border-base);
     background: var(--brand-bg-surface);
 
@@ -644,34 +496,7 @@ function getLogoutIconName() {
     &__avatar {
       width: 100%;
       height: 100%;
-      background: transparent;
     }
-  }
-
-  &-image {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  &-fallback {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    color: color-mix(in srgb, var(--brand-text-primary) 82%, var(--brand-primary) 18%);
-    font-size: 0.875rem;
-    font-weight: 700;
-    background:
-      radial-gradient(circle at 30% 28%, color-mix(in srgb, white 72%, transparent), transparent 46%),
-      linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--brand-fill-light) 88%, var(--brand-bg-surface)),
-        color-mix(in srgb, var(--brand-fill-base) 76%, var(--brand-bg-surface-raised))
-      );
-    box-shadow: inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
   }
 }
 </style>

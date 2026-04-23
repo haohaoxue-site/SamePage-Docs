@@ -4,6 +4,7 @@ import type {
   SystemAuthGovernance,
   UpdateSystemAuthGovernanceRequest,
 } from '@/apis/system-admin'
+import { USER_STATUS } from '@haohaoxue/samepage-contracts'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, shallowRef } from 'vue'
 import {
@@ -66,7 +67,7 @@ export function useUsers() {
     systemAdminPasswordUpdatedAt: null,
   })
   const summaryCards = computed(() => {
-    const activeUsers = users.value.filter(user => user.status === 'ACTIVE').length
+    const activeUsers = users.value.filter(user => user.status === USER_STATUS.ACTIVE).length
     const disabledUsers = users.value.length - activeUsers
     const systemAdmins = users.value.filter(user => user.isSystemAdmin).length
 
@@ -88,7 +89,7 @@ export function useUsers() {
       {
         label: '文档交互',
         value: users.value.reduce((sum, user) => sum + user.sharedDocumentCount, 0),
-        detail: '全平台共享文档总数',
+        detail: '全平台已开启分享的文档总数',
         iconCategory: SvgIconCategory.UI,
         icon: 'share',
       },
@@ -136,7 +137,7 @@ export function useUsers() {
             }
           : item,
       )
-      ElMessage.success(nextStatus === 'ACTIVE' ? '用户已恢复' : '用户已禁用')
+      ElMessage.success(nextStatus === USER_STATUS.ACTIVE ? '用户已恢复' : '用户已禁用')
     }
     catch (error) {
       ElMessage.error(getRequestErrorDisplayMessage(error, '更新用户状态失败'))

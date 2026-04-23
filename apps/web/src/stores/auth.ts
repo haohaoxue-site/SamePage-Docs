@@ -14,7 +14,9 @@ import {
   registerWithPassword,
 } from '@/apis/auth'
 import { createRequestErrorFromResponseEnvelope, toRequestError } from '@/utils/request-error'
+import { useUiStore } from './ui'
 import { useUserStore } from './user'
+import { useWorkspaceStore } from './workspace'
 
 export const AUTH_PERSIST_KEY = 'samepage_auth'
 export const AUTH_REDIRECT_KEY = 'samepage_auth_redirect'
@@ -34,6 +36,8 @@ export const useAuthStore = defineStore('auth', () => {
   const accessTokenExpiresAt = shallowRef(0)
   const pendingRedirect = useSessionStorage(AUTH_REDIRECT_KEY, '')
   const userStore = useUserStore()
+  const uiStore = useUiStore()
+  const workspaceStore = useWorkspaceStore()
   let sessionRouter: Router | null = null
   let refreshPromise: Promise<TokenExchangeResponse | null> | null = null
   let sessionExpiryPromise: Promise<void> | null = null
@@ -80,7 +84,10 @@ export const useAuthStore = defineStore('auth', () => {
       throw new Error('Refresh session failed')
     }
 
-    await userStore.refreshSettings().catch(() => null)
+    await Promise.all([
+      userStore.refreshSettings().catch(() => null),
+      workspaceStore.refreshVisibleWorkspaces().catch(() => null),
+    ])
     return result
   }
 
@@ -102,6 +109,8 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = ''
     accessTokenExpiresAt.value = 0
     pendingRedirect.value = ''
+    uiStore.clearDocumentTreeState()
+    workspaceStore.clear()
     userStore.clear()
   }
 
@@ -120,7 +129,10 @@ export const useAuthStore = defineStore('auth', () => {
       return
     }
 
-    await userStore.refreshSettings().catch(() => null)
+    await Promise.all([
+      userStore.refreshSettings().catch(() => null),
+      workspaceStore.refreshVisibleWorkspaces().catch(() => null),
+    ])
   }
 
   function installRouter(router: Router) {

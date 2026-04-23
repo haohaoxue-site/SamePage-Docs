@@ -243,7 +243,7 @@ const {
   &__description {
     min-width: 0;
     color: var(--brand-text-secondary);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     text-align: left;
     line-height: 1.4;
   }

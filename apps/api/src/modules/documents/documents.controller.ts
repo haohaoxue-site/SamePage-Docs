@@ -1,12 +1,16 @@
 import type {
+  CreateDirectDocumentShareRequest,
   CreateDocumentRequest,
   CreateDocumentResponse,
   CreateDocumentSnapshotRequest,
   CreateDocumentSnapshotResponse,
   DocumentAsset,
   DocumentHead,
+  DocumentPublicShareInfo,
   DocumentRecent,
+  DocumentShareRecipientSummary,
   DocumentSnapshot,
+  DocumentTrashItem,
   DocumentTreeGroup,
   PatchDocumentMetaRequest,
   ResolveDocumentAssetsRequest,
@@ -16,6 +20,8 @@ import type {
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import type { AuthUserContext } from '../auth/auth.interface'
 import {
+  ConfirmDocumentShareInheritanceUnlinkSchema,
+  CreateDirectDocumentShareSchema,
   CreateDocumentSchema,
   CreateDocumentSnapshotSchema,
   PatchDocumentMetaSchema,
@@ -23,36 +29,26 @@ import {
   RestoreDocumentSnapshotSchema,
 } from '@haohaoxue/samepage-contracts'
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res } from '@nestjs/common'
-import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { CurrentUser } from '../../decorators/current-user.decorator'
 import { Public } from '../../decorators/public.decorator'
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe'
-import { ApiRequestResponse } from '../../utils/swagger'
+import { getRequestFile } from '../../utils/request-file'
 import { DocumentAssetsService } from './document-assets.service'
-import {
-  createDocumentRequestApiSchema,
-  createDocumentResponseApiSchema,
-  createDocumentSnapshotRequestApiSchema,
-  createDocumentSnapshotResponseApiSchema,
-  documentAssetApiSchema,
-  patchDocumentMetaRequestApiSchema,
-  resolveDocumentAssetsRequestApiSchema,
-  resolveDocumentAssetsResponseApiSchema,
-  restoreDocumentSnapshotRequestApiSchema,
-} from './documents.constants'
+import { DocumentSharesService } from './document-shares.service'
+import { DocumentSnapshotsService } from './document-snapshots.service'
+import { DocumentTrashService } from './document-trash.service'
 import { DocumentsService } from './documents.service'
 
-@ApiTags('documents')
 @Controller('documents')
 export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
     private readonly documentAssetsService: DocumentAssetsService,
+    private readonly documentSharesService: DocumentSharesService,
+    private readonly documentSnapshotsService: DocumentSnapshotsService,
+    private readonly documentTrashService: DocumentTrashService,
   ) {}
 
-  @ApiOperation({ summary: '创建文档' })
-  @ApiBody({ schema: createDocumentRequestApiSchema })
-  @ApiRequestResponse(createDocumentResponseApiSchema)
   @Post()
   async createDocument(
     @CurrentUser() authUser: AuthUserContext,
@@ -61,67 +57,140 @@ export class DocumentsController {
     return this.documentsService.createDocument(authUser.id, payload)
   }
 
-  @ApiOperation({ summary: '获取当前用户可见的文档树' })
-  @ApiRequestResponse([{ type: 'object' }])
   @Get()
-  async getDocumentTree(@CurrentUser() authUser: AuthUserContext): Promise<DocumentTreeGroup[]> {
-    return this.documentsService.getDocumentTree(authUser.id)
+  async getDocumentTree(
+    @CurrentUser() authUser: AuthUserContext,
+    @Query('workspaceId') workspaceId: string,
+  ): Promise<DocumentTreeGroup[]> {
+    if (!workspaceId?.trim()) {
+      throw new BadRequestException('缺少 workspaceId')
+    }
+
+    return this.documentsService.getDocumentTree(authUser.id, workspaceId.trim())
   }
 
-  @ApiOperation({ summary: '获取最近文档' })
-  @ApiRequestResponse([{ type: 'object' }])
   @Get('recent')
   async getRecentDocuments(@CurrentUser() authUser: AuthUserContext): Promise<DocumentRecent[]> {
     return this.documentsService.getRecentDocuments(authUser.id)
   }
 
-  @ApiOperation({ summary: '获取文档当前 head' })
-  @ApiRequestResponse({ type: 'object' })
+  @Get('trash')
+  async getTrashDocuments(
+    @CurrentUser() authUser: AuthUserContext,
+    @Query('workspaceId') workspaceId: string,
+  ): Promise<DocumentTrashItem[]> {
+    if (!workspaceId?.trim()) {
+      throw new BadRequestException('缺少 workspaceId')
+    }
+
+    return this.documentTrashService.getTrashDocuments(authUser.id, workspaceId.trim())
+  }
+
+  @Get(':id/shares/public')
+  async getPublicShare(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+  ): Promise<DocumentPublicShareInfo> {
+    return this.documentSharesService.getPublicShare(authUser.id, id)
+  }
+
+  @Post(':id/shares/public')
+  async enablePublicShare(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ConfirmDocumentShareInheritanceUnlinkSchema)) payload: { confirmUnlinkInheritance?: boolean },
+  ): Promise<DocumentPublicShareInfo> {
+    return this.documentSharesService.enablePublicShare(authUser.id, id, payload)
+  }
+
+  @Delete(':id/shares/public')
+  async revokePublicShare(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+  ): Promise<null> {
+    return this.documentSharesService.revokePublicShare(authUser.id, id)
+  }
+
+  @Get(':id/shares/direct')
+  async getDirectShares(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+  ): Promise<DocumentShareRecipientSummary[]> {
+    return this.documentSharesService.getDirectShares(authUser.id, id)
+  }
+
+  @Post(':id/shares/direct')
+  async createDirectShare(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CreateDirectDocumentShareSchema)) payload: CreateDirectDocumentShareRequest,
+  ): Promise<DocumentShareRecipientSummary> {
+    return this.documentSharesService.createDirectShare(authUser.id, id, payload)
+  }
+
+  @Delete(':id/shares/direct/:recipientId')
+  async revokeDirectShare(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+    @Param('recipientId') recipientId: string,
+  ): Promise<null> {
+    return this.documentSharesService.revokeDirectShare(authUser.id, id, recipientId)
+  }
+
+  @Post(':id/shares/none')
+  async setNoSharePolicy(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ConfirmDocumentShareInheritanceUnlinkSchema)) payload: { confirmUnlinkInheritance?: boolean },
+  ): Promise<null> {
+    return this.documentSharesService.setNoSharePolicy(authUser.id, id, payload)
+  }
+
+  @Delete(':id/shares/local-policy')
+  async restoreInheritedSharePolicy(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+  ): Promise<null> {
+    return this.documentSharesService.restoreInheritedPolicy(authUser.id, id)
+  }
+
   @Get(':id')
   async getDocumentHead(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
+    @Query('recordVisit') recordVisit: string | undefined,
   ): Promise<DocumentHead> {
-    return this.documentsService.getDocumentHead(authUser.id, id)
+    return this.documentSnapshotsService.getDocumentHead(authUser.id, id, {
+      recordVisit: recordVisit === '1' || recordVisit === 'true',
+    })
   }
 
-  @ApiOperation({ summary: '创建文档 snapshot' })
-  @ApiBody({ schema: createDocumentSnapshotRequestApiSchema })
-  @ApiRequestResponse(createDocumentSnapshotResponseApiSchema)
   @Post(':id/snapshots')
   async createDocumentSnapshot(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(CreateDocumentSnapshotSchema)) payload: CreateDocumentSnapshotRequest,
   ): Promise<CreateDocumentSnapshotResponse> {
-    return this.documentsService.createDocumentSnapshot(authUser.id, id, payload)
+    return this.documentSnapshotsService.createDocumentSnapshot(authUser.id, id, payload)
   }
 
-  @ApiOperation({ summary: '获取文档 snapshot 列表' })
-  @ApiRequestResponse([{ type: 'object' }])
   @Get(':id/snapshots')
   async getDocumentSnapshots(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
   ): Promise<DocumentSnapshot[]> {
-    return this.documentsService.getDocumentSnapshots(authUser.id, id)
+    return this.documentSnapshotsService.getDocumentSnapshots(authUser.id, id)
   }
 
-  @ApiOperation({ summary: '恢复文档 snapshot' })
-  @ApiBody({ schema: restoreDocumentSnapshotRequestApiSchema })
-  @ApiRequestResponse(createDocumentSnapshotResponseApiSchema)
   @Post(':id/restore')
   async restoreDocumentSnapshot(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(RestoreDocumentSnapshotSchema)) payload: RestoreDocumentSnapshotRequest,
   ): Promise<CreateDocumentSnapshotResponse> {
-    return this.documentsService.restoreDocumentSnapshot(authUser.id, id, payload)
+    return this.documentSnapshotsService.restoreDocumentSnapshot(authUser.id, id, payload)
   }
 
-  @ApiOperation({ summary: '更新文档元数据' })
-  @ApiBody({ schema: patchDocumentMetaRequestApiSchema })
-  @ApiRequestResponse({ type: 'object' })
   @Patch(':id/meta')
   async patchDocumentMeta(
     @CurrentUser() authUser: AuthUserContext,
@@ -131,39 +200,40 @@ export class DocumentsController {
     return this.documentsService.patchDocumentMeta(authUser.id, id, payload)
   }
 
-  @ApiOperation({ summary: '删除文档' })
-  @ApiRequestResponse(null)
   @Delete(':id')
   async deleteDocument(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
   ): Promise<null> {
-    await this.documentsService.deleteDocument(authUser.id, id)
+    await this.documentTrashService.deleteDocument(authUser.id, id)
     return null
   }
 
-  @ApiOperation({ summary: '上传文档图片' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['file'],
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-      },
-    },
-  })
-  @ApiRequestResponse(documentAssetApiSchema)
+  @Post(':id/restore-from-trash')
+  async restoreDocumentFromTrash(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+  ): Promise<null> {
+    await this.documentTrashService.restoreDocumentFromTrash(authUser.id, id)
+    return null
+  }
+
+  @Delete(':id/permanent')
+  async permanentlyDeleteDocument(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param('id') id: string,
+  ): Promise<null> {
+    await this.documentTrashService.permanentlyDeleteDocument(authUser.id, id)
+    return null
+  }
+
   @Post(':id/assets/images')
   async uploadDocumentImage(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
     @Req() request: FastifyRequest,
   ): Promise<DocumentAsset> {
-    const file = await request.file()
+    const file = await getRequestFile(request)
 
     if (!file) {
       throw new BadRequestException('请选择图片文件')
@@ -178,28 +248,13 @@ export class DocumentsController {
     })
   }
 
-  @ApiOperation({ summary: '上传文档附件' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['file'],
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-      },
-    },
-  })
-  @ApiRequestResponse(documentAssetApiSchema)
   @Post(':id/assets/files')
   async uploadDocumentFile(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
     @Req() request: FastifyRequest,
   ): Promise<DocumentAsset> {
-    const file = await request.file()
+    const file = await getRequestFile(request)
 
     if (!file) {
       throw new BadRequestException('请选择附件文件')
@@ -214,9 +269,6 @@ export class DocumentsController {
     })
   }
 
-  @ApiOperation({ summary: '解析文档资源投影' })
-  @ApiBody({ schema: resolveDocumentAssetsRequestApiSchema })
-  @ApiRequestResponse(resolveDocumentAssetsResponseApiSchema)
   @Post(':id/assets/resolve')
   async resolveDocumentAssets(
     @CurrentUser() authUser: AuthUserContext,
@@ -230,8 +282,6 @@ export class DocumentsController {
     })
   }
 
-  @ApiOperation({ summary: '读取文档资源内容' })
-  @ApiRequestResponse(null)
   @Public()
   @Get(':id/assets/:assetId/content')
   async getDocumentAssetContent(

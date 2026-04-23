@@ -67,7 +67,7 @@ const { statusLabel, errorMessage, pageDescription } = useCallback()
 
   &__alert {
     border-style: dashed;
-    border-radius: 0.75rem !important;
+    border-radius: 0.75rem;
   }
 
   &__back-link {

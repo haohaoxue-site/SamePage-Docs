@@ -1,24 +1,30 @@
-import type { CryptoConfig } from '../../config/auth.config'
 import type {
   SystemEmailConfig,
+  SystemEmailProvider,
   SystemEmailServiceStatus,
   TestSystemEmailConfigResponse,
-  UpdateSystemEmailConfigInput,
-  UpdateSystemEmailServiceStatusInput,
-} from './system-email.interface'
-import { SYSTEM_EMAIL_PROVIDER, SYSTEM_EMAIL_PROVIDER_DEFAULTS } from '@haohaoxue/samepage-contracts'
+  UpdateSystemEmailConfigRequest,
+  UpdateSystemEmailServiceStatusRequest,
+} from '@haohaoxue/samepage-domain'
+import type { CryptoConfig } from '../../config/auth.config'
+import { SYSTEM_EMAIL_PROVIDER_DEFAULTS } from '@haohaoxue/samepage-contracts'
 import {
   BadRequestException,
   Injectable,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { Prisma, SystemEmailProvider } from '@prisma/client'
+import { Prisma, SystemEmailProvider as PrismaSystemEmailProvider } from '@prisma/client'
 import { createTransport } from 'nodemailer'
 import { PrismaService } from '../../database/prisma.service'
 import { auditUserSummarySelect, toAuditUserSummary } from '../../utils/audit-user-summary'
 import { decryptAes256Gcm, encryptAes256Gcm, isEncryptedValue } from '../../utils/crypto'
+import {
+  createDefaultSystemEmailConfig,
+  normalizeSystemEmailEditableFields,
+  toSystemEmailConfig,
+  toSystemEmailServiceStatus,
+} from './system-email.utils'
 
-const DEFAULT_PROVIDER = SYSTEM_EMAIL_PROVIDER.TENCENT_EXMAIL as SystemEmailProvider
 const systemEmailConfigInclude = {
   updatedByUser: {
     select: auditUserSummarySelect,
@@ -43,35 +49,28 @@ export class SystemEmailService {
     })
 
     if (!config) {
-      const defaults = SYSTEM_EMAIL_PROVIDER_DEFAULTS[DEFAULT_PROVIDER]
-      return {
-        provider: DEFAULT_PROVIDER,
-        smtpHost: defaults.smtpHost,
-        smtpPort: defaults.smtpPort,
-        smtpSecure: defaults.smtpSecure,
-        smtpUsername: '',
-        fromName: 'SamePage',
-        fromEmail: '',
-        hasPassword: false,
-        updatedAt: null,
-        updatedBy: null,
-        updatedByUser: null,
-      }
+      return createDefaultSystemEmailConfig()
     }
 
-    return {
-      provider: config.provider as SystemEmailProvider,
+    const normalizedFields = normalizeSystemEmailEditableFields({
       smtpHost: config.smtpHost,
-      smtpPort: config.smtpPort,
-      smtpSecure: config.smtpSecure,
       smtpUsername: config.smtpUsername,
       fromName: config.fromName,
       fromEmail: config.fromEmail,
-      hasPassword: Boolean(this.decryptPassword(config.smtpPasswordEncrypted)),
+    })
+
+    return toSystemEmailConfig({
+      provider: config.provider as SystemEmailProvider,
+      smtpHost: normalizedFields.smtpHost,
+      smtpPort: config.smtpPort,
+      smtpSecure: config.smtpSecure,
+      smtpUsername: normalizedFields.smtpUsername,
+      fromName: normalizedFields.fromName,
+      fromEmail: normalizedFields.fromEmail,
       updatedAt: config.updatedAt,
       updatedBy: config.updatedBy,
       updatedByUser: toAuditUserSummary(config.updatedByUser),
-    }
+    }, Boolean(this.decryptPassword(config.smtpPasswordEncrypted)))
   }
 
   async getEmailServiceStatus(): Promise<SystemEmailServiceStatus> {
@@ -80,12 +79,14 @@ export class SystemEmailService {
       include: systemEmailConfigInclude,
     })
 
-    return {
-      enabled: config?.enabled ?? false,
-      updatedAt: config?.updatedAt ?? null,
-      updatedBy: config?.updatedBy ?? null,
-      updatedByUser: toAuditUserSummary(config?.updatedByUser),
-    }
+    return toSystemEmailServiceStatus(config
+      ? {
+          enabled: config.enabled,
+          updatedAt: config.updatedAt,
+          updatedBy: config.updatedBy,
+          updatedByUser: toAuditUserSummary(config.updatedByUser),
+        }
+      : null)
   }
 
   async isEnabled(): Promise<boolean> {
@@ -94,7 +95,7 @@ export class SystemEmailService {
 
   async updateEmailConfig(
     actorUserId: string,
-    payload: UpdateSystemEmailConfigInput,
+    payload: UpdateSystemEmailConfigRequest,
   ): Promise<SystemEmailConfig> {
     const existing = await this.prisma.systemEmailConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
@@ -105,32 +106,34 @@ export class SystemEmailService {
       : payload.smtpPassword?.trim()
         ? payload.smtpPassword.trim()
         : existingPassword
-    const nextSmtpHost = payload.smtpHost.trim()
-    const nextSmtpUsername = payload.smtpUsername.trim()
-    const nextFromName = payload.fromName.trim()
-    const nextFromEmail = payload.fromEmail.trim().toLowerCase()
+    const normalizedFields = normalizeSystemEmailEditableFields({
+      smtpHost: payload.smtpHost,
+      smtpUsername: payload.smtpUsername,
+      fromName: payload.fromName,
+      fromEmail: payload.fromEmail,
+    })
 
     if (existing?.enabled) {
       this.assertEmailServiceReady({
-        smtpHost: nextSmtpHost,
+        smtpHost: normalizedFields.smtpHost,
         smtpPort: payload.smtpPort,
-        smtpUsername: nextSmtpUsername,
-        fromName: nextFromName,
-        fromEmail: nextFromEmail,
+        smtpUsername: normalizedFields.smtpUsername,
+        fromName: normalizedFields.fromName,
+        fromEmail: normalizedFields.fromEmail,
         smtpPassword: nextPassword,
       })
     }
 
     const data = {
-      provider: payload.provider,
+      provider: payload.provider as PrismaSystemEmailProvider,
       enabled: existing?.enabled ?? false,
-      smtpHost: nextSmtpHost,
+      smtpHost: normalizedFields.smtpHost,
       smtpPort: payload.smtpPort,
       smtpSecure: payload.smtpSecure,
-      smtpUsername: nextSmtpUsername,
+      smtpUsername: normalizedFields.smtpUsername,
       smtpPasswordEncrypted: nextPassword ? encryptAes256Gcm(nextPassword, this.encryptionKey) : null,
-      fromName: nextFromName,
-      fromEmail: nextFromEmail,
+      fromName: normalizedFields.fromName,
+      fromEmail: normalizedFields.fromEmail,
       updatedBy: actorUserId,
     }
 
@@ -154,30 +157,31 @@ export class SystemEmailService {
 
   async updateEmailServiceStatus(
     actorUserId: string,
-    payload: UpdateSystemEmailServiceStatusInput,
+    payload: UpdateSystemEmailServiceStatusRequest,
   ): Promise<SystemEmailServiceStatus> {
     const existing = await this.prisma.systemEmailConfig.findFirst({
       orderBy: { updatedAt: 'desc' },
     })
+    const normalizedFields = normalizeSystemEmailEditableFields({
+      smtpHost: existing?.smtpHost ?? '',
+      smtpUsername: existing?.smtpUsername ?? '',
+      fromName: existing?.fromName ?? '',
+      fromEmail: existing?.fromEmail ?? '',
+    })
 
     if (payload.enabled) {
       this.assertEmailServiceReady({
-        smtpHost: existing?.smtpHost ?? '',
+        smtpHost: normalizedFields.smtpHost,
         smtpPort: existing?.smtpPort ?? 0,
-        smtpUsername: existing?.smtpUsername ?? '',
-        fromName: existing?.fromName ?? '',
-        fromEmail: existing?.fromEmail ?? '',
+        smtpUsername: normalizedFields.smtpUsername,
+        fromName: normalizedFields.fromName,
+        fromEmail: normalizedFields.fromEmail,
         smtpPassword: this.decryptPassword(existing?.smtpPasswordEncrypted ?? null),
       })
     }
 
     if (!existing) {
-      return {
-        enabled: false,
-        updatedAt: null,
-        updatedBy: null,
-        updatedByUser: null,
-      }
+      return toSystemEmailServiceStatus(null)
     }
 
     await this.prisma.systemEmailConfig.update({
@@ -282,14 +286,21 @@ export class SystemEmailService {
       throw new BadRequestException('系统发件密码缺失，请先在后台补充配置')
     }
 
-    return {
+    const normalizedFields = normalizeSystemEmailEditableFields({
       smtpHost: config.smtpHost,
-      smtpPort: config.smtpPort,
-      smtpSecure: config.smtpSecure,
       smtpUsername: config.smtpUsername,
-      smtpPassword,
       fromName: config.fromName,
       fromEmail: config.fromEmail,
+    })
+
+    return {
+      smtpHost: normalizedFields.smtpHost,
+      smtpPort: config.smtpPort,
+      smtpSecure: config.smtpSecure,
+      smtpUsername: normalizedFields.smtpUsername,
+      smtpPassword,
+      fromName: normalizedFields.fromName,
+      fromEmail: normalizedFields.fromEmail,
     }
   }
 

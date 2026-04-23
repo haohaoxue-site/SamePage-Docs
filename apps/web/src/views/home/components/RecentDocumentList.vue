@@ -23,7 +23,7 @@ const { formatDocumentLocation, formatDocumentUpdatedAt } = useRecentDocumentLis
       <RouterLink
         v-for="document in documents"
         :key="document.id"
-        :to="{ name: 'docs', params: { id: document.id } }"
+        :to="document.link"
         class="recent-document-list__item"
       >
         <div class="recent-document-list__icon-shell">
@@ -56,11 +56,11 @@ const { formatDocumentLocation, formatDocumentUpdatedAt } = useRecentDocumentLis
 <style scoped lang="scss">
 .recent-document-list {
   border: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
-  border-radius: 1.75rem !important;
+  border-radius: 1.75rem;
   box-shadow: 0 1px 2px 0 color-mix(in srgb, var(--brand-text-primary) 5%, transparent);
 
   :deep(.recent-document-list__body) {
-    padding: 1.5rem !important;
+    padding: 1.5rem;
   }
 
   .recent-document-list__header {

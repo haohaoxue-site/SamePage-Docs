@@ -3,8 +3,9 @@ enum DocumentStatus {
   LOCKED
 }
 
-enum DocumentMemberRole {
-  VIEWER
+enum DocumentVisibility {
+  PRIVATE
+  WORKSPACE
 }
 
 enum DocumentAssetKind {
@@ -18,37 +19,70 @@ enum DocumentAssetStatus {
   DELETED
 }
 
-enum DocumentSpaceScope {
-  PERSONAL
-  TEAM
+enum DocumentShareMode {
+  NONE
+  DIRECT_USER
+  PUBLIC_TO_LOGGED_IN
+}
+
+enum DocumentShareStatus {
+  ACTIVE
+  REMOVED
+}
+
+enum DocumentSharePermission {
+  VIEW
+  COMMENT
+}
+
+enum DocumentShareRecipientStatus {
+  PENDING
+  ACTIVE
+  DECLINED
+  EXITED
+  REMOVED
+}
+
+enum DocumentRecentVisitRouteKind {
+  DOCUMENT
+  SHARE
+  SHARE_RECIPIENT
 }
 
 model Document {
   id               String             @id @default(uuid())
-  ownerId          String
+  workspaceId      String
+  visibility       DocumentVisibility @default(PRIVATE)
   parentId         String?
-  spaceScope       DocumentSpaceScope @default(PERSONAL)
   title            String
   latestSnapshotId String?            @unique
   headRevision     Int                @default(0)
   summary          String             @default("")
   status           DocumentStatus     @default(ACTIVE)
   order            Int                @default(0)
-  owner            User               @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   parent           Document?          @relation("DocumentTree", fields: [parentId], references: [id], onDelete: SetNull)
   children         Document[]         @relation("DocumentTree")
   latestSnapshot   DocumentSnapshot?  @relation("DocumentLatestSnapshot", fields: [latestSnapshotId], references: [id], onDelete: SetNull)
   snapshots        DocumentSnapshot[] @relation("DocumentSnapshots")
   assets           DocumentAsset[]
-  members          DocumentMember[]
+  shares           DocumentShare[]
+  recentVisits     DocumentRecentVisit[]
   ydoc             DocumentYdoc?
   createdAt        DateTime           @default(now())
+  createdBy        String
+  createdByUser    User               @relation("DocumentCreator", fields: [createdBy], references: [id], onDelete: Cascade)
   updatedAt        DateTime           @updatedAt
-  deletedAt        DateTime?
+  trashedAt        DateTime?
+  trashedBy        String?
+  trashedByUser    User?              @relation("DocumentTrasher", fields: [trashedBy], references: [id], onDelete: SetNull)
 
-  @@index([ownerId])
-  @@index([parentId, order])
-  @@index([spaceScope, status])
+  @@index([workspaceId])
+  @@index([workspaceId, parentId, order])
+  @@index([workspaceId, visibility, parentId, order])
+  @@index([workspaceId, status])
+  @@index([workspaceId, trashedAt])
+  @@index([createdBy, workspaceId, visibility])
 }
 
 model DocumentSnapshot {
@@ -69,21 +103,6 @@ model DocumentSnapshot {
 
   @@unique([documentId, revision])
   @@index([documentId, createdAt])
-}
-
-model DocumentMember {
-  documentId String
-  userId     String
-  role       DocumentMemberRole
-  document   Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  deletedAt  DateTime?
-
-  @@id([documentId, userId])
-  @@index([userId])
-  @@index([role])
 }
 
 model DocumentYdoc {
@@ -119,4 +138,57 @@ model DocumentAsset {
   @@index([documentId, createdAt])
   @@index([documentId, kind, status])
   @@index([sha256])
+}
+
+model DocumentShare {
+  id            String                   @id @default(uuid())
+  documentId    String
+  mode          DocumentShareMode
+  permission    DocumentSharePermission  @default(VIEW)
+  status        DocumentShareStatus      @default(ACTIVE)
+  document      Document                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  recipients    DocumentShareRecipient[]
+  createdAt     DateTime                 @default(now())
+  createdBy     String?
+  createdByUser User?                    @relation("DocumentShareCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedAt     DateTime                 @updatedAt
+  updatedBy     String?
+  updatedByUser User?                    @relation("DocumentShareUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  deletedAt     DateTime?
+
+  @@index([documentId, status, mode])
+  @@index([documentId, status, updatedAt])
+}
+
+model DocumentShareRecipient {
+  id                String                       @id @default(uuid())
+  documentShareId   String
+  recipientUserId   String
+  permission        DocumentSharePermission      @default(VIEW)
+  status            DocumentShareRecipientStatus @default(PENDING)
+  documentShare     DocumentShare                @relation(fields: [documentShareId], references: [id], onDelete: Cascade)
+  recipientUser     User                         @relation("DocumentShareRecipientUser", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  createdAt         DateTime                     @default(now())
+  createdBy         String?
+  createdByUser     User?                        @relation("DocumentShareRecipientCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedAt         DateTime                     @updatedAt
+  updatedBy         String?
+  updatedByUser     User?                        @relation("DocumentShareRecipientUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  deletedAt         DateTime?
+
+  @@unique([documentShareId, recipientUserId])
+  @@index([recipientUserId, status, updatedAt])
+}
+
+model DocumentRecentVisit {
+  documentId   String
+  userId       String
+  routeKind    DocumentRecentVisitRouteKind
+  routeEntryId String?
+  visitedAt    DateTime                     @default(now())
+  document     Document                     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user         User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, userId])
+  @@index([userId, visitedAt])
 }

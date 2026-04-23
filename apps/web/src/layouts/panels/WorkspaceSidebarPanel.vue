@@ -57,9 +57,6 @@ function getToggleGlyphClass() {
             <div class="truncate text-sm font-bold tracking-tight">
               SamePage
             </div>
-            <div class="truncate text-xs text-secondary">
-              Workspace
-            </div>
           </div>
         </RouterLink>
       </div>

@@ -3,10 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { defineComponent } from 'vue'
 import DocumentContextActions from '@/views/docs/components/DocumentContextActions.vue'
 
-function mountDocumentContextActions(canDeleteDocument: boolean) {
+function mountDocumentContextActions(canDeleteDocument: boolean, canMoveToTeam = false) {
   return mount(DocumentContextActions, {
     props: {
       canDeleteDocument,
+      canMoveToTeam,
     },
     global: {
       stubs: {
@@ -42,6 +43,6 @@ describe('documentContextActions', () => {
 
     expect(items).toHaveLength(2)
     expect(items[0]?.text()).toContain('历史记录')
-    expect(items[1]?.text()).toContain('删除')
+    expect(items[1]?.text()).toContain('移到回收站')
   })
 })

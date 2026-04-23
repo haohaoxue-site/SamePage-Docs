@@ -53,7 +53,7 @@ function getItemStateClass(item: AdminNavigationItem) {
             </span>
             <div class="admin-sidebar__item-chevron" :class="getItemStateClass(item)" />
           </div>
-          <p class="mt-1 text-[11px] leading-normal text-secondary">
+          <p class="mt-1 text-xs leading-normal text-secondary">
             {{ item.description }}
           </p>
         </RouterLink>

@@ -10,7 +10,6 @@ import { validateEnv } from './config/env.schema'
 import { loggerConfig } from './config/logger.config'
 import { serverConfig } from './config/server.config'
 import { storageConfig } from './config/storage.config'
-import { swaggerConfig } from './config/swagger.config'
 import { PrismaModule } from './database/prisma.module'
 import { AccessTokenGuard } from './guards/access-token.guard'
 import { PermissionsGuard } from './guards/permissions.guard'
@@ -19,15 +18,17 @@ import { CapabilitiesModule } from './modules/capabilities/capabilities.module'
 import { ChatModule } from './modules/chat/chat.module'
 import { DocumentsModule } from './modules/documents/documents.module'
 import { HealthModule } from './modules/health/health.module'
+import { NotificationsModule } from './modules/notifications/notifications.module'
 import { RbacModule } from './modules/rbac/rbac.module'
 import { SystemAdminModule } from './modules/system-admin/system-admin.module'
 import { UsersModule } from './modules/users/users.module'
+import { WorkspacesModule } from './modules/workspaces/workspaces.module'
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [serverConfig, swaggerConfig, loggerConfig, databaseConfig, jwtConfig, oauthConfig, bootstrapConfig, cryptoConfig, storageConfig],
+      load: [serverConfig, loggerConfig, databaseConfig, jwtConfig, oauthConfig, bootstrapConfig, cryptoConfig, storageConfig],
       validate: validateEnv,
     }),
     ThrottlerModule.forRoot([
@@ -97,7 +98,9 @@ import { UsersModule } from './modules/users/users.module'
     AuthModule,
     CapabilitiesModule,
     ChatModule,
+    NotificationsModule,
     UsersModule,
+    WorkspacesModule,
     SystemAdminModule,
     HealthModule,
     DocumentsModule,

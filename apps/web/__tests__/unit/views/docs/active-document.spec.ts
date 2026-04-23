@@ -30,12 +30,14 @@ function createDocumentHead(overrides: Partial<DocumentHead> = {}): DocumentHead
   return {
     document: {
       id: 'doc-1',
-      ownerId: 'user-1',
+      workspaceId: 'workspace-personal',
+      createdBy: 'user-1',
+      visibility: 'PRIVATE',
       parentId: null,
       latestSnapshotId: 'snapshot-1',
       order: 0,
-      spaceScope: 'PERSONAL',
       status: 'ACTIVE',
+      share: null,
       summary: '测试摘要',
       createdAt: '2026-04-14T00:00:00.000Z',
       updatedAt: '2026-04-14T00:00:00.000Z',

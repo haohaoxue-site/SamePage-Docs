@@ -157,8 +157,8 @@ const {
     border-color: color-mix(in srgb, var(--brand-border-base) 80%, transparent);
     color: var(--brand-text-secondary);
     background: var(--brand-bg-surface-raised);
-    width: 2.5rem !important;
-    height: 2.5rem !important;
+    width: 2.5rem;
+    height: 2.5rem;
 
     &:hover {
       border-color: color-mix(in srgb, var(--brand-primary) 20%, transparent);

@@ -2,6 +2,7 @@ import type {
   DocumentItem,
   DocumentPaneState,
   DocumentSaveState,
+  DocumentShareProjection,
   DocumentSnapshot,
   TiptapJsonContent,
 } from '@haohaoxue/samepage-domain'
@@ -100,6 +101,7 @@ export function useActiveDocument({
   const isDocumentItemLoading = shallowRef(false)
   const isSnapshotsLoading = shallowRef(false)
   const autoSaveTimer = shallowRef<ReturnType<typeof setTimeout> | null>(null)
+  let loadRequestId = 0
   let persistTask: Promise<boolean> | null = null
 
   const state = useActiveDocumentState({
@@ -117,9 +119,12 @@ export function useActiveDocument({
   }
 
   async function loadCurrentDocument(id: string | null) {
+    const requestId = ++loadRequestId
     clearAutoSaveTimer()
 
     if (!id) {
+      isDocumentItemLoading.value = false
+      isSnapshotsLoading.value = false
       state.resetCurrentDocument()
       return
     }
@@ -130,13 +135,23 @@ export function useActiveDocument({
 
     try {
       const [documentHead, loadedSnapshots] = await Promise.all([
-        getDocumentHeadRequest(id),
+        getDocumentHeadRequest(id, { recordVisit: true }),
         getDocumentSnapshotsRequest(id),
       ])
+
+      if (!isActiveLoadRequest(requestId, id)) {
+        return
+      }
+
       const resolvedBodies = await hydrateDocumentBodies(id, [
         documentHead.latestSnapshot.body,
         ...loadedSnapshots.map(snapshot => snapshot.body),
       ])
+
+      if (!isActiveLoadRequest(requestId, id)) {
+        return
+      }
+
       const loadedDocument = toActiveDocument({
         ...documentHead,
         latestSnapshot: {
@@ -149,16 +164,26 @@ export function useActiveDocument({
         body: resolvedBodies[index + 1] ?? snapshot.body,
       }))
 
+      if (!isActiveLoadRequest(requestId, id)) {
+        return
+      }
+
       state.applyLoadedDocument(loadedDocument, hydratedSnapshots)
       rememberLastOpenedDocument(id)
       ensureExpandedPath(id)
     }
     catch (error) {
+      if (!isActiveLoadRequest(requestId, id)) {
+        return
+      }
+
       state.setDocumentErrorState(resolveDocumentErrorState(error))
     }
     finally {
-      isDocumentItemLoading.value = false
-      isSnapshotsLoading.value = false
+      if (isActiveLoadRequest(requestId, id)) {
+        isDocumentItemLoading.value = false
+        isSnapshotsLoading.value = false
+      }
     }
   }
 
@@ -318,6 +343,10 @@ export function useActiveDocument({
     autoSaveTimer.value = null
   }
 
+  function isActiveLoadRequest(requestId: number, documentId: string | null) {
+    return requestId === loadRequestId && activeDocumentId.value === documentId
+  }
+
   watch(
     activeDocumentId,
     async (nextDocumentId) => {
@@ -338,6 +367,7 @@ export function useActiveDocument({
     documentErrorState: state.documentErrorState,
     confirmNavigation,
     reloadCurrentDocument,
+    patchDocumentShare: state.patchDocumentShare,
     restoreSnapshot,
     updateDocumentTitle,
     updateDocumentContent,
@@ -390,6 +420,17 @@ export function useActiveDocumentState({
     snapshots.value = loadedSnapshots
     documentErrorState.value = null
     save.captureLoadedDocument(document)
+  }
+
+  function patchDocumentShare(documentId: string, share: DocumentShareProjection | null) {
+    if (currentDocument.value?.id !== documentId) {
+      return
+    }
+
+    currentDocument.value = {
+      ...currentDocument.value,
+      share,
+    }
   }
 
   function markSaving() {
@@ -507,6 +548,7 @@ export function useActiveDocumentState({
     updateDocumentTitle,
     updateDocumentContent,
     applyLoadedDocument,
+    patchDocumentShare,
     markSaving,
     finishSaving,
     markSaveError,

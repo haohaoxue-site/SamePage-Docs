@@ -129,31 +129,23 @@ const {
               <span class="text-xs text-secondary">已保存的 AI 连接信息</span>
             </div>
 
-            <dl class="flex flex-col gap-3.5">
-              <div class="system-ai-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
-                <dt class="text-[13px] text-secondary">
-                  API 地址
-                </dt>
-                <dd class="m-0 break-all text-sm text-main md:text-right">
+            <ElDescriptions :column="1" direction="vertical" size="small" class="system-ai-config__summary">
+              <ElDescriptionsItem label="API 地址">
+                <span class="system-ai-config__summary-value system-ai-config__summary-value--break-all">
                   {{ currentConfig?.baseUrl || '-' }}
-                </dd>
-              </div>
-              <div class="system-ai-config__summary-row flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-4">
-                <dt class="text-[13px] text-secondary">
-                  API Key
-                </dt>
-                <dd class="m-0 break-all text-sm text-main md:text-right">
+                </span>
+              </ElDescriptionsItem>
+              <ElDescriptionsItem label="API Key">
+                <span class="system-ai-config__summary-value">
                   {{ currentConfig?.hasApiKey ? '已保存，页面不展示原值' : '暂未保存' }}
-                </dd>
-              </div>
-            </dl>
-
-            <div class="system-ai-config__updated-at flex items-center justify-between gap-4">
-              <span class="text-[13px] text-secondary">最近更新</span>
-              <span class="text-right text-sm font-semibold text-main">
-                {{ currentConfig?.updatedAt ? formatDateTime(currentConfig.updatedAt) : '暂无' }}
-              </span>
-            </div>
+                </span>
+              </ElDescriptionsItem>
+              <ElDescriptionsItem label="最近更新">
+                <span class="system-ai-config__summary-value">
+                  {{ currentConfig?.updatedAt ? formatDateTime(currentConfig.updatedAt) : '暂无' }}
+                </span>
+              </ElDescriptionsItem>
+            </ElDescriptions>
           </section>
         </div>
       </ElCard>
@@ -228,20 +220,39 @@ const {
     }
   }
 
-  &__summary-row {
-    padding-bottom: 0.875rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--brand-border-base) 82%, transparent);
+  &__summary {
+    :deep(.el-descriptions__body) {
+      background: transparent;
+    }
 
-    &:last-child {
+    :deep(.el-descriptions__table) {
+      width: 100%;
+    }
+
+    :deep(.el-descriptions__cell) {
+      padding-bottom: 1rem;
+    }
+
+    :deep(.el-descriptions__cell:last-child) {
       padding-bottom: 0;
-      border-bottom: none;
+    }
+
+    :deep(.el-descriptions__label) {
+      margin-bottom: 0.375rem;
+      color: var(--brand-text-secondary);
+      font-size: 13px;
     }
   }
 
-  &__updated-at {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid color-mix(in srgb, var(--brand-border-base) 82%, transparent);
+  &__summary-value {
+    display: block;
+    color: var(--brand-text-primary);
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+
+  &__summary-value--break-all {
+    word-break: break-all;
   }
 }
 </style>

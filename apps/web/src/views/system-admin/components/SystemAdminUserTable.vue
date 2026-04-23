@@ -3,7 +3,9 @@ import type {
   SystemAdminUserTableEmits,
   SystemAdminUserTableProps,
 } from '../typing'
+import { USER_STATUS } from '@haohaoxue/samepage-contracts'
 import { useSystemAdminUserTable } from '../composables/useSystemAdminUserTable'
+import SystemAdminUserIdentityCell from './SystemAdminUserIdentityCell.vue'
 
 const props = defineProps<SystemAdminUserTableProps>()
 const emits = defineEmits<SystemAdminUserTableEmits>()
@@ -15,15 +17,7 @@ const { formatAuthMethod, formatDate, getStatusStateClass, resolveNextStatus } =
     <ElTable :data="props.users" class="admin-table admin-user-table">
       <ElTableColumn label="用户信息" min-width="240">
         <template #default="{ row }">
-          <div class="admin-user-table__identity">
-            <div class="admin-user-table__avatar">
-              {{ row.displayName.slice(0, 1) }}
-            </div>
-            <div class="min-w-0 flex flex-col">
-              <span class="truncate text-sm font-semibold text-main">{{ row.displayName }}</span>
-              <span class="truncate text-xs text-secondary">{{ row.email || '未绑定邮箱' }}</span>
-            </div>
-          </div>
+          <SystemAdminUserIdentityCell :user="row" />
         </template>
       </ElTableColumn>
 
@@ -32,7 +26,7 @@ const { formatAuthMethod, formatDate, getStatusStateClass, resolveNextStatus } =
           <div class="admin-user-table__status">
             <div class="admin-user-table__status-dot" :class="getStatusStateClass(row.status)" />
             <span class="admin-user-table__status-label" :class="getStatusStateClass(row.status)">
-              {{ row.status === 'ACTIVE' ? '正常' : '已禁用' }}
+              {{ row.status === USER_STATUS.ACTIVE ? '正常' : '已禁用' }}
             </span>
           </div>
         </template>
@@ -82,11 +76,11 @@ const { formatAuthMethod, formatDate, getStatusStateClass, resolveNextStatus } =
           <div class="admin-user-table__actions">
             <ElButton
               link
-              :type="row.status === 'ACTIVE' ? 'danger' : 'success'"
+              :type="row.status === USER_STATUS.ACTIVE ? 'danger' : 'success'"
               :disabled="props.updatingUserId === row.id || row.isSystemAdmin"
               @click="emits('toggleStatus', row, resolveNextStatus(row.status))"
             >
-              {{ row.isSystemAdmin ? '系统管理员' : row.status === 'ACTIVE' ? '禁用' : '激活' }}
+              {{ row.isSystemAdmin ? '系统管理员' : row.status === USER_STATUS.ACTIVE ? '禁用' : '激活' }}
             </ElButton>
           </div>
         </template>
@@ -112,27 +106,6 @@ const { formatAuthMethod, formatDate, getStatusStateClass, resolveNextStatus } =
 }
 
 .admin-user-table {
-  &__identity {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  &__avatar {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.5rem;
-    min-width: 2.5rem;
-    height: 2.5rem;
-    min-height: 2.5rem;
-    border-radius: 9999px;
-    color: var(--brand-primary);
-    font-weight: 700;
-    background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
-  }
-
   &__status {
     display: flex;
     align-items: center;

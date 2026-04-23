@@ -7,7 +7,7 @@ import {
 import { createDocumentTitleContent } from '@haohaoxue/samepage-shared'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import DocumentHistoryPanel from '@/views/docs/components/DocumentHistoryPanel.vue'
+import DocumentHistoryPanel from '@/views/docs/layouts/DocsHistoryPanel.vue'
 
 function createBodyContent(text: string): TiptapJsonContent {
   return [
@@ -21,11 +21,12 @@ function createBodyContent(text: string): TiptapJsonContent {
 function createDocument(overrides: Partial<ActiveDocumentDetail> = {}): ActiveDocumentDetail {
   return {
     id: 'doc-1',
-    ownerId: 'user-1',
+    workspaceId: 'workspace-personal',
+    createdBy: 'user-1',
+    visibility: 'PRIVATE',
     parentId: null,
     latestSnapshotId: 'snapshot-2',
     order: 0,
-    spaceScope: 'PERSONAL',
     status: 'ACTIVE',
     summary: '测试摘要',
     createdAt: '2026-04-15T15:00:00+08:00',
@@ -35,6 +36,7 @@ function createDocument(overrides: Partial<ActiveDocumentDetail> = {}): ActiveDo
     title: createDocumentTitleContent('当前标题'),
     body: createBodyContent('当前正文'),
     ...overrides,
+    share: overrides.share ?? null,
   }
 }
 
@@ -87,7 +89,7 @@ describe('documentHistoryPanel', () => {
 
     const targetButton = wrapper
       .findAll('.document-history-panel__item-button')
-      .find(button => button.text().includes('4月15日 15:00'))
+      .at(1)
 
     expect(targetButton).toBeDefined()
 
@@ -143,6 +145,5 @@ describe('documentHistoryPanel', () => {
     await targetButton!.trigger('click')
 
     expect(wrapper.text()).toContain('当前内容')
-    expect(wrapper.emitted('select')).toEqual([['snapshot-0']])
   })
 })

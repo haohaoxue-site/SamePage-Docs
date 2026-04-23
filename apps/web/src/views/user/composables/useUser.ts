@@ -6,7 +6,13 @@ import type {
 } from '@haohaoxue/samepage-domain'
 import type { Ref, ShallowRef } from 'vue'
 import type { AuthCapabilities } from '@/apis/capabilities'
-import { ACCOUNT_DELETION_CONFIRMATION_PHRASE, AUTH_PROVIDER, PERMISSIONS } from '@haohaoxue/samepage-contracts'
+import {
+  ACCOUNT_DELETION_CONFIRMATION_PHRASE,
+  AUTH_PROVIDER,
+  OAUTH_REDIRECT_BIND_STATUS,
+  OAUTH_REDIRECT_QUERY,
+  PERMISSIONS,
+} from '@haohaoxue/samepage-contracts'
 import { formatAuthMethod, normalizeAuthProviderName } from '@haohaoxue/samepage-shared'
 import { ElMessage } from 'element-plus'
 import { computed, nextTick, onMounted, reactive, shallowRef } from 'vue'
@@ -16,6 +22,7 @@ import { deleteCurrentUser, requestBindEmailCode, startOauthBinding } from '@/ap
 import { resetAdminRoutes } from '@/router'
 import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
+import { resolveOAuthRedirectErrorMessage } from '@/utils/oauth-redirect'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
 
 const DEFAULT_AUTH_CAPABILITIES: AuthCapabilities = {
@@ -36,6 +43,7 @@ const DEFAULT_AUTH_CAPABILITIES: AuthCapabilities = {
 function createDefaultAccount(): UserSettings['account'] {
   return {
     email: null,
+    userCode: '',
     hasPasswordAuth: false,
     emailVerified: false,
     github: {
@@ -353,26 +361,30 @@ function useUserAccountState(options: { authCapabilities: ShallowRef<AuthCapabil
   }
 
   async function consumeRouteFeedback() {
-    const bindStatus = typeof route.query.bind_status === 'string' ? route.query.bind_status : ''
-    const provider = typeof route.query.provider === 'string' ? route.query.provider : ''
-    const bindMessage = typeof route.query.bind_message === 'string' ? route.query.bind_message : ''
+    const bindStatus = ((route.query[OAUTH_REDIRECT_QUERY.BIND_STATUS] as string | null | undefined) ?? '').trim()
+    const provider = ((route.query[OAUTH_REDIRECT_QUERY.PROVIDER] as string | null | undefined) ?? '').trim()
+    const bindErrorCode = ((route.query[OAUTH_REDIRECT_QUERY.BIND_ERROR_CODE] as string | null | undefined) ?? '').trim()
 
     if (!bindStatus) {
       return
     }
 
     const nextQuery = { ...route.query }
-    delete nextQuery.bind_status
-    delete nextQuery.provider
-    delete nextQuery.bind_message
+    delete nextQuery[OAUTH_REDIRECT_QUERY.BIND_STATUS]
+    delete nextQuery[OAUTH_REDIRECT_QUERY.PROVIDER]
+    delete nextQuery[OAUTH_REDIRECT_QUERY.BIND_ERROR_CODE]
     await router.replace({ query: nextQuery })
 
-    if (bindStatus === 'success') {
+    if (bindStatus === OAUTH_REDIRECT_BIND_STATUS.SUCCESS) {
       ElMessage.success(`${formatProviderLabel(provider)} 账号已绑定`)
       return
     }
 
-    ElMessage.error(bindMessage || `${formatProviderLabel(provider)} 账号绑定失败`)
+    ElMessage.error(resolveOAuthRedirectErrorMessage(bindErrorCode, {
+      purpose: 'bind',
+      providerLabel: formatProviderLabel(provider),
+      fallbackMessage: `${formatProviderLabel(provider)} 账号绑定失败`,
+    }))
   }
 
   return {

@@ -27,11 +27,12 @@ const validContent = [
 function createDocument(overrides: Partial<ActiveDocumentDetail> = {}): ActiveDocumentDetail {
   return {
     id: 'doc-1',
-    ownerId: 'user-1',
+    workspaceId: 'workspace-personal',
+    createdBy: 'user-1',
+    visibility: 'PRIVATE',
     parentId: null,
     latestSnapshotId: 'snapshot-1',
     order: 0,
-    spaceScope: 'PERSONAL',
     status: 'ACTIVE',
     summary: '测试摘要',
     createdAt: '2026-04-13T00:00:00.000Z',
@@ -41,6 +42,7 @@ function createDocument(overrides: Partial<ActiveDocumentDetail> = {}): ActiveDo
     title: createDocumentTitleContent('测试文档'),
     body: invalidContent as TiptapJsonContent,
     ...overrides,
+    share: overrides.share ?? null,
   }
 }
 

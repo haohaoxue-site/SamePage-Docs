@@ -1,6 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
 import type { ChatModelItem, ChatModelSelection, ChatRuntimeConfig, ChatSessionDetail, ChatSessionSummary } from '@/apis/chat'
-import { useStorage } from '@vueuse/core'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, shallowRef, toValue } from 'vue'
 import {
@@ -12,9 +11,8 @@ import {
   getChatSessions,
   streamChatCompletion,
 } from '@/apis/chat'
+import { useUiStore } from '@/stores/ui'
 import { getRequestErrorDisplayMessage } from '@/utils/request-error'
-
-const CHAT_MODEL_SETTINGS_STORAGE_KEY = 'samepage_chat_model_settings'
 
 /**
  * 聊天会话摘要模型。
@@ -26,9 +24,9 @@ export interface ChatSession extends ChatSessionSummary {}
  */
 export interface ActiveChatSession extends ChatSessionDetail {}
 
-function createModelSelection(): ChatModelSelection {
+function createModelSelection(model: string | null = null): ChatModelSelection {
   return {
-    model: '',
+    model: model ?? '',
   }
 }
 
@@ -65,23 +63,14 @@ export function useChat() {
 }
 
 function useChatProviderSettingsState() {
-  const storedSelection = useStorage<ChatModelSelection>(
-    CHAT_MODEL_SETTINGS_STORAGE_KEY,
-    createModelSelection(),
-    undefined,
-    { mergeDefaults: true },
-  )
+  const uiStore = useUiStore()
   const dialogVisible = shallowRef(false)
   const isLoadingRuntimeConfig = shallowRef(true)
   const isLoadingModels = shallowRef(false)
   const runtimeConfig = shallowRef<ChatRuntimeConfig>(createEmptyRuntimeConfig())
   const modelOptions = shallowRef<ChatModelItem[]>([])
-  const draft = reactive<ChatModelSelection>(toDraft(storedSelection.value))
-
-  const selectedModel = computed(() => {
-    const normalizedSelection = normalizeModelSelection(storedSelection.value)
-    return normalizedSelection.model || null
-  })
+  const draft = reactive<ChatModelSelection>(toDraft(createModelSelection(uiStore.chatSelectedModel)))
+  const selectedModel = computed(() => uiStore.chatSelectedModel)
   const isConfigured = computed(() => Boolean(
     runtimeConfig.value.enabled
     && runtimeConfig.value.ready
@@ -148,7 +137,7 @@ function useChatProviderSettingsState() {
   }
 
   async function openDialog() {
-    Object.assign(draft, toDraft(storedSelection.value))
+    Object.assign(draft, toDraft(createModelSelection(uiStore.chatSelectedModel)))
     dialogVisible.value = true
     await refreshModels({
       silent: false,
@@ -210,7 +199,7 @@ function useChatProviderSettingsState() {
       return false
     }
 
-    storedSelection.value = selection
+    uiStore.setChatSelectedModel(selection.model)
     dialogVisible.value = false
     ElMessage.success('聊天模型已保存')
     return true

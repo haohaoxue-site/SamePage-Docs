@@ -37,11 +37,11 @@ defineProps<HomeSchedulePanelProps>()
 <style scoped lang="scss">
 .home-schedule-panel {
   border: 1px solid color-mix(in srgb, var(--brand-border-base) 80%, transparent);
-  border-radius: 1.75rem !important;
+  border-radius: 1.75rem;
   box-shadow: 0 1px 2px 0 color-mix(in srgb, var(--brand-text-primary) 5%, transparent);
 
   :deep(.home-schedule-panel__body) {
-    padding: 1.5rem !important;
+    padding: 1.5rem;
   }
 
   .home-schedule-panel__header {

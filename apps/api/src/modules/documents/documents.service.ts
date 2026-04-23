@@ -1,140 +1,103 @@
 import type {
   CreateDocumentRequest,
   CreateDocumentResponse,
-  CreateDocumentSnapshotRequest,
-  CreateDocumentSnapshotResponse,
   DocumentBase,
   DocumentCollectionId,
   DocumentHead,
   DocumentItem,
   DocumentRecent,
-  DocumentRecord,
-  DocumentSnapshot,
-  DocumentSnapshotSource,
-  DocumentSpaceScope,
+  DocumentShareProjection,
   DocumentTreeGroup,
+  DocumentVisibility,
   PatchDocumentMetaRequest,
-  RestoreDocumentSnapshotRequest,
   TiptapJsonContent,
 } from '@haohaoxue/samepage-domain'
+import type { PersistedDocument, WorkspaceDocumentContext } from './documents.utils'
 import {
   DOCUMENT_COLLECTION,
   DOCUMENT_SNAPSHOT_SOURCE,
+  DOCUMENT_VISIBILITY,
   TIPTAP_SCHEMA_VERSION,
+  WORKSPACE_TYPE,
 } from '@haohaoxue/samepage-contracts'
 import {
-  collectDocumentAssetIds,
+  buildDocumentPath,
+  buildDocumentSharePath,
+  buildDocumentShareRecipientPath,
   createDocumentTitleContent,
   getDocumentTitlePlainText,
-  hasUnresolvedDocumentAssets,
-  isSameDocumentSnapshotContent,
   resolveOwnedDocumentCollectionId,
   summarizeDocumentContent,
 } from '@haohaoxue/samepage-shared'
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common'
-import {
-  DocumentMemberRole,
-  DocumentStatus,
-  Prisma,
-} from '@prisma/client'
+import { DocumentStatus, Prisma } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
-import { auditUserSummarySelect, toAuditUserSummary } from '../../utils/audit-user-summary'
-import { DocumentAssetsService } from './document-assets.service'
-import { RECENT_DOCUMENT_LIMIT } from './documents.constants'
+import { DocumentAccessService } from './document-access.service'
+import { RECENT_DOCUMENT_ROUTE_KIND } from './document-recent-visit'
+import { DocumentShareRecipientsService } from './document-share-recipients.service'
+import { DocumentSharesService } from './document-shares.service'
+import { DocumentSnapshotsService } from './document-snapshots.service'
+import {
+  buildWorkspaceDocumentContext,
+  canUserAccessWorkspaceDocument,
+  collectAncestorTitles,
+  collectDescendantDocumentIds,
+  documentSelect,
 
-const documentSnapshotSelect = {
-  id: true,
+} from './documents.utils'
+
+const RECENT_DOCUMENT_LIMIT = 8
+
+const documentRecentVisitSelect = {
   documentId: true,
-  revision: true,
-  schemaVersion: true,
-  title: true,
-  body: true,
-  source: true,
-  restoredFromSnapshotId: true,
-  createdAt: true,
-  createdBy: true,
-  createdByUser: {
-    select: auditUserSummarySelect,
+  routeKind: true,
+  routeEntryId: true,
+  visitedAt: true,
+  document: {
+    select: documentSelect,
   },
-} satisfies Prisma.DocumentSnapshotSelect
+} satisfies Prisma.DocumentRecentVisitSelect
 
-const documentSelect = {
-  id: true,
-  ownerId: true,
-  parentId: true,
-  spaceScope: true,
-  title: true,
-  latestSnapshotId: true,
-  headRevision: true,
-  summary: true,
-  status: true,
-  order: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.DocumentSelect
-
-const documentHeadSelect = {
-  ...documentSelect,
-  latestSnapshot: {
-    select: documentSnapshotSelect,
-  },
-} satisfies Prisma.DocumentSelect
-
-type PersistedDocument = Prisma.DocumentGetPayload<{
-  select: typeof documentSelect
+type PersistedDocumentRecentVisit = Prisma.DocumentRecentVisitGetPayload<{
+  select: typeof documentRecentVisitSelect
 }>
-
-type PersistedDocumentHead = Prisma.DocumentGetPayload<{
-  select: typeof documentHeadSelect
-}>
-
-type PersistedDocumentSnapshot = Prisma.DocumentSnapshotGetPayload<{
-  select: typeof documentSnapshotSelect
-}>
-
-/**
- * 文档树构建上下文。
- */
-interface TreeContext {
-  documents: PersistedDocument[]
-  documentsById: Map<string, PersistedDocument>
-  childrenByParent: Map<string | null, PersistedDocument[]>
-  sharedRootIds: Set<string>
-}
 
 @Injectable()
 export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly documentAssetsService: DocumentAssetsService,
+    private readonly documentAccessService: DocumentAccessService,
+    private readonly documentShareRecipientsService: DocumentShareRecipientsService,
+    private readonly documentSharesService: DocumentSharesService,
+    private readonly documentSnapshotsService: DocumentSnapshotsService,
   ) {}
 
   async createDocument(userId: string, payload: CreateDocumentRequest): Promise<CreateDocumentResponse> {
+    const workspace = await this.documentAccessService.assertAccessibleWorkspace(userId, payload.workspaceId)
     const normalizedParentId = payload.parentId ?? null
-    let scope: DocumentSpaceScope = 'PERSONAL'
+    let nextVisibility = normalizeDocumentVisibilityForWorkspace({
+      workspaceType: workspace.type,
+      requestedVisibility: payload.visibility,
+    })
 
     if (normalizedParentId) {
-      const context = await this.loadDocumentContext(userId)
-      const resolvedParent = this.resolveAccessibleDocument(context, userId, normalizedParentId)
+      const parentDocument = await this.documentAccessService.assertCanEditDocument(userId, normalizedParentId)
 
-      if (resolvedParent.document.ownerId !== userId) {
-        throw new ForbiddenException('当前用户无权在共享文档下创建子文档')
+      if (parentDocument.workspaceId !== workspace.id) {
+        throw new BadRequestException('父文档与目标空间不一致')
       }
 
-      scope = resolvedParent.document.spaceScope
+      nextVisibility = parentDocument.visibility
     }
 
     const lastSibling = await this.prisma.document.findFirst({
       where: {
-        ownerId: userId,
+        workspaceId: workspace.id,
         parentId: normalizedParentId,
-        spaceScope: scope,
       },
       orderBy: {
         order: 'desc',
@@ -150,9 +113,10 @@ export class DocumentsService {
     const document = await this.prisma.$transaction(async (tx) => {
       const createdDocument = await tx.document.create({
         data: {
-          ownerId: userId,
+          workspaceId: workspace.id,
+          createdBy: userId,
+          visibility: nextVisibility,
           parentId: normalizedParentId,
-          spaceScope: scope,
           title: getDocumentTitlePlainText(title),
           summary: summarizeDocumentContent(body, 120, ''),
           order: (lastSibling?.order ?? -1) + 1,
@@ -195,230 +159,177 @@ export class DocumentsService {
     }
   }
 
-  async getDocumentTree(userId: string): Promise<DocumentTreeGroup[]> {
-    const context = await this.loadDocumentContext(userId)
+  async getDocumentTree(userId: string, workspaceId: string): Promise<DocumentTreeGroup[]> {
+    const workspace = await this.documentAccessService.assertAccessibleWorkspace(userId, workspaceId)
+    const context = await this.loadWorkspaceDocumentContext({
+      workspaceId: workspace.id,
+      workspaceType: workspace.type,
+      userId,
+    })
+    const shareProjectionByDocumentId = await this.documentSharesService.buildDocumentShareProjectionMap(context.documents)
+
+    if (workspace.type === WORKSPACE_TYPE.TEAM) {
+      return [
+        {
+          id: DOCUMENT_COLLECTION.PERSONAL,
+          nodes: this.buildWorkspaceGroup(
+            context,
+            shareProjectionByDocumentId,
+            DOCUMENT_COLLECTION.PERSONAL,
+            workspace.type,
+          ),
+        },
+        {
+          id: DOCUMENT_COLLECTION.TEAM,
+          nodes: this.buildWorkspaceGroup(
+            context,
+            shareProjectionByDocumentId,
+            DOCUMENT_COLLECTION.TEAM,
+            workspace.type,
+          ),
+        },
+      ]
+    }
 
     return [
       {
         id: DOCUMENT_COLLECTION.PERSONAL,
-        nodes: this.buildOwnedGroup(context, userId, 'PERSONAL'),
-      },
-      {
-        id: DOCUMENT_COLLECTION.SHARED,
-        nodes: this.buildSharedGroup(context),
-      },
-      {
-        id: DOCUMENT_COLLECTION.TEAM,
-        nodes: this.buildOwnedGroup(context, userId, 'TEAM'),
+        nodes: this.buildWorkspaceGroup(
+          context,
+          shareProjectionByDocumentId,
+          DOCUMENT_COLLECTION.PERSONAL,
+          workspace.type,
+        ),
       },
     ]
   }
 
   async getRecentDocuments(userId: string): Promise<DocumentRecent[]> {
-    const context = await this.loadDocumentContext(userId)
-    const visibleDocumentIds = new Set<string>()
-
-    for (const document of context.documents) {
-      if (document.ownerId === userId) {
-        visibleDocumentIds.add(document.id)
-      }
-    }
-
-    for (const sharedRootId of context.sharedRootIds) {
-      this.collectDescendantDocumentIds(sharedRootId, context, visibleDocumentIds)
-    }
-
-    return Array.from(visibleDocumentIds)
-      .map(id => context.documentsById.get(id))
-      .filter((document): document is PersistedDocument => Boolean(document))
-      .filter(document => document.summary.length > 0)
-      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-      .slice(0, RECENT_DOCUMENT_LIMIT)
-      .map(document => toDocumentRecent(document, context, userId))
-  }
-
-  async getDocumentHead(userId: string, id: string): Promise<DocumentHead> {
-    const context = await this.loadDocumentContext(userId)
-    this.resolveAccessibleDocument(context, userId, id)
-
-    const document = await this.prisma.document.findUnique({
-      where: { id },
-      select: documentHeadSelect,
-    })
-
-    if (!document?.latestSnapshot) {
-      throw new NotFoundException(`Document "${id}" head not found`)
-    }
-
-    return toDocumentHead(document)
-  }
-
-  async createDocumentSnapshot(
-    userId: string,
-    id: string,
-    payload: CreateDocumentSnapshotRequest,
-  ): Promise<CreateDocumentSnapshotResponse> {
-    const context = await this.loadDocumentContext(userId)
-    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
-    this.ensureDocumentOwner(resolvedDocument.document, userId)
-    this.assertPersistableDocumentAssets(payload.body)
-    await this.documentAssetsService.assertAssetsBelongToDocument({
-      documentId: id,
-      assetIds: collectDocumentAssetIds(payload.body),
-    })
-
-    return await this.prisma.$transaction(async (tx) => {
-      const currentDocument = await tx.document.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          headRevision: true,
-        },
-      })
-
-      if (!currentDocument) {
-        throw new NotFoundException(`Document "${id}" not found`)
-      }
-
-      if (currentDocument.headRevision !== payload.baseRevision) {
-        throw new ConflictException('文档版本已变化，请刷新后重试')
-      }
-
-      const nextRevision = currentDocument.headRevision + 1
-      const snapshot = await tx.documentSnapshot.create({
-        data: {
-          documentId: id,
-          revision: nextRevision,
-          schemaVersion: payload.schemaVersion,
-          title: toPrismaJsonValue(payload.title),
-          body: toPrismaJsonValue(payload.body),
-          source: payload.source,
-          createdBy: userId,
-        },
-        select: documentSnapshotSelect,
-      })
-
-      await tx.document.update({
-        where: { id },
-        data: {
-          latestSnapshotId: snapshot.id,
-          headRevision: nextRevision,
-          title: getDocumentTitlePlainText(payload.title),
-          summary: summarizeDocumentContent(payload.body, 120, ''),
-        },
-      })
-
-      return {
-        snapshot: toDocumentSnapshot(snapshot),
-        headRevision: nextRevision,
-      }
-    })
-  }
-
-  async getDocumentSnapshots(userId: string, id: string): Promise<DocumentSnapshot[]> {
-    const context = await this.loadDocumentContext(userId)
-    this.resolveAccessibleDocument(context, userId, id)
-
-    const snapshots = await this.prisma.documentSnapshot.findMany({
+    const recentVisits = await this.prisma.documentRecentVisit.findMany({
       where: {
-        documentId: id,
+        userId,
       },
-      select: documentSnapshotSelect,
       orderBy: {
-        revision: 'desc',
+        visitedAt: 'desc',
       },
+      take: RECENT_DOCUMENT_LIMIT * 3,
+      select: documentRecentVisitSelect,
     })
 
-    return snapshots.map(toDocumentSnapshot)
-  }
+    if (!recentVisits.length) {
+      return []
+    }
 
-  async restoreDocumentSnapshot(
-    userId: string,
-    id: string,
-    payload: RestoreDocumentSnapshotRequest,
-  ): Promise<CreateDocumentSnapshotResponse> {
-    const context = await this.loadDocumentContext(userId)
-    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
-    this.ensureDocumentOwner(resolvedDocument.document, userId)
+    const recentShareIds = recentVisits
+      .filter((visit) => {
+        return (
+          visit.routeKind === RECENT_DOCUMENT_ROUTE_KIND.SHARE
+          && typeof visit.routeEntryId === 'string'
+          && visit.routeEntryId.trim().length > 0
+        )
+      })
+      .map(visit => visit.routeEntryId!.trim())
+    const recentShareRecipientIds = recentVisits
+      .filter((visit) => {
+        return (
+          visit.routeKind === RECENT_DOCUMENT_ROUTE_KIND.SHARE_RECIPIENT
+          && typeof visit.routeEntryId === 'string'
+          && visit.routeEntryId.trim().length > 0
+        )
+      })
+      .map(visit => visit.routeEntryId!.trim())
+    const [workspaces, activeRecentShareIds, activeRecentShareRecipientIds] = await Promise.all([
+      this.documentAccessService.listAccessibleWorkspaces(userId),
+      this.documentShareRecipientsService.resolveActiveShareIds(userId, recentShareIds),
+      this.documentShareRecipientsService.resolveActiveShareRecipientIds(userId, recentShareRecipientIds),
+    ])
 
-    return await this.prisma.$transaction(async (tx) => {
-      const [currentDocument, targetSnapshot] = await Promise.all([
-        tx.document.findUnique({
-          where: { id },
-          select: {
-            headRevision: true,
-            latestSnapshot: {
-              select: documentSnapshotSelect,
-            },
-          },
-        }),
-        tx.documentSnapshot.findFirst({
-          where: {
-            documentId: id,
-            id: payload.snapshotId,
-          },
-          select: documentSnapshotSelect,
-        }),
-      ])
+    const workspaceIds = workspaces.map(workspace => workspace.id)
+    const workspaceTypeById = new Map(
+      workspaces.map(workspace => [workspace.id, workspace.type]),
+    )
+    const documents = await this.prisma.document.findMany({
+      where: {
+        workspaceId: {
+          in: workspaceIds,
+        },
+        status: {
+          in: [DocumentStatus.ACTIVE, DocumentStatus.LOCKED],
+        },
+        trashedAt: null,
+      },
+      select: documentSelect,
+    })
+    const context = buildWorkspaceDocumentContext(documents)
+    const shareProjectionByDocumentId = await this.documentSharesService.buildDocumentShareProjectionMap(context.documents)
 
-      if (!currentDocument) {
-        throw new NotFoundException(`Document "${id}" not found`)
-      }
-
-      if (!currentDocument.latestSnapshot) {
-        throw new NotFoundException(`Document "${id}" head not found`)
-      }
-
-      if (!targetSnapshot) {
-        throw new NotFoundException(`Snapshot "${payload.snapshotId}" not found`)
-      }
-
-      if (currentDocument.headRevision !== payload.baseRevision) {
-        throw new ConflictException('文档版本已变化，请刷新后重试')
-      }
-
-      const currentHeadSnapshot = toDocumentSnapshot(currentDocument.latestSnapshot)
-      const targetDocumentSnapshot = toDocumentSnapshot(targetSnapshot)
-
-      if (isSameDocumentSnapshotContent(currentHeadSnapshot, targetDocumentSnapshot)) {
-        return {
-          snapshot: currentHeadSnapshot,
-          headRevision: currentDocument.headRevision,
+    return recentVisits
+      .map((visit) => {
+        if (visit.document.trashedAt) {
+          return null
         }
-      }
 
-      const nextRevision = currentDocument.headRevision + 1
-      const snapshot = await tx.documentSnapshot.create({
-        data: {
-          documentId: id,
-          revision: nextRevision,
-          schemaVersion: targetSnapshot.schemaVersion,
-          title: toPrismaJsonValue(targetSnapshot.title),
-          body: toPrismaJsonValue(targetSnapshot.body),
-          source: DOCUMENT_SNAPSHOT_SOURCE.RESTORE,
-          restoredFromSnapshotId: targetSnapshot.id,
-          createdBy: userId,
-        },
-        select: documentSnapshotSelect,
+        if (visit.routeKind === RECENT_DOCUMENT_ROUTE_KIND.SHARE) {
+          const shareId = visit.routeEntryId?.trim()
+
+          if (!shareId || !activeRecentShareIds.has(shareId)) {
+            return null
+          }
+
+          if (!visit.document.title.trim() && !visit.document.summary.trim()) {
+            return null
+          }
+
+          return toSharedDocumentRecent(visit.document, buildDocumentSharePath(shareId))
+        }
+
+        if (visit.routeKind === RECENT_DOCUMENT_ROUTE_KIND.SHARE_RECIPIENT) {
+          const recipientId = visit.routeEntryId?.trim()
+
+          if (!recipientId || !activeRecentShareRecipientIds.has(recipientId)) {
+            return null
+          }
+
+          if (!visit.document.title.trim() && !visit.document.summary.trim()) {
+            return null
+          }
+
+          return toSharedDocumentRecent(visit.document, buildDocumentShareRecipientPath(recipientId))
+        }
+
+        const document = context.documentsById.get(visit.documentId)
+
+        if (!document) {
+          return null
+        }
+
+        const workspaceType = workspaceTypeById.get(document.workspaceId)
+
+        if (!canUserAccessWorkspaceDocument({
+          userId,
+          workspaceType,
+          visibility: document.visibility,
+          createdBy: document.createdBy,
+        })) {
+          return null
+        }
+
+        if (!document.title.trim() && !document.summary.trim()) {
+          return null
+        }
+
+        return toDocumentRecent(
+          document,
+          context,
+          workspaceTypeById,
+          shareProjectionByDocumentId.get(document.id) ?? null,
+          buildDocumentPath(document.id),
+        )
       })
-
-      const nextSnapshot = toDocumentSnapshot(snapshot)
-
-      await tx.document.update({
-        where: { id },
-        data: {
-          latestSnapshotId: snapshot.id,
-          headRevision: nextRevision,
-          title: getDocumentTitlePlainText(nextSnapshot.title),
-          summary: summarizeDocumentContent(nextSnapshot.body, 120, ''),
-        },
-      })
-
-      return {
-        snapshot: nextSnapshot,
-        headRevision: nextRevision,
-      }
-    })
+      .filter((document): document is DocumentRecent =>
+        document !== null && document.collection !== DOCUMENT_COLLECTION.TEAM,
+      )
+      .slice(0, RECENT_DOCUMENT_LIMIT)
   }
 
   async patchDocumentMeta(
@@ -426,223 +337,179 @@ export class DocumentsService {
     id: string,
     payload: PatchDocumentMetaRequest,
   ): Promise<DocumentHead> {
-    const context = await this.loadDocumentContext(userId)
-    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
-    this.ensureDocumentOwner(resolvedDocument.document, userId)
-
-    let nextParentId = resolvedDocument.document.parentId
-    let nextSpaceScope = resolvedDocument.document.spaceScope
+    const document = await this.documentAccessService.assertCanEditDocument(userId, id)
+    let nextParentId = document.parentId
+    let nextVisibility = document.visibility
 
     if (payload.parentId !== undefined) {
+      if (payload.parentId === id) {
+        throw new BadRequestException('文档不能移动到自身下方')
+      }
+
       nextParentId = payload.parentId
 
       if (payload.parentId) {
-        const resolvedParent = this.resolveAccessibleDocument(context, userId, payload.parentId)
-        this.ensureDocumentOwner(resolvedParent.document, userId)
-        nextSpaceScope = resolvedParent.document.spaceScope
+        const parentDocument = await this.documentAccessService.assertCanEditDocument(userId, payload.parentId)
+
+        if (parentDocument.workspaceId !== document.workspaceId) {
+          throw new BadRequestException('不允许跨空间移动文档')
+        }
+
+        nextVisibility = parentDocument.visibility
       }
     }
 
-    if (payload.spaceScope !== undefined && payload.parentId === undefined) {
-      nextSpaceScope = payload.spaceScope
-    }
-
-    await this.prisma.document.update({
-      where: { id },
-      data: {
-        parentId: nextParentId,
-        spaceScope: nextSpaceScope,
-      },
-    })
-
-    return await this.getDocumentHead(userId, id)
-  }
-
-  async deleteDocument(userId: string, id: string): Promise<void> {
-    const context = await this.loadDocumentContext(userId)
-    const resolvedDocument = this.resolveAccessibleDocument(context, userId, id)
-    this.ensureDocumentOwner(resolvedDocument.document, userId)
-
-    const removableDocumentIds = new Set<string>()
-    this.collectDescendantDocumentIds(id, context, removableDocumentIds)
-
-    await this.prisma.document.deleteMany({
-      where: {
-        id: {
-          in: Array.from(removableDocumentIds),
-        },
-      },
-    })
-  }
-
-  private async loadDocumentContext(userId: string): Promise<TreeContext> {
-    const [documents, sharedMemberships] = await Promise.all([
-      this.prisma.document.findMany({
-        where: { status: { in: [DocumentStatus.ACTIVE, DocumentStatus.LOCKED] } },
-        select: documentSelect,
-        orderBy: [
-          { order: 'asc' },
-          { updatedAt: 'desc' },
-        ],
-      }),
-      this.prisma.documentMember.findMany({
-        where: {
-          userId,
-          role: DocumentMemberRole.VIEWER,
-        },
-        select: {
-          documentId: true,
-        },
-      }),
-    ])
-
-    const documentsById = new Map(documents.map(document => [document.id, document]))
-    const childrenByParent = new Map<string | null, PersistedDocument[]>()
-
-    for (const document of documents) {
-      const siblings = childrenByParent.get(document.parentId) ?? []
-      siblings.push(document)
-      childrenByParent.set(document.parentId, siblings)
-    }
-
-    const membershipIds = sharedMemberships
-      .map(item => item.documentId)
-      .filter(documentId => documentsById.has(documentId))
-
-    const membershipSet = new Set(membershipIds)
-    const sharedRootIds = new Set(
-      membershipIds.filter((documentId) => {
-        let currentDocument = documentsById.get(documentId)
-
-        while (currentDocument?.parentId) {
-          if (membershipSet.has(currentDocument.parentId)) {
-            return false
-          }
-
-          currentDocument = documentsById.get(currentDocument.parentId)
+    if (payload.visibility !== undefined && nextParentId === null) {
+      if (document.workspaceType !== WORKSPACE_TYPE.TEAM) {
+        nextVisibility = DOCUMENT_VISIBILITY.PRIVATE
+      }
+      else {
+        if (document.createdBy !== userId) {
+          throw new ForbiddenException('仅创建者可以调整文档可见性')
         }
 
-        return true
-      }),
-    )
-
-    return {
-      documents,
-      documentsById,
-      childrenByParent,
-      sharedRootIds,
+        nextVisibility = payload.visibility
+      }
     }
+
+    if (payload.visibility !== undefined && nextParentId !== null && payload.parentId === undefined) {
+      throw new BadRequestException('非根文档不支持单独调整可见性')
+    }
+
+    const context = await this.loadWorkspaceDocumentContext({
+      workspaceId: document.workspaceId,
+      workspaceType: document.workspaceType,
+      userId,
+    })
+    const descendantDocumentIds = new Set<string>()
+
+    collectDescendantDocumentIds(id, context, descendantDocumentIds)
+    descendantDocumentIds.delete(id)
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.document.update({
+        where: { id },
+        data: {
+          parentId: nextParentId,
+          visibility: nextVisibility,
+        },
+      })
+
+      if (descendantDocumentIds.size > 0 && nextVisibility !== document.visibility) {
+        await tx.document.updateMany({
+          where: {
+            id: {
+              in: Array.from(descendantDocumentIds),
+            },
+          },
+          data: {
+            visibility: nextVisibility,
+          },
+        })
+      }
+    })
+
+    return await this.documentSnapshotsService.getDocumentHead(userId, id)
   }
 
-  private buildOwnedGroup(
-    context: TreeContext,
-    userId: string,
-    scope: DocumentSpaceScope,
-  ): DocumentItem[] {
-    const ownedDocuments = context.documents.filter(document => document.ownerId === userId && document.spaceScope === scope)
-    const visibleDocumentIds = new Set(ownedDocuments.map(document => document.id))
-    const roots = ownedDocuments.filter(document => !document.parentId || !visibleDocumentIds.has(document.parentId))
+  private async loadWorkspaceDocumentContext(input: {
+    workspaceId: string
+    workspaceType: string
+    userId: string
+  }): Promise<WorkspaceDocumentContext> {
+    const documents = await this.prisma.document.findMany({
+      where: {
+        workspaceId: input.workspaceId,
+        status: {
+          in: [DocumentStatus.ACTIVE, DocumentStatus.LOCKED],
+        },
+        trashedAt: null,
+        ...(input.workspaceType === WORKSPACE_TYPE.TEAM
+          ? {
+              OR: [
+                {
+                  visibility: DOCUMENT_VISIBILITY.WORKSPACE,
+                },
+                {
+                  createdBy: input.userId,
+                },
+              ],
+            }
+          : {}),
+      },
+      select: documentSelect,
+      orderBy: [
+        { order: 'asc' },
+        { updatedAt: 'desc' },
+      ],
+    })
 
-    return roots.map(document =>
-      this.buildGroupBranch(document, context, {
-        visibleDocumentIds,
+    return buildWorkspaceDocumentContext(documents.filter(document =>
+      canUserAccessWorkspaceDocument({
+        userId: input.userId,
+        workspaceType: input.workspaceType,
+        visibility: document.visibility,
+        createdBy: document.createdBy,
       }),
-    )
+    ))
   }
 
-  private buildSharedGroup(context: TreeContext): DocumentItem[] {
-    return Array.from(context.sharedRootIds)
-      .map(rootId => context.documentsById.get(rootId))
-      .filter((document): document is PersistedDocument => Boolean(document))
-      .map(document => this.buildGroupBranch(document, context, {}))
+  private buildWorkspaceGroup(
+    context: WorkspaceDocumentContext,
+    shareProjectionByDocumentId: ReadonlyMap<string, DocumentShareProjection>,
+    collectionId: DocumentCollectionId,
+    workspaceType: string,
+  ): DocumentItem[] {
+    return (context.childrenByParent.get(null) ?? [])
+      .filter(document =>
+        resolveOwnedDocumentCollectionId({
+          workspaceType,
+          visibility: document.visibility,
+        }) === collectionId,
+      )
+      .map(document =>
+        this.buildWorkspaceBranch(
+          document,
+          context,
+          shareProjectionByDocumentId,
+          workspaceType,
+        ),
+      )
   }
 
-  private buildGroupBranch(
+  private buildWorkspaceBranch(
     document: PersistedDocument,
-    context: TreeContext,
-    options: {
-      visibleDocumentIds?: Set<string>
-    },
+    context: WorkspaceDocumentContext,
+    shareProjectionByDocumentId: ReadonlyMap<string, DocumentShareProjection>,
+    workspaceType: string,
   ): DocumentItem {
-    const nextChildren = (context.childrenByParent.get(document.id) ?? [])
-      .filter(child => !options.visibleDocumentIds || options.visibleDocumentIds.has(child.id))
-      .map(child => this.buildGroupBranch(child, context, {
-        visibleDocumentIds: options.visibleDocumentIds,
-      }))
+    const collectionId = resolveOwnedDocumentCollectionId({
+      workspaceType,
+      visibility: document.visibility,
+    })
+    const children = (context.childrenByParent.get(document.id) ?? [])
+      .filter(child =>
+        resolveOwnedDocumentCollectionId({
+          workspaceType,
+          visibility: child.visibility,
+        }) === collectionId,
+      )
+      .map(child =>
+        this.buildWorkspaceBranch(
+          child,
+          context,
+          shareProjectionByDocumentId,
+          workspaceType,
+        ),
+      )
 
     return {
       ...toDocumentBase(document),
       parentId: document.parentId,
-      hasChildren: nextChildren.length > 0,
+      share: shareProjectionByDocumentId.get(document.id) ?? null,
+      hasChildren: children.length > 0,
       hasContent: Boolean(document.latestSnapshotId) && document.summary.length > 0,
-      children: nextChildren,
-    }
-  }
-
-  private resolveAccessibleDocument(
-    context: TreeContext,
-    userId: string,
-    id: string,
-  ): {
-    document: PersistedDocument
-    collection: DocumentCollectionId
-  } {
-    const document = context.documentsById.get(id)
-
-    if (!document) {
-      throw new NotFoundException(`Document "${id}" not found`)
-    }
-
-    if (document.ownerId === userId) {
-      return {
-        document,
-        collection: resolveOwnedDocumentCollectionId(document.spaceScope),
-      }
-    }
-
-    let currentDocument: PersistedDocument | undefined = document
-
-    while (currentDocument) {
-      if (context.sharedRootIds.has(currentDocument.id)) {
-        return {
-          document,
-          collection: DOCUMENT_COLLECTION.SHARED,
-        }
-      }
-
-      currentDocument = currentDocument.parentId
-        ? context.documentsById.get(currentDocument.parentId)
-        : undefined
-    }
-
-    throw new NotFoundException(`Document "${id}" not found`)
-  }
-
-  private collectDescendantDocumentIds(
-    rootId: string,
-    context: TreeContext,
-    visibleDocumentIds: Set<string>,
-  ) {
-    if (visibleDocumentIds.has(rootId)) {
-      return
-    }
-
-    visibleDocumentIds.add(rootId)
-
-    for (const child of context.childrenByParent.get(rootId) ?? []) {
-      this.collectDescendantDocumentIds(child.id, context, visibleDocumentIds)
-    }
-  }
-
-  private ensureDocumentOwner(document: Pick<PersistedDocument, 'ownerId'>, userId: string) {
-    if (document.ownerId !== userId) {
-      throw new ForbiddenException('当前用户无权编辑该文档')
-    }
-  }
-
-  private assertPersistableDocumentAssets(body: TiptapJsonContent) {
-    if (hasUnresolvedDocumentAssets(body)) {
-      throw new BadRequestException('正文中存在未上传完成的资源，请稍后重试')
+      children,
     }
   }
 }
@@ -657,147 +524,57 @@ function toDocumentBase(document: PersistedDocument): DocumentBase {
   }
 }
 
-function toDocumentRecord(document: PersistedDocumentHead): DocumentRecord {
-  const { title: _title, ...base } = toDocumentBase(document)
-
-  return {
-    ...base,
-    ownerId: document.ownerId,
-    parentId: document.parentId,
-    latestSnapshotId: document.latestSnapshotId,
-    order: document.order,
-    spaceScope: document.spaceScope,
-    status: document.status,
-  }
-}
-
 function toDocumentRecent(
   document: PersistedDocument,
-  context: TreeContext,
-  userId: string,
+  context: WorkspaceDocumentContext,
+  workspaceTypeById: ReadonlyMap<string, string>,
+  share: DocumentShareProjection | null,
+  link: string,
 ): DocumentRecent {
+  const workspaceType = workspaceTypeById.get(document.workspaceId)
+
   return {
     id: document.id,
     title: document.title,
-    collection: resolveRecentDocumentCollection(document, userId),
-    ancestorTitles: collectRecentAncestorTitles(document, context, userId),
+    collection: resolveOwnedDocumentCollectionId({
+      workspaceType,
+      visibility: document.visibility,
+    }),
+    ancestorTitles: collectAncestorTitles(document, context),
+    link,
+    share,
     createdAt: document.createdAt.toISOString(),
     updatedAt: document.updatedAt.toISOString(),
   }
 }
 
-function resolveRecentDocumentCollection(
-  document: PersistedDocument,
-  userId: string,
-): DocumentCollectionId {
-  if (document.ownerId !== userId) {
-    return DOCUMENT_COLLECTION.SHARED
-  }
-
-  return resolveOwnedDocumentCollectionId(document.spaceScope)
-}
-
-function collectRecentAncestorTitles(
-  document: PersistedDocument,
-  context: TreeContext,
-  userId: string,
-) {
-  if (document.ownerId === userId) {
-    return collectOwnedAncestorTitles(document, context, userId)
-  }
-
-  const sharedRootId = findSharedRootId(document, context)
-
-  if (!sharedRootId || sharedRootId === document.id) {
-    return []
-  }
-
-  const ancestorTitles: string[] = []
-  let currentDocument = document.parentId
-    ? context.documentsById.get(document.parentId)
-    : undefined
-
-  while (currentDocument) {
-    ancestorTitles.push(currentDocument.title)
-
-    if (currentDocument.id === sharedRootId) {
-      return ancestorTitles.reverse()
-    }
-
-    currentDocument = currentDocument.parentId
-      ? context.documentsById.get(currentDocument.parentId)
-      : undefined
-  }
-
-  return []
-}
-
-function collectOwnedAncestorTitles(
-  document: PersistedDocument,
-  context: TreeContext,
-  userId: string,
-) {
-  const ancestorTitles: string[] = []
-  let currentDocument = document.parentId
-    ? context.documentsById.get(document.parentId)
-    : undefined
-
-  while (currentDocument?.ownerId === userId) {
-    ancestorTitles.push(currentDocument.title)
-    currentDocument = currentDocument.parentId
-      ? context.documentsById.get(currentDocument.parentId)
-      : undefined
-  }
-
-  return ancestorTitles.reverse()
-}
-
-function findSharedRootId(document: PersistedDocument, context: TreeContext) {
-  let currentDocument: PersistedDocument | undefined = document
-
-  while (currentDocument) {
-    if (context.sharedRootIds.has(currentDocument.id)) {
-      return currentDocument.id
-    }
-
-    currentDocument = currentDocument.parentId
-      ? context.documentsById.get(currentDocument.parentId)
-      : undefined
-  }
-
-  return null
-}
-
-function toDocumentHead(document: PersistedDocumentHead): DocumentHead {
-  if (!document.latestSnapshot) {
-    throw new NotFoundException(`Document "${document.id}" head not found`)
-  }
-
+function toSharedDocumentRecent(
+  document: PersistedDocumentRecentVisit['document'],
+  link: string,
+): DocumentRecent {
   return {
-    document: toDocumentRecord(document),
-    latestSnapshot: toDocumentSnapshot(document.latestSnapshot),
-    headRevision: document.headRevision,
+    id: document.id,
+    title: document.title,
+    collection: DOCUMENT_COLLECTION.SHARED,
+    ancestorTitles: [],
+    link,
+    share: null,
+    createdAt: document.createdAt.toISOString(),
+    updatedAt: document.updatedAt.toISOString(),
   }
 }
 
-function toDocumentSnapshot(snapshot: PersistedDocumentSnapshot): DocumentSnapshot {
-  return {
-    id: snapshot.id,
-    documentId: snapshot.documentId,
-    revision: snapshot.revision,
-    schemaVersion: snapshot.schemaVersion as DocumentSnapshot['schemaVersion'],
-    title: asTiptapJsonContent(snapshot.title),
-    body: asTiptapJsonContent(snapshot.body),
-    source: snapshot.source as DocumentSnapshotSource,
-    restoredFromSnapshotId: snapshot.restoredFromSnapshotId,
-    createdAt: snapshot.createdAt.toISOString(),
-    createdBy: snapshot.createdBy,
-    createdByUser: toAuditUserSummary(snapshot.createdByUser),
+function normalizeDocumentVisibilityForWorkspace(input: {
+  workspaceType: string
+  requestedVisibility: DocumentVisibility | undefined
+}): DocumentVisibility {
+  if (input.workspaceType !== WORKSPACE_TYPE.TEAM) {
+    return DOCUMENT_VISIBILITY.PRIVATE
   }
-}
 
-function asTiptapJsonContent(value: Prisma.JsonValue): TiptapJsonContent {
-  return (Array.isArray(value) ? value : []) as unknown as TiptapJsonContent
+  return input.requestedVisibility === DOCUMENT_VISIBILITY.WORKSPACE
+    ? DOCUMENT_VISIBILITY.WORKSPACE
+    : DOCUMENT_VISIBILITY.PRIVATE
 }
 
 function toPrismaJsonValue(value: unknown): Prisma.InputJsonValue {

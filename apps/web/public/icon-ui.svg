@@ -108,6 +108,11 @@
     <path d="M7.5 10C7.5 7.51472 9.51472 5.5 12 5.5C14.4853 5.5 16.5 7.51472 16.5 10V12.7C16.5 13.7609 16.9214 14.7783 17.6716 15.5284L18.5 16.3569V17.5H5.5V16.3569L6.32843 15.5284C7.07857 14.7783 7.5 13.7609 7.5 12.7V10Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
       <path d="M10 18.5C10.2822 19.3624 11.0913 20 12 20C12.9087 20 13.7178 19.3624 14 18.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
   </symbol>
+  <symbol id="notification-bell" viewBox="0 0 48 48">
+    <path d="M24 4C16.268 4 10 10.268 10 18V38H38V18C38 10.268 31.732 4 24 4Z" fill="none" />
+      <path d="M10 38V18C10 10.268 16.268 4 24 4C31.732 4 38 10.268 38 18V38M4 38H44" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M24 44C26.7614 44 29 41.7614 29 39V38H19V39C19 41.7614 21.2386 44 24 44Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  </symbol>
   <symbol id="chat" viewBox="0 0 24 24">
     <path d="M5 8.5C5 6.84315 6.34315 5.5 8 5.5H16C17.6569 5.5 19 6.84315 19 8.5V13.5C19 15.1569 17.6569 16.5 16 16.5H11.5L8 19.5V16.5H8C6.34315 16.5 5 15.1569 5 13.5V8.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
       <circle cx="9" cy="11" r="1" fill="currentColor" />
@@ -120,10 +125,12 @@
   <symbol id="chevron-right" viewBox="0 0 24 24">
     <path d="M9.5 6.5L15 12L9.5 17.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
   </symbol>
+  <symbol id="chevron-down" viewBox="0 0 24 24">
+    <path d="M6.5 9.5L12 15L17.5 9.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+  </symbol>
   <symbol id="contrast" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8" />
-      <path d="M12 5.5C15.5899 5.5 18.5 8.41015 18.5 12C18.5 15.5899 15.5899 18.5 12 18.5V5.5Z" fill="currentColor" fill-opacity="0.18" />
-      <path d="M12 5.5V18.5" fill="none" stroke="currentColor" stroke-width="1.8" />
+    <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2" />
+      <path d="M12 5V19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
   </symbol>
   <symbol id="document-add" viewBox="0 0 24 24">
     <path d="M7 4.5H12.5L17 9V18C17 19.3807 15.8807 20.5 14.5 20.5H7C5.61929 20.5 4.5 19.3807 4.5 18V7C4.5 5.61929 5.61929 4.5 7 4.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
@@ -170,9 +177,9 @@
       <path d="M8.5 11V8.8C8.5 6.97746 9.97746 5.5 11.8 5.5H12.2C14.0225 5.5 15.5 6.97746 15.5 8.8V11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
   </symbol>
   <symbol id="logout" viewBox="0 0 24 24">
-    <path d="M10 6H7C5.89543 6 5 6.89543 5 8V16C5 17.1046 5.89543 18 7 18H10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-      <path d="M13 8L17 12L13 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-      <path d="M9 12H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    <path d="M9 5H6.5C5.67157 5 5 5.67157 5 6.5V17.5C5 18.3284 5.67157 19 6.5 19H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      <path d="M13 8L17 12L13 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M8.5 12H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
   </symbol>
   <symbol id="more" viewBox="0 0 24 24">
     <circle cx="7" cy="12" r="1.4" fill="currentColor" />
@@ -202,6 +209,36 @@
       <path d="M18.2838 43.1713C14.9327 42.1736 11.9498 40.3213 9.58787 37.867C10.469 36.8227 11 35.4734 11 34.0001C11 30.6864 8.31371 28.0001 5 28.0001C4.79955 28.0001 4.60139 28.01 4.40599 28.0292C4.13979 26.7277 4 25.3803 4 24.0001C4 21.9095 4.32077 19.8938 4.91579 17.9995C4.94381 17.9999 4.97188 18.0001 5 18.0001C8.31371 18.0001 11 15.3138 11 12.0001C11 11.0488 10.7786 10.1493 10.3846 9.35011C12.6975 7.1995 15.5205 5.59002 18.6521 4.72314C19.6444 6.66819 21.6667 8.00013 24 8.00013C26.3333 8.00013 28.3556 6.66819 29.3479 4.72314C32.4795 5.59002 35.3025 7.1995 37.6154 9.35011C37.2214 10.1493 37 11.0488 37 12.0001C37 15.3138 39.6863 18.0001 43 18.0001C43.0281 18.0001 43.0562 17.9999 43.0842 17.9995C43.6792 19.8938 44 21.9095 44 24.0001C44 25.3803 43.8602 26.7277 43.594 28.0292C43.3986 28.01 43.2005 28.0001 43 28.0001C39.6863 28.0001 37 30.6864 37 34.0001C37 35.4734 37.531 36.8227 38.4121 37.867C36.0502 40.3213 33.0673 42.1736 29.7162 43.1713C28.9428 40.752 26.676 39.0001 24 39.0001C21.324 39.0001 19.0572 40.752 18.2838 43.1713Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
         <path d="M24 31C27.866 31 31 27.866 31 24C31 20.134 27.866 17 24 17C20.134 17 17 20.134 17 24C17 27.866 20.134 31 24 31Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
     </g>
+  </symbol>
+  <symbol id="global-link-outlined" viewBox="0 0 24 24">
+    <path d="M18.849 2.699a5.037 5.037 0 0 0-7.1.97L8.97 7.372a4.784 4.784 0 0 0 .957 6.699l.972.729a1 1 0 0 0 1.2-1.6l-.972-.73a2.784 2.784 0 0 1-.557-3.898l2.777-3.703a3.037 3.037 0 1 1 4.8 3.72l-1.429 1.786a1 1 0 1 0 1.562 1.25l1.43-1.788a5.037 5.037 0 0 0-.862-7.138Z" fill="currentColor" />
+      <path d="M5.152 21.301a5.037 5.037 0 0 0 7.1-.97l2.777-3.703a4.784 4.784 0 0 0-.957-6.699L13.1 9.2a1 1 0 0 0-1.2 1.6l.973.73a2.784 2.784 0 0 1 .556 3.898l-2.777 3.703a3.037 3.037 0 1 1-4.8-3.72l1.429-1.786a1 1 0 0 0-1.562-1.25l-1.43 1.787a5.037 5.037 0 0 0 .863 7.14Z" fill="currentColor" />
+  </symbol>
+  <symbol id="share-none" viewBox="0 0 24 24">
+    <path d="M7 11.1H17C17.8284 11.1 18.5 11.7716 18.5 12.6V17.5C18.5 18.3284 17.8284 19 17 19H7C6.17157 19 5.5 18.3284 5.5 17.5V12.6C5.5 11.7716 6.17157 11.1 7 11.1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      <path d="M8.4 11.1V8.75C8.4 6.76177 10.0118 5.15 12 5.15C13.9882 5.15 15.6 6.76177 15.6 8.75V11.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M9 15.05H15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+  </symbol>
+  <symbol id="share-direct" viewBox="0 0 24 24">
+    <circle cx="9.25" cy="8.15" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8" />
+      <path d="M4.75 18.35C5.75 16.05 7.25 14.9 9.25 14.9C11.25 14.9 12.75 16.05 13.75 18.35" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M14.4 11.05C15.0282 10.5089 15.3742 9.71215 15.34 8.88396C15.3059 8.05577 14.8953 7.2909 14.2249 6.80321C13.5545 6.31552 12.7011 6.16082 11.905 6.38266" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M14.65 15.1C16.05 15.25 17.25 16.25 18.25 18.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+  </symbol>
+  <symbol id="share-public" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="7.35" fill="none" stroke="currentColor" stroke-width="1.8" />
+      <path d="M5.15 12H18.85" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M12 4.65C14.02 6.6 15.05 9.05 15.05 12C15.05 14.95 14.02 17.4 12 19.35C9.98 17.4 8.95 14.95 8.95 12C8.95 9.05 9.98 6.6 12 4.65Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      <path d="M6.85 7.35C8.2 8.3 9.92 8.78 12 8.78C14.08 8.78 15.8 8.3 17.15 7.35" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M6.85 16.65C8.2 15.7 9.92 15.22 12 15.22C14.08 15.22 15.8 15.7 17.15 16.65" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+  </symbol>
+  <symbol id="share-inherit" viewBox="0 0 24 24">
+    <rect x="5.25" y="5.25" width="5.5" height="5.5" rx="1.55" fill="none" stroke="currentColor" stroke-width="1.8" />
+      <rect x="13.25" y="13.25" width="5.5" height="5.5" rx="1.55" fill="none" stroke="currentColor" stroke-width="1.8" />
+      <path d="M10.75 8H13C15.2091 8 17 9.79086 17 12V13.25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M14.75 10.25L17 12.5L19.25 10.25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M9.25 15.75L11.5 18L9.25 20.25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M11.5 18H7.5C6.11929 18 5 16.8807 5 15.5V13.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
   </symbol>
   <symbol id="share" viewBox="0 0 24 24">
     <circle cx="7" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
@@ -249,15 +286,19 @@
       <path d="M16 10L19.289 4H28.7771L32 10H16Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
   </symbol>
   <symbol id="user-admin" viewBox="0 0 24 24">
-    <circle cx="10.5" cy="8.5" r="3" fill="none" stroke="currentColor" stroke-width="1.8" />
-      <path d="M5.5 18C6.38768 15.9 8.05435 14.85 10.5 14.85C11.6034 14.85 12.5595 15.0642 13.3684 15.4926" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-      <path d="M16.8 6.2L17.6 7.8L19.2 8.6L17.6 9.4L16.8 11L16 9.4L14.4 8.6L16 7.8L16.8 6.2Z" fill="currentColor" />
+    <circle cx="9.5" cy="8.5" r="3.25" fill="none" stroke="currentColor" stroke-width="2" />
+      <path d="M4.75 18C6.08333 15.3333 7.66667 14 9.5 14C11.3333 14 12.9167 15.3333 14.25 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      <path d="M16.5 5.5L17.7 7.3L19.5 8.5L17.7 9.7L16.5 11.5L15.3 9.7L13.5 8.5L15.3 7.3L16.5 5.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
   </symbol>
   <symbol id="user-group" viewBox="0 0 24 24">
     <circle cx="9" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8" />
       <circle cx="15.5" cy="9.5" r="2" fill="none" stroke="currentColor" stroke-width="1.8" />
       <path d="M5.5 17.5C6.325 15.8333 7.49167 15 9 15C10.5083 15 11.675 15.8333 12.5 17.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M13.2 17.2C13.8164 15.9779 14.7497 15.3668 16 15.3668C17.2503 15.3668 18.1836 15.9779 18.8 17.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+  </symbol>
+  <symbol id="workspace-node" viewBox="0 0 48 48">
+    <rect x="10" y="11" width="18" height="20" rx="4" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
+      <rect x="20" y="17" width="18" height="20" rx="4" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
   </symbol>
   <symbol id="user" viewBox="0 0 24 24">
     <circle cx="12" cy="8.5" r="3" fill="none" stroke="currentColor" stroke-width="1.8" />

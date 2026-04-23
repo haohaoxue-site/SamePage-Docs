@@ -7,6 +7,7 @@ import type {
   DocumentHead,
   DocumentRecent,
   DocumentSnapshot,
+  DocumentTrashItem,
   DocumentTreeGroup,
   PatchDocumentMetaRequest,
   ResolveDocumentAssetsRequest,
@@ -17,10 +18,13 @@ import { axios } from '@/utils/axios'
 
 export * from './typing'
 
-export function getDocuments(): Promise<DocumentTreeGroup[]> {
+export function getDocuments(workspaceId: string): Promise<DocumentTreeGroup[]> {
   return axios.request({
     method: 'get',
     url: '/documents',
+    params: {
+      workspaceId,
+    },
   })
 }
 
@@ -39,10 +43,29 @@ export function getRecentDocuments(): Promise<DocumentRecent[]> {
   })
 }
 
-export function getDocumentHead(id: string): Promise<DocumentHead> {
+export function getTrashDocuments(workspaceId: string): Promise<DocumentTrashItem[]> {
+  return axios.request({
+    method: 'get',
+    url: '/documents/trash',
+    params: {
+      workspaceId,
+    },
+  })
+}
+
+interface GetDocumentHeadOptions {
+  recordVisit?: boolean
+}
+
+export function getDocumentHead(id: string, options: GetDocumentHeadOptions = {}): Promise<DocumentHead> {
   return axios.request({
     method: 'get',
     url: `/documents/${id}`,
+    params: options.recordVisit
+      ? {
+          recordVisit: true,
+        }
+      : undefined,
   })
 }
 
@@ -87,6 +110,20 @@ export function deleteDocument(id: string): Promise<null> {
   return axios.request({
     method: 'delete',
     url: `/documents/${id}`,
+  })
+}
+
+export function restoreDocumentFromTrash(id: string): Promise<null> {
+  return axios.request({
+    method: 'post',
+    url: `/documents/${id}/restore-from-trash`,
+  })
+}
+
+export function permanentlyDeleteDocument(id: string): Promise<null> {
+  return axios.request({
+    method: 'delete',
+    url: `/documents/${id}/permanent`,
   })
 }
 

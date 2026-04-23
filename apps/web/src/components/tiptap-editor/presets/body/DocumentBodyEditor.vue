@@ -13,6 +13,7 @@ const props = withDefaults(defineProps<DocumentBodyEditorProps>(), {
   editable: true,
   activeBlockId: null,
   documentId: null,
+  showOutline: true,
 })
 const emits = defineEmits<DocumentBodyEditorEmits>()
 const bodyEditor = shallowRef<Editor | null>(null)
@@ -52,7 +53,7 @@ const {
     />
 
     <EditorOutline
-      v-if="bodyEditor"
+      v-if="bodyEditor && props.showOutline"
       :editor="bodyEditor"
       :content="props.content"
     />

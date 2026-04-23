@@ -11,6 +11,7 @@ export interface AuthUser {
   email: string | null
   displayName: string
   avatarUrl: string | null
+  userCode: string
   roles: string[]
   permissions: string[]
   authMethods: AuthMethodName[]

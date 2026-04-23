@@ -1,5 +1,6 @@
 import type { SYSTEM_EMAIL_PROVIDER_VALUES } from '@haohaoxue/samepage-contracts'
 import type { AuthMethodName } from './auth'
+import type { IsoDateTimeString } from './common'
 import type { AuditUserSummary, UserStatus } from './user'
 
 export type SystemAdminUserStatus = UserStatus
@@ -22,14 +23,15 @@ export interface SystemAdminUserItem {
   id: string
   email: string | null
   displayName: string
+  userCode: string
   avatarUrl: string | null
   status: SystemAdminUserStatus
   isSystemAdmin: boolean
   authMethods: AuthMethodName[]
   ownedDocumentCount: number
   sharedDocumentCount: number
-  createdAt: string
-  lastLoginAt: string | null
+  createdAt: IsoDateTimeString
+  lastLoginAt: IsoDateTimeString | null
 }
 
 export interface UpdateSystemAdminUserStatusRequest {
@@ -50,8 +52,8 @@ export interface SystemAuthGovernance {
   systemAdminEmail: string
   systemAdminDisplayName: string | null
   systemAdminMustChangePassword: boolean
-  systemAdminLastLoginAt: string | null
-  systemAdminPasswordUpdatedAt: string | null
+  systemAdminLastLoginAt: IsoDateTimeString | null
+  systemAdminPasswordUpdatedAt: IsoDateTimeString | null
 }
 
 export interface UpdateSystemAuthGovernanceRequest {
@@ -69,14 +71,14 @@ export interface SystemEmailConfig {
   fromName: string
   fromEmail: string
   hasPassword: boolean
-  updatedAt: string | null
+  updatedAt: IsoDateTimeString | null
   updatedBy: string | null
   updatedByUser: AuditUserSummary | null
 }
 
 export interface SystemEmailServiceStatus {
   enabled: boolean
-  updatedAt: string | null
+  updatedAt: IsoDateTimeString | null
   updatedBy: string | null
   updatedByUser: AuditUserSummary | null
 }
@@ -113,14 +115,14 @@ export interface SystemAiConfig {
   baseUrl: string | null
   hasApiKey: boolean
   maskedApiKey: string | null
-  updatedAt: string | null
+  updatedAt: IsoDateTimeString | null
   updatedBy: string | null
   updatedByUser: AuditUserSummary | null
 }
 
 export interface SystemAiServiceStatus {
   enabled: boolean
-  updatedAt: string | null
+  updatedAt: IsoDateTimeString | null
   updatedBy: string | null
   updatedByUser: AuditUserSummary | null
 }
@@ -144,7 +146,7 @@ export interface SystemAdminAuditLogItem {
   actorDisplayName: string
   actorAvatarUrl: string | null
   metadata: Record<string, unknown> | null
-  createdAt: string
+  createdAt: IsoDateTimeString
 }
 
 export interface GovernanceSummary {

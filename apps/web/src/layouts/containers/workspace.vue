@@ -3,7 +3,11 @@ import { RouterView } from 'vue-router'
 import { useWorkspaceShell } from '@/layouts/composables/useWorkspaceShell'
 import WorkspaceSidebarPanel from '@/layouts/panels/WorkspaceSidebarPanel.vue'
 
-const { navigationItems, isSidebarCollapsed, toggleSidebar } = useWorkspaceShell()
+const {
+  navigationItems,
+  isSidebarCollapsed,
+  toggleSidebar,
+} = useWorkspaceShell()
 </script>
 
 <template>
